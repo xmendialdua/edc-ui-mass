@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edc-ui
+  namespace: iflex-provider
+  labels:
+    app: edc-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: edc-ui
+  template:
+    metadata:
+      labels:
+        app: edc-ui
+    spec:
+      serviceAccountName: edc-ui-sa
+      containers:
+      - name: edc-ui
+        image: jalvaro8/iflex-ui:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NEXT_PUBLIC_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: edc-ui-config
+              key: NEXT_PUBLIC_API_URL
+        - name: NEXT_PUBLIC_KUBERNETES_ENABLED
+          value: "true"
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
