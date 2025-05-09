@@ -1,0 +1,1253 @@
+# #############################################################################
+# Copyright (c) 2023,2024 Contributors to the Eclipse Foundation
+#
+# See the NOTICE file(s) distributed with this work for additional
+# information regarding copyright ownership.
+#
+# This program and the accompanying materials are made available under the
+# terms of the Apache License, Version 2.0 which is available at
+# https://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+# #############################################################################
+---
+portal:
+  enabled: true
+  replicaCount: 1
+  postgresql:
+    nameOverride: "portal-backend-postgresql"
+    architecture: standalone
+    auth:
+      password: "dbpasswordportal"
+      portalPassword: "dbpasswordportal"
+      replicationPassword: "dbpasswordportal"
+      provisioningPassword: "dbpasswordportal"
+    primary:
+      persistence:
+        enabled: true
+  portalAddress: "https://portal.mondragon-x.com"
+  portalBackendAddress: &portal_backend_address "https://portal-backend.mondragon-x.com"
+  # Address of the centralidp, without the /auth path
+  centralidp:
+    address: "https://centralidp.mondragon-x.com"
+  # Address of the sharedidp, without the /auth path
+  sharedidpAddress: "https://sharedidp.mondragon-x.com"
+  semanticsAddress: "https://semantics.mondragon-x.com"
+  bpdm:
+    poolAddress: "https://business-partners.mondragon-x.com"
+    poolApiPath: "/pool/v6"
+    portalGateAddress: "https://business-partners.mondragon-x.com"
+    portalGateApiPath: "/gate/v6"
+  custodianAddress: &wallet_address "https://ssi-dim-wallet-stub.mondragon-x.com"
+  # -- Provide the configuration of the dim wrapper address
+  # Actualmente no lo vamos a utilizar, pero lo dejamos aquí por si en un futuro lo necesitamos
+  # Razon en el documento SSI-CREDENTIAL-ISSUER.md -> Respuesta de Tractus-X sobre MIW y DIM
+  dimWrapper:
+    baseAddress: "https://ssi-dim-wallet-stub.mondragon-x.com"
+    apiPath: "/api/dim"
+    tokenAddress: "https://ssi-dim-wallet-stub.mondragon-x.com/oauth/token"
+  decentralIdentityManagementAuthAddress: "https://ssi-dim-wallet-stub.mondragon-x.com/api/sts"
+  sdfactoryAddress: "https://sdfactory.mondragon-x.com"
+  clearinghouseAddress: "https://validation.mondragon-x.com"
+  clearinghouseTokenAddress: "https://someiam.mondragon-x.com/realms/example/protocol/openid-connect/token"
+  issuerComponentAddress: "https://ssi-credential-issuer.mondragon-x.com"
+  # bpnDidResolver:
+  #   managementApiAddress: "http://bdrs-server:8081"
+  #   directoryApiAddress: "http://bdrs-server:8082"
+  frontend:
+    centralidpAuthPath: "/auth"
+    ingress:
+      enabled: true
+      annotations:
+        # uncomment the following line for tls
+        # cert-manager.io/cluster-issuer: "my-ca-issuer"
+        nginx.ingress.kubernetes.io/rewrite-target: "/$1"
+        nginx.ingress.kubernetes.io/use-regex: "true"
+        nginx.ingress.kubernetes.io/enable-cors: "true"
+        nginx.ingress.kubernetes.io/cors-allow-origin: "https://*.mondragon-x.com, http://*.mondragon-x.com"
+      tls:
+        - secretName: "portal.mondragon-x.com-tls"
+          hosts:
+            - "portal.mondragon-x.com"
+      hosts:
+        - host: "portal.mondragon-x.com"
+          paths:
+            - path: "/(.*)"
+              pathType: "ImplementationSpecific"
+              backend:
+                service: "portal"
+                port: 8080
+            - path: "/registration/(.*)"
+              pathType: "ImplementationSpecific"
+              backend:
+                service: "registration"
+                port: 8080
+            - path: "/((assets|documentation)/.*)"
+              pathType: "ImplementationSpecific"
+              backend:
+                service: "assets"
+                port: 8080
+  backend:
+    dotnetEnvironment: "Development"
+    useDimWallet: true
+    keycloak:
+      central:
+        # The clientId and clientSecret backend uses to authenticate against the centralidp Keycloak
+        # You must specify the technical user with the required roles for the backend (realm-management)
+        clientId: "sa-cl1-reg-2"
+        clientSecret: "changeme"
+        jwtBearerOptions:
+          requireHttpsMetadata: "false"
+      shared:
+        clientId: "sa-cl1-reg-1"
+        clientSecret: "changeme"
+    registration:
+      # Is Central-IDPs name for the Registration client
+      # The Registration service will use that name to check for existing client permissions
+      keycloakClientId: "Cl1-CX-Registration"
+      logging:
+        default: "Debug"
+        bpdmLibrary: "Debug"
+        registrationService: "Debug"
+      serviceAccount:
+        encryptionConfigs:
+          index0:
+            encryptionKey: "deb8261ec7b89c344f1c5ef5a11606e305f14e0d231b1357d90ad0180c5081d3"
+      swaggerEnabled: true
+    administration:
+      logging:
+        default: "Debug"
+        businessLogic: "Debug"
+        sdfactoryLibrary: "Debug"
+        bpdmLibrary: "Debug"
+        custodianLibrary: "Debug"
+      serviceAccount:
+        encryptionConfigs:
+          index0:
+            encryptionKey: "deb8261ec7b89c344f1c5ef5a11606e305f14e0d231b1357d90ad0180c5081d3"
+      issuerdid: &issuer_did "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNL00000003CRHK"
+      swaggerEnabled: true
+    appmarketplace:
+      logging:
+        default: "Debug"
+        offersLibrary: "Debug"
+      swaggerEnabled: true
+      resources:
+        # requests:
+        #   cpu: 15m
+        #   memory: 445M
+        limits:
+          memory: 600M
+    services:
+      logging:
+        default: "Debug"
+        offersLibrary: "Debug"
+      swaggerEnabled: true
+    notification:
+      logging:
+        default: "Debug"
+      swaggerEnabled: true
+    processesworker:
+      # Responsable de editar los templates de los Emails
+      clearinghouseConnectDisabled: true
+      resources:
+        limits:
+          cpu: 1000m
+          memory: 1500M
+      logging:
+        default: "Debug"
+        processesLibrary: "Debug"
+        bpdmLibrary: "Debug"
+        clearinghouseLibrary: "Debug"
+        custodianLibrary: "Debug"
+        sdfactoryLibrary: "Debug"
+        offerProvider: "Debug"
+      bpdm:
+        # The clientId and clientSecret processesworker uses to authenticate against the centralidp Keycloak
+        # You must specify the technical user with the required roles for the interaction with the bpdm
+        clientId: &bpdmAdminClientId "sa-cl7-cx-5"
+        clientSecret: &bpdmAdminClientSecret "changeme"
+      # -- no configuration for clearinghouse because it's an external component
+      # clientId and clientSecret aren't in the centralidp Keycloak
+      # clearinghouse:
+      #   clientId: "clearinghouse-client-id"
+      #   clientSecret: ""
+      custodian:
+        # You must specify the technical user with the required roles for the interaction with the managed-identity-wallet
+        clientId: "sa-cl5-custodian-2"
+        clientSecret: "changeme"
+      sdfactory:
+        issuerBpn: "BPNL00000003CRHK"
+        # You must specify the technical user with the required roles for the interaction with the sdfactory
+        clientId: "sa-cl8-cx-1"
+        clientSecret: "changeme"
+      offerprovider:
+        clientId: "sa-cl2-03"
+        clientSecret: "changeme"
+      dim:
+        clientId: "sa-cl2-05"
+        clientSecret: "changeme"
+        grantType: "client_credentials"
+        scope: "openid"
+        baseAddress: "https://ssi-dim-wallet-stub.mondragon-x.com"
+        universalResolverAddress: "https://dev.uniresolver.io/"
+        encryptionConfigs:
+          index0:
+            encryptionKey:
+              "6cbaf47ee30c778088e6faa44e2f0eed98beda86db06c7d2e37e32ab78e14b33"
+      issuerComponent:
+      # You must specify the technical user with the required roles for the interaction with the SSI Credential Issuer
+        clientId: "sa-cl2-04"
+        clientSecret: "changeme"
+        encryptionConfigs:
+          index0:
+            encryptionKey:
+              "39ffab76f99ece1e4ac72f973d5c703737324a75c6445e84fa317a7833476a15"
+      bpnDidResolver:
+        # -- ApiKey for management endpoint of the bpnDidResolver. Secret-key 'bpndidresolver-api-key'.
+        apiKey: ""
+      onboardingServiceProvider:
+        encryptionConfigs:
+          index0:
+            cipherMode: "CBC"
+            paddingMode: "PKCS7"
+            encryptionKey:
+              "f7bc3d99f1ace73e7a75b794affbbc26206ab29909821a102aaccb2e95e45f7c"
+          index1:
+            encryptionKey:
+              "8027152fe7a869c88acc86981760acd70ff1d660c2bd129eece94edef933caf7"
+      invitation:
+        encryptionConfigs:
+          index0:
+            encryptionKey:
+              "d84fea29d6eac0fa51e36682b164e7d61693cd4202ed04306d2d9c5d46655e2c"
+      mailing:
+        encryptionConfigs:
+          index0:
+            encryptionKey:
+              "d2e27d71b018cb36029184852f1baa3e26891be94718f77de4c7cc6c882fe317"
+    mailing:
+      # We need a valid SMTP server to send emails from the portal
+      host: "smtp4dev"
+      port: "25"
+      user: "portal-user"
+      senderEmail: "portal-admin@lksnext.com"
+      password: "portal-password"
+    portalmigrations:
+      seeding:
+        testData:
+          enabled: true
+      logging:
+        default: "Debug"
+    portalmaintenance:
+      logging:
+        default: "Debug"
+    provisioning:
+      # Seeds centralidp and sharedidp
+      centralRealmId: "CX-Central" # El realm de centralidp que se va a utilizar
+      serviceAccountClientPrefix: "sa" # Prefijo para los technical users (service accounts)
+      centralIdentityProvider:
+        clientId: "central-idp"
+      sharedRealmClient:
+        clientId: "central-idp"
+      sharedRealm:
+        smtpServer:
+          host: "smtp4dev"
+          port: "25"
+          user: "portal-user"
+          password: "portal-password"
+          from: "portal-admin@lksnext.com"
+          replyTo: "portal-replt@lksnext.com"
+    # -- docs: https://portal-backend.mondragon-x.com/api/administration/swagger/index.html
+    # https://portal-backend.mondragon-x.com/api/registration/swagger/index.html
+    # https://portal-backend.mondragon-x.com/api/apps/swagger/index.html
+    # https://portal-backend.mondragon-x.com/api/services/swagger/index.html
+    # https://portal-backend.mondragon-x.com/api/notification/swagger/index.html
+    ingress:
+      enabled: true
+      name: "portal-backend"
+      annotations:
+        # uncomment the following line for tls
+        # cert-manager.io/cluster-issuer: "my-ca-issuer"
+        nginx.ingress.kubernetes.io/use-regex: "true"
+        nginx.ingress.kubernetes.io/enable-cors: "true"
+        nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+        nginx.ingress.kubernetes.io/cors-allow-origin: "https://localhost:3000, https://*.mondragon-x.com, http://*.mondragon-x.com"
+      # uncomment the following lines for tls
+      tls:
+        - secretName: "portal-backend.mondragon-x.com-tls"
+          hosts:
+            - "portal-backend.mondragon-x.com"
+      hosts:
+        - host: "portal-backend.mondragon-x.com"
+          paths:
+            - path: "/api/registration"
+              pathType: "Prefix"
+              backend:
+                service: "registration-service"
+                port: 8080
+            - path: "/api/administration"
+              pathType: "Prefix"
+              backend:
+                service: "administration-service"
+                port: 8080
+            - path: "/api/notification"
+              pathType: "Prefix"
+              backend:
+                service: "notification-service"
+                port: 8080
+            - path: "/api/provisioning"
+              pathType: "Prefix"
+              backend:
+                service: "provisioning-service"
+                port: 8080
+            - path: "/api/apps"
+              pathType: "Prefix"
+              backend:
+                service: "marketplace-app-service"
+                port: 8080
+            - path: "/api/services"
+              pathType: "Prefix"
+              backend:
+                service: "services-service"
+                port: 8080
+
+centralidp:
+  enabled: true
+  keycloak:
+    nameOverride: "centralidp"
+    replicaCount: 1
+#    proxyHeaders: "X-Forwarded-For, X-Forwarded-Proto"
+#    tls:
+#      enabled: true
+#      existingSecret: centralidp.mondragon-x.com-tls
+#      usePem: true
+    auth:
+      adminPassword: "adminconsolepwcentralidp"
+#      frontendUrl: https://centralidp.mondragon-x.com
+    production: true
+    proxy: "edge"
+    postgresql:
+      nameOverride: "centralidp-postgresql"
+      auth:
+        password: "dbpasswordcentralidp"
+        postgresPassword: "dbpasswordcentralidp"
+      architecture: standalone
+      primary:
+        persistence:
+          enabled: true
+    ingress:
+      enabled: true
+      ingressClassName: "nginx"
+      hostname: "centralidp.mondragon-x.com"
+      annotations:
+        # uncomment the following line for tls
+        # cert-manager.io/cluster-issuer: "my-ca-issuer"
+        nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+        nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
+        nginx.ingress.kubernetes.io/cors-allow-origin: "https://centralidp.mondragon-x.com, http://centralidp.mondragon-x.com, https://*.mondragon-x.com"
+        nginx.ingress.kubernetes.io/enable-cors: "true"
+        nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+        nginx.ingress.kubernetes.io/proxy-buffering: "on"
+        nginx.ingress.kubernetes.io/proxy-buffers-number: "20"
+        nginx.ingress.kubernetes.io/use-regex: "true"
+      tls: true
+      extraTls:
+        - secretName: centralidp.mondragon-x.com-tls
+          hosts:
+            - centralidp.mondragon-x.com
+#      servicePort: https
+#    extraEnvVars:
+#      - name: PROXY_ADDRESS_FORWARDING
+#        value: "true"
+    # uncomment the following line for tls
+    initContainers:
+      - name: init-certs
+        image: docker.io/bitnami/keycloak:25.0.6-debian-12-r0
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/bash"]
+        args:
+          - -ec
+          - |-
+            keytool -import -file "/certs/tls.crt" \
+                    -keystore "/opt/bitnami/keycloak/certs/keycloak.truststore.jks" \
+                    -storepass "${KEYCLOAK_SPI_TRUSTSTORE_PASSWORD}" \
+                    -noprompt
+        env:
+          - name: KEYCLOAK_SPI_TRUSTSTORE_PASSWORD
+            value: "changeit"
+        volumeMounts:
+          - name: certificates-c
+            mountPath: /certs
+          - name: shared-certs-c
+            mountPath: "/opt/bitnami/keycloak/certs"
+      - name: import
+        image: docker.io/cdiezrodriguez/mondragon-iam:v4.0.3
+        imagePullPolicy: IfNotPresent
+        command:
+          - sh
+        args:
+          - -c
+          - |
+            echo "Copying themes..."
+            cp -R /import/themes/catenax-central/* /themes
+        volumeMounts:
+          - name: themes
+            mountPath: /themes
+    extraEnvVars:
+      - name: KEYCLOAK_SPI_TRUSTSTORE_FILE
+        value: "/opt/bitnami/keycloak/certs/keycloak.truststore.jks"
+      - name: KEYCLOAK_SPI_TRUSTSTORE_PASSWORD
+        value: "changeit"
+    extraVolumes:
+      - name: certificates-c
+        secret:
+          secretName: centralidp.mondragon-x.com-tls
+          defaultMode: 420
+      - name: shared-certs-c
+        emptyDir: {}
+      - name: themes
+        emptyDir: {}
+    extraVolumeMounts:
+      - name: certificates-c
+        mountPath: /certs
+      - name: shared-certs-c
+        mountPath: "/opt/bitnami/keycloak/certs"
+      - name: themes
+        mountPath: "/opt/bitnami/keycloak/themes/mondragonX"
+  realmSeeding:
+    enabled: true
+#    sslRequired: "external"
+#    keycloakServiceTls: true
+#    keycloakServicePort: 443
+    clients:
+      registration:
+        redirects:
+          - https://portal.mondragon-x.com/*
+      portal:
+        rootUrl: https://portal.mondragon-x.com/home
+        redirects:
+          - https://portal.mondragon-x.com/*
+      semantics:
+        redirects:
+          - https://portal.mondragon-x.com/*
+      miw:
+        clientSecret: "changeme"
+        redirects:
+          - https://managed-identity-wallets.mondragon-x.com/*
+      bpdm:
+        clientSecret: "changeme"
+        redirects:
+          - https://partners-pool.mondragon-x.com/*
+      bpdmGate:
+        clientSecret: "changeme"
+        redirects:
+          - https://partners-gate.mondragon-x.com/*
+      bpdmOrchestrator:
+        clientSecret: "changeme"
+    serviceAccounts:
+      clientSecrets:
+        - clientId: "sa-cl1-reg-2"
+          clientSecret: "changeme"
+        - clientId: "sa-cl2-01"
+          clientSecret: "changeme"
+        - clientId: "sa-cl2-02"
+          clientSecret: "changeme"
+        - clientId: "sa-cl2-03"
+          clientSecret: "changeme"
+        - clientId: "sa-cl2-04"
+          clientSecret: "changeme"
+        - clientId: "sa-cl2-05"
+          clientSecret: "changeme"
+        - clientId: "sa-cl3-cx-1"
+          clientSecret: "changeme"
+        - clientId: "sa-cl5-custodian-2"
+          clientSecret: "changeme"
+        - clientId: "sa-cl7-cx-1"
+          clientSecret: "changeme"
+        - clientId: "sa-cl7-cx-5"
+          clientSecret: "changeme"
+        - clientId: "sa-cl7-cx-7"
+          clientSecret: "changeme"
+        - clientId: "sa-cl8-cx-1"
+          clientSecret: "changeme"
+        - clientId: "sa-cl21-01"
+          clientSecret: "changeme"
+        - clientId: "sa-cl22-01"
+          clientSecret: "changeme"
+        - clientId: "sa-cl24-01"
+          clientSecret: "changeme"
+        - clientId: "sa-cl25-cx-1"
+          clientSecret: "changeme"
+        - clientId: "sa-cl25-cx-2"
+          clientSecret: "changeme"
+        - clientId: "sa-cl25-cx-3"
+          clientSecret: "changeme"
+    bpn: "BPNL00000003CRHK"
+    sharedidp: "https://sharedidp.mondragon-x.com"
+    # -- test service accounts for EDC - MIW which are obsolete since R24.05;
+    # uncomment once EDC uses SSI DIM Wallet Stub and the helm chart testing has been updated;
+    # currently the post-install testdata-upload-job fails if not available
+    extraServiceAccounts:
+      clientSecretsAndBpn:
+        - clientId: satest01
+          clientSecret: UbfW4CR1xH4OskkovqJ2JzcwnQIrG7oj
+          bpn: BPNL00000003AZQP
+        - clientId: satest02
+          clientSecret: pyFUZP2L9UCSVJUScHcN3ZEgy2PGyEpg
+          bpn: BPNL00000003AYRE
+        - clientId: satest03
+          clientSecret: tPwy4exxH1sXBRQouobSA2nNVaaPuwCs
+          bpn: BPNL00000003AVTH
+        - clientId: satest04
+          clientSecret: BxZ3cwYUPJKK7gI4wq7q6Hgoxel6MphF
+          bpn: BPNL00000003AWSS
+        - clientId: satest05
+          clientSecret: dR00GN1AWCYbRGbZY8TXjs2YEPMeCxLF
+          bpn: BPNL00000003B0Q0
+        - clientId: satest06
+          clientSecret: pDSziT0TUFAkMx0qGFcvpE4XkMqPh13v
+          bpn: BPNS0000000008ZZ
+        - clientId: satest07
+          clientSecret: GY5a44sNuNIjrTyjHvdEPLeNRHH0Kt39
+          bpn: BPNL00000003CNKC
+        - clientId: satest08
+          clientSecret: WUXpQx1aIclA7enqtk4o2uvLDLMreUMI
+          bpn: BPNL00000003B6LU
+        - clientId: satest09
+          clientSecret: N08TGNdhUskJcmVEnOh1tAGwr9oca9PU
+          bpn: BPNL00000003CML1
+        - clientId: satest10
+          clientSecret: gzdSG0CBDJrtv1gje0zUASu1S9P4I7xP
+          bpn: BPNS00000008BDFH
+        - clientId: satest11
+          clientSecret: CC3fz3dQGZsBp2NCbowOV65efBFZTgEO
+          bpn: BPNL00000003B2OM
+        - clientId: satest12
+          clientSecret: 2gjSlFxBO7spEM4aTz3f8CqDS0klbt7C
+          bpn: BPNL00000003CSGV
+        - clientId: satest13
+          clientSecret: 3YQzDqEsdUZ83DVHSIRYUCK4pot61r5M
+          bpn: BPNL00000003B5MJ
+        - clientId: satest14
+          clientSecret: 7qtMpfN3otq5dGiEPssVongXK56lb9LE
+          bpn: BPNL00000003AXS3
+        - clientId: satest15
+          clientSecret: 8QiZ8ineW0Lt8ZOlC2MYuCR0TvM6vMYX
+          bpn: BPNL00000003B3NX
+        - clientId: satest16
+          clientSecret: d2sqUurBH9Vd8DNRmjiMfObU67ajorCq
+          bpn: BPNL00000000BJTL
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1064M
+      limits:
+        cpu: 1500m
+        memory: 4000M
+
+sharedidp:
+  enabled: true
+  keycloak:
+    nameOverride: "sharedidp"
+#    proxyHeaders: "X-Forwarded-For, X-Forwarded-Proto"
+#    tls:
+#      enabled: true
+#      existingSecret: sharedidp.mondragon-x.com-tls
+#      usePem: true
+    auth:
+      adminPassword: "adminconsolepwsharedidp"
+#      frontendUrl: https://sharedidp.mondragon-x.com
+    production: true
+    proxy: "edge"
+    postgresql:
+      nameOverride: "sharedidp-postgresql"
+      auth:
+        password: "dbpasswordsharedidp"
+        postgresPassword: "dbpasswordsharedidp"
+      architecture: standalone
+      primary:
+        persistence:
+          enabled: true
+    ingress:
+      enabled: true
+      ingressClassName: "nginx"
+      hostname: "sharedidp.mondragon-x.com"
+      annotations:
+        # uncomment the following line for tls
+        # cert-manager.io/cluster-issuer: "my-ca-issuer"
+        nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+        nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
+        nginx.ingress.kubernetes.io/cors-allow-origin: "https://sharedidp.mondragon-x.com, http://sharedidp.mondragon-x.com, https://*.mondragon-x.com"
+        nginx.ingress.kubernetes.io/enable-cors: "true"
+        nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+        nginx.ingress.kubernetes.io/proxy-buffering: "on"
+        nginx.ingress.kubernetes.io/proxy-buffers-number: "20"
+        nginx.ingress.kubernetes.io/use-regex: "true"
+      tls: true
+      extraTls:
+        - secretName: sharedidp.mondragon-x.com-tls
+          hosts:
+            - sharedidp.mondragon-x.com
+#      servicePort: https
+#    extraEnvVars:
+#      - name: PROXY_ADDRESS_FORWARDING
+#        value: "true"
+    # uncomment the following line for tls
+    initContainers:
+      - name: init-certs
+        image: docker.io/bitnami/keycloak:25.0.6-debian-12-r0
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/bash"]
+        args:
+          - -ec
+          - |-
+            keytool -import -file "/certs/tls.crt" \
+                    -keystore "/opt/bitnami/keycloak/certs/keycloak.truststore.jks" \
+                    -storepass "${KEYCLOAK_SPI_TRUSTSTORE_PASSWORD}" \
+                    -noprompt
+        env:
+          - name: KEYCLOAK_SPI_TRUSTSTORE_PASSWORD
+            value: "changeit"
+        volumeMounts:
+          - name: certificates-s
+            mountPath: /certs
+          - name: shared-certs-s
+            mountPath: "/opt/bitnami/keycloak/certs"
+    extraEnvVars:
+      - name: KEYCLOAK_SPI_TRUSTSTORE_FILE
+        value: "/opt/bitnami/keycloak/certs/keycloak.truststore.jks"
+      - name: KEYCLOAK_SPI_TRUSTSTORE_PASSWORD
+        value: "changeit"
+    extraVolumes:
+      - name: certificates-s
+        secret:
+          secretName: sharedidp.mondragon-x.com-tls
+          defaultMode: 420
+      - name: shared-certs-s
+        emptyDir: {}
+    extraVolumeMounts:
+      - name: certificates-s
+        mountPath: /certs
+      - name: shared-certs-s
+        mountPath: "/opt/bitnami/keycloak/certs"
+  realmSeeding:
+#    keycloakServiceTls: true
+#    keycloakServicePort: 443
+    realms:
+      cxOperator:
+        sslRequired: "none"
+        centralidp: "https://centralidp.mondragon-x.com"
+        initialUser:
+          username: "cx-operator@mondragon-x.com"
+          password: "tractusx-umbr3lla!"
+        mailing:
+          host: "smtp.mondragon-x.com"
+          port: "587"
+          username: "smtp-user"
+          password: ""
+          from: "smtp@mondragon-x.com"
+          replyTo: "smtp@mondragon-x.com"
+      master:
+        serviceAccounts:
+          provisioning:
+            clientSecret: "changeme"
+          saCxOperator:
+            clientSecret: "changeme"
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1064M
+      limits:
+        cpu: 1500m
+        memory: 4000M
+
+bpndiscovery:
+  enabled: false
+  enablePostgres: true
+  bpndiscovery:
+    host: semantics.mondragon-x.com
+    ingress:
+      enabled: true
+      tls: true
+      urlPrefix: "/bpndiscovery"
+      className: "nginx"
+      annotations:
+        cert-manager.io/cluster-issuer: "my-ca-issuer"
+        nginx.ingress.kubernetes.io/rewrite-target: "/$2"
+        nginx.ingress.kubernetes.io/use-regex: "true"
+        nginx.ingress.kubernetes.io/enable-cors: "true"
+        nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+        nginx.ingress.kubernetes.io/x-forwarded-prefix: "/bpndiscovery"
+    authentication: true
+    idp:
+      issuerUri: "https://centralidp.mondragon-x.com/auth/realms/CX-Central"
+      publicClientId: "Cl22-CX-BPND"
+    bpndiscoveryEndpoint:
+      allowedTypes: oen,wmi,passtype,manufacturerPartId
+      description: Service to discover BPN for different kind of type numbers
+      endpointAddress: /bpndiscovery
+      documentation: /bpndiscovery/swagger-ui/index.html
+      timeToLive: "31536000"
+    discoveryfinderClient:
+      baseUrl: "semantics.tx.test/discoveryfinder"
+      registration:
+        clientId: sa-cl22-01
+        clientSecret: "client-secret"
+        authorizationGrantType: changeme
+      schedulerCronFrequency: "0 0 */1 * * *"
+      provider:
+        tokenUri: "https://centralidp.mondragon-x.com/auth/realms/CX-Central/protocol/openid-connect/token"
+    livenessProbe:
+      initialDelaySeconds: 200
+    readinessProbe:
+      initialDelaySeconds: 200
+  postgresql:
+    nameOverride: "bpndiscovery-postgresql"
+    primary:
+      persistence:
+        enabled: true
+        size: 8Gi
+    auth:
+      password: "dbpasswordbpndiscovery"
+      postgresPassword: "dbpasswordbpndiscovery"
+
+discoveryfinder:
+  enabled: false
+  enablePostgres: true
+  discoveryfinder:
+    authentication: true
+    livenessProbe:
+      initialDelaySeconds: 200
+    readinessProbe:
+      initialDelaySeconds: 200
+    host: semantics.mondragon-x.com
+    properties:
+      discoveryfinder:
+        initialEndpoints:
+          - type: bpn
+            endpointAddress: https://portal-backend.mondragon-x.com/api/administration/Connectors/discovery
+            description: Service to discover connector endpoints based on bpns
+            documentation: https://portal-backend.mondragon-x.com/api/administration/swagger/index.html
+    idp:
+      issuerUri: "https://centralidp.mondragon-x.com/auth/realms/CX-Central"
+      publicClientId: "Cl21-CX-DF"
+    dataSource:
+      url: "jdbc:postgresql://{{ .Release.Name }}-discoveryfinder-postgresql:5432/discoveryfinder"
+    # -- docs: https://semantics.mondragon-x.com/discoveryfinder/swagger-ui/index.html
+    ingress:
+      enabled: true
+      tls: true
+      urlPrefix: "/discoveryfinder"
+      className: "nginx"
+      annotations:
+        cert-manager.io/cluster-issuer: "my-ca-issuer"
+        nginx.ingress.kubernetes.io/rewrite-target: "/$2"
+        nginx.ingress.kubernetes.io/use-regex: "true"
+        nginx.ingress.kubernetes.io/enable-cors: "true"
+        nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+        nginx.ingress.kubernetes.io/x-forwarded-prefix: "/discoveryfinder"
+  postgresql:
+    nameOverride: "discoveryfinder-postgresql"
+    primary:
+      persistence:
+        enabled: true
+        size: 8Gi
+    auth:
+      password: "dbpassworddiscoveryfinder"
+      postgresPassword: "dbpassworddiscoveryfinder"
+
+selfdescription:
+  enabled: false
+  sdfactory:
+    secret:
+      # -- JWK Set URI
+      jwkSetUri: "https://centralidp.mondragon-x.com/auth/realms/CX-Central/protocol/openid-connect/certs"
+      # -- Details for Clearing House URI
+      clearingHouseUri: ""
+      # -- Details for Clearing House URL
+      clearingHouseServerUrl: ""
+      # -- Details for Clearing House Realm
+      clearingHouseRealm: ""
+      # -- Details for Clearing House Client ID
+      clearingHouseClientId: ""
+      # -- Details for Clearing House Client Secret
+      clearingHouseClientSecret: ""
+  ingress:
+    enabled: true
+    hosts:
+      - host: "sdfactory.mondragon-x.com"
+        paths:
+          - path: "/"
+            pathType: "Prefix"
+    tls:
+      - tlsName: sdfactory.mondragon-x.com-tls
+        hosts:
+          - sdfactory.mondragon-x.com.net
+    className: "nginx"
+    # annotations:
+    #   # uncomment the following line for tls
+    #   cert-manager.io/cluster-issuer: "my-ca-issuer"
+
+ssi-credential-issuer:
+  enabled: true
+  portalBackendAddress: "https://portal-backend.mondragon-x.com"
+  walletAddress: "https://ssi-dim-wallet-stub.mondragon-x.com"
+  walletTokenAddress: "https://ssi-dim-wallet-stub.mondragon-x.com/oauth/token"
+  service:
+    swaggerEnabled: true
+    logging:
+      businessLogic: "Debug"
+      default: "Debug"
+    portal:
+      # -- Provide portal client-id from CX IAM centralidp.
+      # You must specify the technical user with the required roles for the interaction with the portal
+      clientId: "sa-cl24-01"
+      # -- Client-secret for portal client-id. Secret-key 'portal-client-secret'.
+      clientSecret: "changeme"
+    credential:
+      issuerDid: "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNL00000003CRHK"
+      issuerBpn: "BPNL00000003CRHK"
+      statusListUrl: "https://ssi-dim-wallet-stub.mondragon-x.com/status-list/BPNL00000003CRHK/8a6c7486-1e1f-4555-bdd2-1a178182651e"
+      encryptionConfigIndex: 0
+      encryptionConfigs:
+        index0:
+          # EncryptionKey for wallet. Secret-key 'credential-encryption-key0'. Expected format is 256 bit (64 digits) hex.
+          encryptionKey: "deb8261ec7b89c344f1c5ef5a11606e305f14e0d231b1357d90ad0180c5081d3"
+  processesworker:
+    portal:
+      # -- Provide portal client-id from CX IAM centralidp.
+      # You must specify the technical user with the required roles for the interaction with the portal
+      clientId: "sa-cl24-01"
+      # -- Client-secret for portal client-id. Secret-key 'portal-client-secret'.
+      clientSecret: "changeme"
+    logging:
+      default: "Debug"
+    processIdentity:
+      identityId: ac1cf001-7fbc-1f2f-817f-bce058020006
+    wallet:
+      # -- Provide wallet client-id from CX IAM centralidp.
+      # You must specify the technical user with the required roles for the interaction with the managed-identity-wallet
+      clientId: "wallet-client-id"
+      # -- Client-secret for wallet client-id. Secret-key 'wallet-client-secret'.
+      clientSecret: ""
+  migrations:
+    logging:
+      default: "Debug"
+  credentialExpiry:
+    logging:
+      default: "Debug"
+  postgresql:
+    enabled: true
+    architecture: standalone
+    primary:
+      persistence:
+        enabled: false
+    auth:
+      # -- Password for the root username 'postgres'. Secret-key 'postgres-password'.
+      postgrespassword: "rootissuerpassword"
+      # -- Password for the non-root username 'issuer'. Secret-key 'password'.
+      password: "issuerpassword"
+
+  centralidp:
+    # -- Provide centralidp base address (CX IAM), without trailing '/auth'.
+    address: "https://centralidp.mondragon-x.com"
+    jwtBearerOptions:
+      requireHttpsMetadata: "false"
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/use-regex: "true"
+      nginx.ingress.kubernetes.io/enable-cors: "true"
+      nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+      nginx.ingress.kubernetes.io/cors-allow-origin: "https://*.mondragon-x.com"
+    # -- Ingress TLS configuration
+    tls:
+       - secretName: "ssi-credential-issuer.mondragon-x.com-tls"
+         hosts:
+           - "ssi-credential-issuer.mondragon-x.com"
+    hosts:
+      - host: "ssi-credential-issuer.mondragon-x.com"
+        paths:
+          - path: "/"
+            pathType: "Prefix"
+            backend:
+              port: 8080
+
+# Set up services for a business partner pool, golden record process
+# and a gate with which the Portal and the users can share business partner data
+bpdm:
+  enabled: true
+  postgres:
+    # We use the default name for BPDM postgres
+    fullnameOverride: &bpdmPostgresName "bpdm-postgres"
+    nameOverride:
+    auth:
+      # BPDM can't handle random initial passwords at the moment
+      # so need to set a fixed one here and use it in the app configs later
+      password: &bpdmPostgresPassword "dbpasswordbpdm"
+      postgresPassword: *bpdmPostgresPassword
+    architecture: standalone
+    primary:
+      persistence:
+        enabled: true
+  centralidp:
+    # We use Central-IDP as authentication server
+    enabled: false
+  # Set up a Gate that acts as the Portal's Gate
+  bpdm-gate:
+    postgres:
+      # App uses BPDM postgres default name to find connection to the Postgres
+      fullnameOverride:
+      nameOverride: bpdm-postgres
+    ingress:
+      enabled: true
+      annotations:
+        nginx.ingress.kubernetes.io/rewrite-target: "/$2"
+        nginx.ingress.kubernetes.io/use-regex: "true"
+        nginx.ingress.kubernetes.io/x-forwarded-prefix: "/gate"
+      tls:
+        - secretName: "business-partners.mondragon-x.com-tls"
+          hosts:
+            - "business-partners.mondragon-x.com"
+      # The Portal expects its Gate on that specific url path so we provide it here through ingress
+      hosts:
+        - host: "business-partners.mondragon-x.com"
+          paths:
+            - path: "/gate(/|$)(.*)"
+              pathType: "ImplementationSpecific"
+    applicationConfig:
+      server:
+        # App should take the x-forward-header-prefix into account for Swagger-UI and redirects to work correctly
+        forward-headers-strategy: "FRAMEWORK"
+      bpdm:
+        datasource:
+          host: *bpdmPostgresName
+        bpn:
+          # This Gate has no owner restriction as other companies can write into the Gate under their own tenant
+          owner-bpn-l:
+        security:
+          # App's API is authenticated over Central-IDP
+          auth-server-url: "https://centralidp.mondragon-x.com/auth"
+          realm: "CX-Central"
+          # Is Central-IDPs name for the Gate client
+          # The Gate will use that name to check for existing client permissions here
+          client-id: "Cl16-CX-BPDMGate"
+        # The Gate needs to connect to the Pool and Orchestrator to realize the Golden Record Process
+        # Setup client connection for both here (where to connect and the authentication)
+        # By default the Gate assumes that the authentication server of the Pool and Orchestrator are the same as its own
+        # We will reuse the general BPDM admin technical user to establish connection between the services
+        client:
+          pool:
+            base-url: https://business-partners.mondragon-x.com/pool
+            registration:
+              client-id: "sa-cl7-cx-1"
+          orchestrator:
+            base-url: https://business-partners.mondragon-x.com/orchestrator
+            registration:
+              client-id: "sa-cl25-cx-3"
+    applicationSecrets:
+      spring:
+        datasource:
+          # Set the password of the postgres BPDM user here (Currently, BPDM can't deal with random initial passwords)
+          password: *bpdmPostgresPassword
+      bpdm:
+        client:
+          orchestrator:
+            registration:
+              client-secret: "changeme"
+          pool:
+            registration:
+              client-secret: "changeme"
+
+  # Configures the central business partner Pool
+  bpdm-pool:
+    postgres:
+      # App uses BPDM postgres default name to find connection to the Postgres
+      fullnameOverride:
+      nameOverride: bpdm-postgres
+    ingress:
+      enabled: true
+      annotations:
+        nginx.ingress.kubernetes.io/rewrite-target: "/$2"
+        nginx.ingress.kubernetes.io/use-regex: "true"
+        nginx.ingress.kubernetes.io/x-forwarded-prefix: "/pool"
+      tls:
+        - secretName: "business-partners.mondragon-x.com-tls"
+          hosts:
+            - "business-partners.mondragon-x.com"
+      hosts:
+        - host: "business-partners.mondragon-x.com"
+          paths:
+            - path: "/pool(/|$)(.*)"
+              pathType: "ImplementationSpecific"
+    applicationConfig:
+      server:
+        # App should take the x-forward-header-prefix into account for Swagger-UI and redirects to work correctly
+        forward-headers-strategy: "FRAMEWORK"
+      bpdm:
+        datasource:
+          host: *bpdmPostgresName
+        security:
+          # App's API is authenticated over Central-IDP
+          auth-server-url: "https://centralidp.mondragon-x.com/auth"
+          realm: "CX-Central"
+          # Is Central-IDPs name for the Pool client
+          # The Pool will use that name to check for existing client permissions here
+          client-id: "Cl7-CX-BPDM"
+        # The Pool needs to connect to the Orchestrator to realize the Golden Record Process
+        # Setup client connection (where to connect and the authentication)
+        # By default the Pool assumes that the authentication server of the Orchestrator matches that one of the Pool
+        # We will reuse the general BPDM admin technical user to establish connection between the services
+        client:
+          orchestrator:
+            base-url: https://business-partners.mondragon-x.com/orchestrator
+            registration:
+              client-id: "sa-cl25-cx-2"
+    applicationSecrets:
+      bpdm:
+        client:
+          orchestrator:
+            registration:
+              client-secret: "changeme"
+      spring:
+        datasource:
+          # Set the password of the postgres BPDM user here (Currently, BPDM can't deal with random initial passwords)
+          password: *bpdmPostgresPassword
+
+  # Configures the central service for orchestrating the Golden Record Process
+  bpdm-orchestrator:
+    ingress:
+      enabled: true
+      annotations:
+        nginx.ingress.kubernetes.io/rewrite-target: "/$2"
+        nginx.ingress.kubernetes.io/use-regex: "true"
+        nginx.ingress.kubernetes.io/x-forwarded-prefix: "/orchestrator"
+      tls:
+        - secretName: "business-partners.mondragon-x.com-tls"
+          hosts:
+            - "business-partners.mondragon-x.com"
+      hosts:
+        - host: "business-partners.mondragon-x.com"
+          paths:
+            - path: "/orchestrator(/|$)(.*)"
+              pathType: "ImplementationSpecific"
+    postgres:
+      enabled: false
+      fullnameOverride: bpdm-postgres
+    applicationConfig:
+      server:
+        # App should take the x-forward-header-prefix into account for Swagger-UI and redirects to work correctly
+        forward-headers-strategy: "FRAMEWORK"
+      bpdm:
+        datasource:
+          host: *bpdmPostgresName
+        security:
+          auth-server-url: "https://centralidp.mondragon-x.com/auth"
+          realm: "CX-Central"
+          client-id: "Cl25-CX-BPDM-Orchestrator"
+    applicationSecrets:
+      spring:
+        datasource:
+          # Set the password of the postgres BPDM user here (Currently, BPDM can't deal with random initial passwords)
+          password: *bpdmPostgresPassword
+
+  # This installs a dummy cleaning service which performs rudimentary cleaning operations in order to realize the golden record process
+  bpdm-cleaning-service-dummy:
+    applicationConfig:
+      bpdm:
+        # The cleaning dummy needs to connect to the Orchestrator to realize the Golden Record Process
+        # Setup client connection (where to connect and the authentication)
+        # We reuse the general BPDM admin technical user to establish connection between the services
+        client:
+          orchestrator:
+            base-url: https://business-partners.mondragon-x.com/orchestrator
+            provider:
+              issuer-uri: "https://centralidp.mondragon-x.com/auth/realms/CX-Central"
+            registration:
+              client-id: "sa-cl25-cx-1"
+    applicationSecrets:
+      bpdm:
+        client:
+          orchestrator:
+            registration:
+              client-secret: "changeme"
+
+semantic-hub:
+  enabled: false
+  enableKeycloak: false
+  keycloak:
+    postgresql:
+      architecture: standalone
+      primary:
+        persistence:
+          enabled: false
+  hub:
+    authentication: false
+    livenessProbe:
+      initialDelaySeconds: 200
+    readinessProbe:
+      initialDelaySeconds: 200
+    host: semantics.mondragon-x.com
+    # service:
+    #   port: 4242
+    ingress:
+      enabled: true
+      tls: true
+      tlsSecretName: "semantics.mondragon-x.com-tls"
+      urlPrefix: "/hub"
+      className: "nginx"
+      annotations:
+        # uncomment the following line for tls
+        # cert-manager.io/cluster-issuer: "my-ca-issuer"
+        nginx.ingress.kubernetes.io/rewrite-target: "/$2"
+        nginx.ingress.kubernetes.io/use-regex: "true"
+        nginx.ingress.kubernetes.io/enable-cors: "true"
+        nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+        nginx.ingress.kubernetes.io/x-forwarded-prefix: "/hub"
+  graphdb:
+    enabled: true
+    image: jena-fuseki-docker:5.0.0
+    imagePullPolicy: Never
+    storageClassName: "standard"
+    storageSize: 8Gi
+
+pgadmin4:
+  enabled: true
+  env:
+    email: pgadmin4@txtest.org
+    password: tractusxpgadmin4
+  persistentVolume:
+    enabled: false
+  ingress:
+    enabled: true
+    ingressClassName: "nginx"
+    hosts:
+      - host: pgadmin4.mondragon-x.com
+        paths:
+        - path: /
+          pathType: Prefix
+
+bdrs-server-memory:
+  nameOverride: bdrs-server
+  fullnameOverride: bdrs-server
+  enabled: true
+  seeding:
+    url: "http://bdrs-server:8081"
+    enabled: true
+    bpnList:
+      - bpn: "BPNL00000003CRHK"
+        did: "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNL00000003CRHK"
+      - bpn: "BPNL00000003B3NX"
+        did: "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNL00000003B3NX"
+      - bpn: "BPNL00000003CSGV"
+        did: "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNL00000003CSGV"
+      - bpn: "BPNL00000003B6LU"
+        did: "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNL00000003B6LU"
+      - bpn: "BPNL00000003AXS3"
+        did: "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNL00000003AXS3"
+      - bpn: "BPNL00000003AZQP"
+        did: "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNL00000003AZQP"
+      - bpn: "BPNL00000003AWSS"
+        did: "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNL00000003AWSS"
+      - bpn: "BPNL00000003AYRE"
+        did: "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNL00000003AYRE"
+      - bpn: "BPNL00000003AVTH"
+        did: "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNL00000003AVTH"
+      - bpn: "BPNL00000000BJTL"
+        did: "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNL00000000BJTL"
+      - bpn: "BPNL00000003CML1"
+        did: "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNL00000003CML1"
+      - bpn: "BPNL00000003B2OM"
+        did: "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNL00000003B2OM"
+      - bpn: "BPNL00000003B0Q0"
+        did: "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNL00000003B0Q0"
+      - bpn: "BPNL00000003B5MJ"
+        did: "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNL00000003B5MJ"
+      - bpn: "BPNS0000000008ZZ"
+        did: "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNS0000000008ZZ"
+      - bpn: "BPNL00000003CNKC"
+        did: "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNL00000003CNKC"
+      - bpn: "BPNS00000008BDFH"
+        did: "did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNS00000008BDFH"
+
+  server:
+    trustedIssuers:
+      - did:web:ssi-dim-wallet-stub.mondragon-x.com:BPNL00000003CRHK
+    env:
+      EDC_IAM_DID_WEB_USE_HTTPS: false
+    endpoints:
+      management:
+        authKey: TEST
+    ingresses:
+      - enabled: true
+        hostname: bdrs-server.mondragon-x.com
+        endpoints:
+          - directory
+          - management
+        className: "nginx"
+        tls:
+          enabled: true
+          secretName: "bdrs-server.mondragon-x.com-tls"
+
+ssi-dim-wallet-stub:
+  enabled: true
+  wallet:
+    replicaCount: 1
+    host: ssi-dim-wallet-stub.mondragon-x.com
+    nameSpace: "umbrella"
+    appName: "ssi-dim-wallet-stub"
+    configName: "ssi-dim-wallet-config"
+    serviceName: "ssi-dim-wallet-service"
+    secretName: "ssi-dim-wallet-secret"
+    ingressName: "ssi-dim-wallet-ingress"
+    seeding:
+      bpnList: "BPNL00000003AZQP,BPNL00000003AYRE"
+  resources:
+    limits:
+      cpu: 1000m
+    ingress:
+      enabled: true
+      tls:
+        enabled: true
+        name: "ssi-dim-wallet-stub.mondragon-x.com-tls"
+      urlPrefix: /
+      className: nginx
+      annotations: {}
+    swagger:
+      ui:
+        status: true
+      apiDoc:
+        status: true
+    logLevel: "debug"
+    environment: "default"
+    baseWalletBpn: "BPNL00000003CRHK"
+    didHost: "ssi-dim-wallet-stub.mondragon-x.com"
+    stubUrl: "https://ssi-dim-wallet-stub.mondragon-x.com"
+    statusListVcId: "8a6c7486-1e1f-4555-bdd2-1a178182651e"
+    tokenExpiryTime: "5"
+    portal:
+      waitTime: "60"
+      host: "https://portal-backend.mondragon-x.com"
+      clientId: "sa-cl2-05"
+      clientSecret: "changeme"
+    keycloak:
+      realm: "CX-Central"
+      authServerUrl: "https://centralidp.mondragon-x.com/auth"
+    service:
+      type: ClusterIP
+      port: 8080
+  keycloak:
+    enabled: false
+
+smtp4dev:
+  enabled: false
+  ingress:
+    url: smtp.mondragon-x.com

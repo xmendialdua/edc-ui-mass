@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: flower-client-${ID}
+spec:
+  containers:
+  - name: flwr-supernode
+    image: ${SUPERNODE_IMAGE}
+    args:
+    - "--insecure"
+    - "--superlink"
+    - "${SUPERLINK}"
+    - "--node-config"
+    - "partition-id=${ID} num-partitions=${MAX_CLIENTS}"
+    - "--clientappio-api-address"
+    - "0.0.0.0:${PORT}"
+    - "--isolation"
+    - "process"
+    ports:
+    - name: "port-${PORT}"
+      containerPort: ${PORT}
+  - name: flwr-clientapp
+    image: ${CLIENTAPP_IMAGE}
+    args:
+    - "--insecure"
+    - "--clientappio-api-address"
+    - "localhost:${PORT}"

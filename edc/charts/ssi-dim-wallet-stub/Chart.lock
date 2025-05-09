@@ -1,0 +1,9 @@
+dependencies:
+- name: postgresql
+  repository: https://charts.bitnami.com/bitnami
+  version: 12.12.10
+- name: centralidp
+  repository: https://eclipse-tractusx.github.io/charts/dev
+  version: 3.0.0
+digest: sha256:04781627045dffcadfa38b1f3a645d3f69aa2e9511708c6fac5eb45783fb7577
+generated: "2025-04-11T08:49:26.446704291+02:00"

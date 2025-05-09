@@ -1,0 +1,124 @@
+# #############################################################################
+# Copyright (c) 2023,2024 Contributors to the Eclipse Foundation
+#
+# See the NOTICE file(s) distributed with this work for additional
+# information regarding copyright ownership.
+#
+# This program and the accompanying materials are made available under the
+# terms of the Apache License, Version 2.0 which is available at
+# https://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+# #############################################################################
+---
+apiVersion: v2
+name: umbrella
+description: |
+  A Helm chart to spin up Tractus-X OSS components to simulate a complete dataspace network.
+
+  With this Helm chart you are able to run end-to-end or create a sandbox environment.
+
+sources:
+  - https://github.com/mondragon-x/mondragon-x-umbrella
+
+type: application
+version: 2.8.0
+
+# when adding or updating versions of dependencies, also update list under /docs/user/installation/README.md
+dependencies:
+  # portal
+  - condition: portal.enabled
+    name: portal
+    repository: https://eclipse-tractusx.github.io/charts/dev
+    version: 2.3.0
+  # cx-iam
+  - condition: centralidp.enabled
+    name: centralidp
+    repository: https://eclipse-tractusx.github.io/charts/dev
+    version: 4.0.1
+  - condition: sharedidp.enabled
+    name: sharedidp
+    repository: https://eclipse-tractusx.github.io/charts/dev
+    version: 4.0.1
+  # discovery-finder
+  - condition: discoveryfinder.enabled
+    name: discoveryfinder
+    repository: https://eclipse-tractusx.github.io/charts/dev
+    version: 0.4.2
+    # bpn-discovery
+  - condition: bpndiscovery.enabled
+    name: bpndiscovery
+    repository: https://eclipse-tractusx.github.io/charts/dev
+    version: 0.4.2
+    # sd-factory
+  - condition: selfdescription.enabled
+    name: sdfactory
+    alias: selfdescription
+    repository: https://eclipse-tractusx.github.io/charts/dev
+    version: 2.1.22
+    # ssi-credential-issuer
+  - name: ssi-credential-issuer
+    condition: ssi-credential-issuer.enabled
+    repository: https://eclipse-tractusx.github.io/charts/dev
+    version: 1.2.0
+  # semantic-hub
+  - condition: semantic-hub.enabled
+    name: semantic-hub
+    repository: https://eclipse-tractusx.github.io/charts/dev
+    version: 0.4.4
+  # Business Partner Data Management
+  - name: bpdm
+    condition: bpdm.enabled
+    repository: https://eclipse-tractusx.github.io/charts/dev
+    version: 5.2.0
+    # TX Data Consumer 1
+  - name: tx-data-provider
+    alias: dataconsumerOne
+    version: 0.1.5
+    repository: file://../tx-data-provider
+    condition: dataconsumerOne.enabled
+    # TX Data Providers
+  - name: tx-data-provider
+    version: 0.1.5
+    repository: file://../tx-data-provider
+    condition: tx-data-provider.enabled
+    # TX Data Consumer 2
+  - name: tx-data-provider
+    alias: dataconsumerTwo
+    version: 0.1.5
+    repository: file://../tx-data-provider
+    condition: dataconsumerTwo.enabled
+    # pgadmin4 as helper tool for easy database access
+  - condition: pgadmin4.enabled
+    name: pgadmin4
+    repository: https://helm.runix.net
+    version: 1.25.x
+    # bdrs
+  - name: bdrs-server-memory
+    repository: https://eclipse-tractusx.github.io/charts/dev
+    version: 0.5.2
+    condition: bdrs-server-memory.enabled
+    # ssi-dim-wallet-stub
+  - name: ssi-dim-wallet-stub
+    repository: file://../ssi-dim-wallet-stub
+    version: 0.1.8
+    condition: ssi-dim-wallet-stub.enabled
+
+      # TX Data Connector Ikerlan (provider)
+  - name: tx-data-provider
+    alias: ikerlan-connector-1
+    version: 0.1.5
+    repository: file://../tx-data-provider
+    condition: ikerlan-connector-1.enabled
+      # TX Data Connector Ikerlan (provider)
+  # - name: tx-data-provider
+  #   alias: ikerlan-connector-2
+  #   version: 0.1.5
+  #   repository: file://../tx-data-provider
+  #   condition: ikerlan-connector-2.enabled
