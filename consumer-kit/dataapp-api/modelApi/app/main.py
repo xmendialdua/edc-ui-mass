@@ -15,22 +15,18 @@ logger = logging.getLogger(__name__)
 
 @app.post("/listener")
 async def receive_data_transfer(request: Request):
-    """Recibe una transferencia de espacio de datos y muestra lo que se consume en los logs de la API."""
+    """Recibe cualquier POST y muestra el cuerpo en los logs."""
 
     try:
-        # Leer el cuerpo de la solicitud (usualmente JSON)
         data = await request.json()
+    except Exception:
+        data = await request.body()  # fallback por si no es JSON válido
+        data = data.decode("utf-8")  # convertir de bytes a string
 
-        # Mostrar en los logs los datos que se reciben
-        logger.info("Recibiendo transferencia de espacio de datos con los siguientes detalles:")
-        for key, value in data.items():
-            logger.info(f"{key}: {value}")
-        
-        return {"message": "Transferencia recibida exitosamente."}
-    
-    except Exception as e:
-        logger.error(f"Error al procesar la transferencia: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error al procesar la transferencia: {str(e)}")
+    logger.info("Datos recibidos en /listener:")
+    logger.info(data)
+
+    return {"message": "Transferencia recibida exitosamente."}
 
 @app.get("/")
 def root():
