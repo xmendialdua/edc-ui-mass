@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: edc-ui-config
-  namespace: iflex-provider
+  namespace: iflex-ui
 data:
   NEXT_PUBLIC_API_URL: "http://provider-qna/cp/api/management"
   NEXT_PUBLIC_KUBERNETES_ENABLED: "true"

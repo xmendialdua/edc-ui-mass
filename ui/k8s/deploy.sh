@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set namespace
-NAMESPACE="iflex-provider"
+NAMESPACE="iflex-ui"
 
 # Set image name and tags
 IMAGE_NAME="jalvaro8/iflex-ui"

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Namespace
-NAMESPACE="iflex-provider"
+NAMESPACE="iflex-ui"
 
 # Eliminar recursos en Kubernetes
 kubectl delete -f k8s/rbac.yaml -n $NAMESPACE

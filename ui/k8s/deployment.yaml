@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: edc-ui
-  namespace: iflex-provider
+  namespace: iflex-ui
   labels:
     app: edc-ui
 spec:

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set namespace
-NAMESPACE="iflex-provider"
+NAMESPACE="iflex-ui"
 
 echo "Cleaning up EDC UI deployment in namespace $NAMESPACE..."
 
