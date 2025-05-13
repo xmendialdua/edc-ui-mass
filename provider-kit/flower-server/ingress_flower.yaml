@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: provider-flower
+  namespace: flower
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - control-plane-connector1.dataspace-ikerlan.es
+      secretName: control-plane-connector1
+  rules:
+    - host: control-plane-connector1.dataspace-ikerlan.es
+      http:
+        paths:
+          - path: /flower(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: superlink-0
+                port:
+                  number: 9091

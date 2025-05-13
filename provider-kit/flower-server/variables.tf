@@ -7,7 +7,7 @@ variable "app_name" {
 variable "superlink_image" {
   description = "Image for the superlink container"
   type        = string
-  default     = "flwr/superlink:1.13.1"
+  default     = "flwr/superlink:1.18.0"
 }
 
 variable "serverapp_image" {
