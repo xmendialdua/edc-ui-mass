@@ -17,14 +17,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # #############################################################################
 ---
-ikerlan-connector-2:
+ikerlan-connector-?:
   enabled: true
   seedTestdata: false
-  nameOverride: ikerlan-connector-2
+  nameOverride: ikerlan-connector-?
   secrets:
     edc-wallet-secret: changeme
   tractusx-connector:
-    nameOverride: ikerlan-connector-2-edc
+    nameOverride: ikerlan-connector-?-edc
     participant:
       id: BPNL000000000065
     iatp:
@@ -51,7 +51,7 @@ ikerlan-connector-2:
           authKey: TEST1
       ingresses:
         - enabled: true
-          hostname: "control-plane-connector2.dataspace-ikerlan.es"
+          hostname: "control-plane-connector?.dataspace-ikerlan.es"
           endpoints:
             - default
             - protocol
@@ -59,43 +59,43 @@ ikerlan-connector-2:
           className: "nginx"
           tls:
             enabled: true
-            secretName: "control-plane-connector2"
+            secretName: "control-plane-connector?"
     dataplane:
       env:
         TX_IAM_IATP_CREDENTIALSERVICE_URL: https://ssi-dim-wallet-stub.mondragon-x.com/api
         EDC_IAM_DID_WEB_USE_HTTPS: false
       ingresses:
         - enabled: true
-          hostname: "data-plane-connector2.dataspace-ikerlan.es"
+          hostname: "data-plane-connector?.dataspace-ikerlan.es"
           endpoints:
             - default
             - public
           className: "nginx"
           tls:
             enabled: true
-            secretName: "data-plane-connector2"
+            secretName: "data-plane-connector?"
       token:
         signer:
           privatekey_alias: tokenSignerPrivateKey
         verifier:
           publickey_alias: tokenSignerPublicKey
     postgresql:
-      nameOverride: ikerlan-connector-2-db
-      jdbcUrl: "jdbc:postgresql://{{ .Release.Name }}-ikerlan-connector-2-db:5432/edc"
+      nameOverride: ikerlan-connector-?-db
+      jdbcUrl: "jdbc:postgresql://{{ .Release.Name }}-ikerlan-connector-?-db:5432/edc"
       auth:
         password: "dbpassworddataconsumerone"
         postgresPassword: "dbpassworddataconsumerone"
     vault:
       hashicorp:
-        url: http://edc-ikerlan-connector-2-vault:8200
+        url: http://edc-ikerlan-connector-?-vault:8200
       secretNames:
         transferProxyTokenSignerPrivateKey: tokenSignerPrivateKey
         transferProxyTokenSignerPublicKey: tokenSignerPublicKey
         transferProxyTokenEncryptionAesKey: tokenEncryptionAesKey
 
   vault:
-    nameOverride: edc-ikerlan-connector-2-vault
-    fullnameOverride: edc-ikerlan-connector-2-vault
+    nameOverride: edc-ikerlan-connector-?-vault
+    fullnameOverride: edc-ikerlan-connector-?-vault
     enabled: true
     server:
       postStart: []

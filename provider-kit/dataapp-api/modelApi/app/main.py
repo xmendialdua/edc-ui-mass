@@ -98,10 +98,10 @@ async def serve_model_IDS(experiment:str, run:str, request: Request):
 @app.get("/flconfig")
 async def flower_config_exposer():
     config_json = {
-        "SUPERNODE_IMAGE": "flwr/supernode:1.13.1",
+        "SUPERNODE_IMAGE": "flwr/supernode:1.18.0",
         "CLIENTAPP_IMAGE": "jalvaro8/clientapp:latest",
         "MAX_CLIENTS": 10,
-        "SUPERLINK": "superlink-0.flower.svc.cluster.local:9092",
+        "SUPERLINK": "fl-server.dataspace-ikerlan.es:80",
         "CLIENT_API_ADDRESS": "0.0.0.0"
     }
     return config_json

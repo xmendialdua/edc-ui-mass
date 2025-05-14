@@ -6,7 +6,6 @@ NAMESPACE="iflex-ui"
 # Set image name and tags
 IMAGE_NAME="jalvaro8/iflex-ui"
 IMAGE_TAG_LATEST="latest"
-IMAGE_TAG_VERSION="1104"
 
 # Create namespace if it doesn't exist
 echo "Checking if namespace $NAMESPACE exists..."
@@ -16,15 +15,6 @@ if ! kubectl get namespace $NAMESPACE &> /dev/null; then
 else
   echo "Namespace $NAMESPACE already exists."
 fi
-
-# Build the Docker image with both tags
-echo "Building Docker image with tags: ${IMAGE_NAME}:${IMAGE_TAG_LATEST} and ${IMAGE_NAME}:${IMAGE_TAG_VERSION}..."
-docker build -t ${IMAGE_NAME}:${IMAGE_TAG_LATEST} -t ${IMAGE_NAME}:${IMAGE_TAG_VERSION} -f Dockerfile.k8s .
-
-# Push the images to Docker Hub
-echo "Pushing images to Docker Hub..."
-docker push ${IMAGE_NAME}:${IMAGE_TAG_LATEST}
-docker push ${IMAGE_NAME}:${IMAGE_TAG_VERSION}
 
 # Check if we're running in a kind cluster
 if kubectl cluster-info | grep -q "kind"; then
@@ -53,10 +43,10 @@ done
 
 # Apply Kubernetes configurations
 echo "Applying Kubernetes configurations..."
-kubectl apply -f k8s/rbac.yaml -n $NAMESPACE
-kubectl apply -f k8s/configmap.yaml -n $NAMESPACE
-kubectl apply -f k8s/deployment.yaml -n $NAMESPACE
-kubectl apply -f k8s/service.yaml -n $NAMESPACE
+kubectl apply -f rbac.yaml -n $NAMESPACE
+kubectl apply -f configmap.yaml -n $NAMESPACE
+kubectl apply -f deployment.yaml -n $NAMESPACE
+kubectl apply -f service.yaml -n $NAMESPACE
 
 # Wait for deployment to be ready
 echo "Waiting for deployment to be ready..."
