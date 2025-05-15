@@ -69,31 +69,48 @@ def extract_auth_code(json_data: str):
 app = FastAPI()
 
 @app.get("/serve")
-async def serve_model_IDS(experiment:str, run:str, request: Request):
-    
-    # data = await data.json()
+async def serve_model_IDS(experiment: str, run: str, request: Request):
     print(request.method)
     print(request.url)
     print(request.headers)
     print(request.query_params)
     print(request.path_params)
-    
-    # print(data)
+
+    # Configuración MLflow
     client = MlflowClient("http://mlflow-tracking.mlflow.svc.cluster.local:80")
     mlflow.set_tracking_uri("http://mlflow-tracking.mlflow.svc.cluster.local:80")
-
-
     mlflow.set_experiment(experiment)
-    # run_id, artifact_path, local_dir
+
+    # Crear carpeta temporal
+    local_dir = "downloaded"
+    if not os.path.exists(local_dir):
+        os.mkdir(local_dir)
+
+    # Descargar artefactos
+    local_path = client.download_artifacts(run, "", local_dir)
+
+    # Obtener parámetros y métricas
     try:
-        os.mkdir("downloaded")
-    except:
-        print("Folder already exists")
-    local_path = client.download_artifacts(run, "", "./downloaded")
-    
-    # Get filenames from the database
-    file_list = ['./downloaded']
-    return zipfiles2(file_list, experiment)
+        params = client.get_run(run).data.params
+        metrics = client.get_run(run).data.metrics
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error obteniendo parámetros/métricas del run: {str(e)}")
+
+    # Guardar JSON combinado
+    metadata = {
+        "params": params,
+        "metrics": metrics
+    }
+
+    try:
+        with open(os.path.join(local_dir, "params_metrics.json"), "w") as f:
+            json.dump(metadata, f, indent=4)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo crear el archivo params_metrics.json: {str(e)}")
+
+    # Crear y devolver ZIP
+    return zipfiles2([local_dir], experiment)
+
 
 @app.get("/flconfig")
 async def flower_config_exposer():

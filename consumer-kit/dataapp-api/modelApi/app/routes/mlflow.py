@@ -8,6 +8,9 @@ import sys
 import subprocess
 import shutil
 
+import io
+import json
+
 # Añadir el directorio raíz de la estructura al PYTHONPATH para importar deploy_mlflow
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../mlflow')))
 
@@ -44,7 +47,7 @@ async def set_mlflow_url(request: Request, mlflow_url: str = Query(None)):
                     raise HTTPException(status_code=500, detail=f"Error al desplegar MLflow: {result.stderr}")
                 
                 print("Despliegue de MLflow completado exitosamente.")
-                mlflow_server_url = "http://172.19.0.2:30021"  # URL predeterminada para MLflow
+                mlflow_server_url = "http://mlflow-tracking.mlflow.svc.cluster.local:80"  # URL predeterminada para MLflow
 
             except subprocess.CalledProcessError as e:
                 raise HTTPException(status_code=500, detail=f"Error al ejecutar el script de despliegue: {e.stderr}")
@@ -52,51 +55,98 @@ async def set_mlflow_url(request: Request, mlflow_url: str = Query(None)):
         return {"message": f"URL de MLflow configurada: {mlflow_server_url}"}
 
 
+
 @router.post("/listener/{asset_name}")
-async def save_model_in_mlflow(asset_name: str, file: UploadFile = File(...)):
-    """Guarda un modelo en MLflow utilizando un archivo .zip recibido directamente en la solicitud y el nombre del asset."""
+async def save_model_in_mlflow(asset_name: str, request: Request):
+    """Guarda un modelo en MLflow utilizando un archivo .zip recibido directamente en el body y el nombre del asset."""
 
-    global mlflow_server_url
+    print(f"Nombre del asset: {asset_name}")
 
-    # Comprobar si la URL de MLflow está configurada
     if mlflow_server_url is None:
-        raise HTTPException(status_code=400, detail="La URL de MLflow no está configurada. Use /set-mlflow-url para configurarla.")
-    
-    # Configuración de MLflow con la URL persistida
+        return  # No hacer nada si no hay URL configurada
+
+    # Leer el contenido ZIP desde el cuerpo de la petición
+    try:
+        zip_bytes = await request.body()
+        if not zip_bytes:
+            print("Body vacío. Ignorando petición.")
+            return  # No hacer nada si el body está vacío
+        print(f"Recibidos {len(zip_bytes)} bytes")
+    except Exception as e:
+        print(f"Error al leer el body: {str(e)}")
+        return  # No hacer nada en caso de error
+
+    # Configuración de MLflow
     client = MlflowClient(mlflow_server_url)
     mlflow.set_tracking_uri(mlflow_server_url)
-    
-    # Crear el experimento con el nombre proporcionado (asset_name)
+
     try:
         mlflow.set_experiment(asset_name)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error al crear el experimento: {str(e)}")
-    
-    # Ruta para guardar el modelo extraído
+        print(f"Error al crear el experimento: {str(e)}")
+        return  # No hacer nada
+
+    # Preparar directorios
     timestamp = int(datetime.utcnow().timestamp())
     foldername = f"model_{timestamp}"
-    route = "/code/app/modelsMLflow"
-    
-    if not os.path.exists(route):
-        os.makedirs(route)
-    
-    # Guardar el archivo .zip recibido en una ubicación temporal
-    zip_location = os.path.join(route, "model.zip")
-    with open(zip_location, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    
-    # Verificar si el archivo es un ZIP y extraer el contenido
+    base_dir = "/code/app/modelsMLflow"
+    model_dir = os.path.join(base_dir, foldername)
+    model_subdir = os.path.join(model_dir, "model")
+    zip_path = os.path.join(base_dir, f"{foldername}.zip")
+
+    os.makedirs(model_subdir, exist_ok=True)
+
+    with open(zip_path, "wb") as f:
+        f.write(zip_bytes)
+
+    # Extraer ZIP
     try:
-        with zipfile.ZipFile(zip_location, 'r') as zip_ref:
-            zip_ref.extractall(route)
-        os.rename(f"{route}/model", f"{route}/{foldername}")
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zip_ref:
+            for member in zip_ref.infolist():
+                filename = os.path.basename(member.filename)
+                if not filename:
+                    continue
+                source = zip_ref.open(member)
+                target_path = (
+                    os.path.join(model_dir, filename)
+                    if filename == "params_metrics.json"
+                    else os.path.join(model_subdir, filename)
+                )
+                with open(target_path, "wb") as target:
+                    shutil.copyfileobj(source, target)
     except zipfile.BadZipFile:
-        raise HTTPException(status_code=400, detail="El archivo proporcionado no es un archivo zip válido.")
-    
-    # Loggear el modelo como un artefacto en MLflow
+        print("Archivo ZIP inválido.")
+        return  # No hacer nada
+
+    # Leer parámetros y métricas
+    json_path = os.path.join(model_dir, "params_metrics.json")
+    params, metrics = {}, {}
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, "r") as f:
+                content = json.load(f)
+                params = content.get("params", {})
+                metrics = content.get("metrics", {})
+        except Exception as e:
+            print(f"Error al leer JSON: {str(e)}")
+
+    # Loggear en MLflow
     try:
-        mlflow.log_artifact(f"{route}/{foldername}")
+        with mlflow.start_run() as run:
+            mlflow.log_artifacts(model_subdir)
+            if params:
+                mlflow.log_params(params)
+            if metrics:
+                mlflow.log_metrics(metrics)
+            run_id = run.info.run_id
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al guardar el modelo en MLflow: {str(e)}")
-    
-    return {"message": "Modelo guardado exitosamente en MLflow"}
+        print(f"Error al guardar en MLflow: {str(e)}")
+        return
+
+    return {
+        "message": "Modelo guardado exitosamente en MLflow",
+        "logged_artifacts_dir": model_subdir,
+        "params_logged": list(params.keys()),
+        "metrics_logged": list(metrics.keys()),
+        "run_id": run_id
+    }
