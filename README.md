@@ -1,93 +1,155 @@
-# iFLEX
+# IFLEX: Ikerlan Federated Learning EXtension
 
+Este desarrollo conocido como IFLEX o FL-KIT, es un conjunto de herramientas que permiten la integración de un escenario basado en los espacios de datos junto al entrenamiento federado de modelos de inteligencia artificial y registro y compartición de modelos. A través de los espacios de datos, un proveedor o agregador es capaz de exponer a los consumidores del espacio la posibilidad de participar en un entrenamiento federado específico. Así se pueden entrenar modelos de inteligencia artificial con los datos de los clientes en un entorno seguro, fiable y soberano — pilares clave de los espacios de datos.
 
+Este servicio, denominado **FL-Service**, se materializa mediante una **Data App** que automatiza todo el proceso: desde exponer el asset correspondiente, desplegar Clientes Federados que se conectan al Agregador automáticamente (siguiendo las especificaciones del usuario), hasta realizar el entrenamiento y el registro automático del modelo en un **Model Registry**.
 
-## Getting started
+Además, IFLEX permite que los modelos registrados se ofrezcan como assets en el espacio de datos para su consumo por otros participantes, quienes pueden especificar el Model Registry donde almacenar los modelos obtenidos.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+Todo ello se realiza mediante una interfaz interoperable e intuitiva que no solo sirve para este caso de uso específico, sino que también facilita el uso de conectores EDC. Esta interfaz permite una gestión diferenciada entre los modos Provider y Consumer, además de visualizar la interacción entre clientes y agregadores FL y los modelos registrados.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+---
 
-## Add your files
+## Tabla de Contenidos
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+1. [Arquitectura](#arquitectura)
+2. [Requisitos del Despliegue](#requisitos-del-despliegue)
+3. [Despliegue](#despliegue)
+    - [Parte Común](#parte-común)
+    - [Proveedor](#proveedor)
+    - [Consumidor](#consumidor)
+4. [Uso](#uso)
+    - [Uso genérico de los espacios de datos](#uso-genérico-de-los-espacios-de-datos)
+    - [Uso específico del caso de FL](#uso-específico-del-caso-de-fl)
+5. [Licencia y Autores](#licencia-y-autores)
 
+---
+
+## Arquitectura
+
+*Por completar...*
+
+---
+
+## Requisitos del Despliegue
+
+- [Docker](https://docs.docker.com/get-docker/)
+- [npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
+- [k9s](https://k9scli.io/)
+- [microk8s](https://microk8s.io/)
+- [Helm](https://helm.sh/docs/intro/install/)
+- [Kubernetes](https://kubernetes.io/docs/tasks/tools/)
+- [Python](https://www.python.org/downloads/)
+
+---
+
+## Despliegue
+
+### Parte Común
+
+1. Clonar el repositorio.
+2. Iniciar microk8s:
+```bash
+microk8s start
+microk8s enable ingress dns hostpath-storage
 ```
-cd existing_repo
-git remote add origin https://gitlab.ikerlan.es/Big-Data/dataspaces/iflex.git
-git branch -M main
-git push -uf origin main
+3. Preparar dependencias de Helm:
+```bash
+cd edc
+bash ./hack/helm-dependencies.bash
+```
+4. Refactorizar `Charts.yaml` y los archivos `values-mondragon-x-ikerlan-connector-?.yaml`, renombrando con un número o etiqueta adecuada.
+
+5. Configurar valores personalizados:
+   - BPN, dominio del control-plane/data-plane
+   - authKey
+   - Nombres de secretos (ej. `control-plane-connector1`)
+
+6. Desplegar con Helm:
+```bash
+kubectl create namespace umbrella
+helm install -f ./charts/umbrella/values-mondragon-x-ikerlan-connector-[1].yaml [connector-1] ./charts/umbrella -n umbrella
 ```
 
-## Integrate with your tools
+7. Despliegue de la UI:
+```bash
+cd ../ui/k8s
+chmod +x deploy.sh
+./deploy.sh
+```
 
-- [ ] [Set up project integrations](https://gitlab.ikerlan.es/Big-Data/dataspaces/iflex/-/settings/integrations)
+8. Crear secretos TLS:
+```bash
+cd ../../crts
+kubectl create secret tls control-plane-connector[1] --cert=control-plane-connector[1]/fullchain.pem --key=control-plane-connector[1]/privkey.pem -n umbrella
+kubectl create secret tls data-plane-connector[1] --cert=data-plane-connector[1]/fullchain.pem --key=data-plane-connector[1]/privkey.pem -n umbrella
+```
 
-## Collaborate with your team
+### Proveedor
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+1. Desplegar el Agregador FL:
+```bash
+cd provider-kit/flower-server
+kubectl create namespace flower
+terraform init && terraform apply --auto-approve
+```
+2. Ingress del FL-server (opcional según el entorno):
+```bash
+kubectl apply -f ingress_flower.yaml -n flower
+```
 
-## Test and Deploy
+3. Desplegar MLflow:
+```bash
+cd ../mlflow-bitnami
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm install mlflow bitnami/mlflow -f values-mlflow-stack.yaml --namespace mlflow --create-namespace
+```
+4. Entrenar modelo de prueba:
+```bash
+python3 train.py
+```
 
-Use the built-in continuous integration in GitLab.
+5. Desplegar Data App del Provider:
+```bash
+cd ../dataapp-api/
+chmod +x agilP.sh
+./agilP.sh
+```
+6. Desplegar ingress del proveedor:
+```bash
+kubectl apply -f ingress_provider_ikerlan.yaml -n fl-api-provider
+```
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+### Consumidor
 
-***
+1. Desplegar Data App del Consumer:
+```bash
+cd consumer-kit/dataapp-api
+terraform init
+terraform apply
+```
+2. Desplegar ingress del consumidor:
+```bash
+kubectl apply -f ingress_consumer_ikerlan.yaml -n fl-api-consumer
+```
 
-# Editing this README
+---
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+## Uso
 
-## Suggestions for a good README
+### Uso genérico de los espacios de datos
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+Desde la interfaz, el Provider puede definir assets, políticas y contratos. El Consumer puede buscar catálogos, negociar contratos e iniciar transferencias.
 
-## Name
-Choose a self-explaining name for your project.
+### Uso específico del caso de FL
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+- **Provider Mode**: visualizar modelos registrados en el Model Registry y el estado del Agregador FL.
+- **Consumer Mode**: ver modelos registrados por cada asset y el estado de los clientes FL.
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+*Nota: en futuras versiones se incluirán pantallazos de la interfaz.*
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+---
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+## Licencia y Autores
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Autor: Joseba Álvaro Hernández
