@@ -8,6 +8,9 @@ import sys
 import subprocess
 import shutil
 
+import time
+import httpx
+
 import io
 import json
 
@@ -22,38 +25,46 @@ mlflow_server_url = None
 
 @router.post("/set-mlflow-url")
 async def set_mlflow_url(request: Request, mlflow_url: str = Query(None)):
-    """Recibe la URL del servidor MLflow y la persiste. Si la URL es nula, usa la URL predeterminada."""
+    """Recibe la URL del servidor MLflow y la persiste. Si la URL es nula, despliega MLflow."""
     global mlflow_server_url
-    
-    # Si se recibe una URL, la usamos; si no, se asigna la URL predeterminada
+
     if mlflow_url:
-        # Validar que la URL es válida
         if not mlflow_url.startswith("http://") and not mlflow_url.startswith("https://"):
             raise HTTPException(status_code=400, detail="La URL debe empezar con http:// o https://")
         mlflow_server_url = mlflow_url
-        return {"message": f"URL de MLflow configurada: {mlflow_server_url}"}
     else:
-        # Si la URL es nula, usamos la predeterminada
         if mlflow_server_url is None:
             try:
-                # Ejecutar el script de despliegue de MLflow utilizando subprocess
                 print("Desplegando MLflow...")
-
-                # Ejecutar el script deploy_mlflow.py
                 result = subprocess.run(["python3", "/code/app/mlflow/deploy_mlflow.py"], capture_output=True, text=True, check=True)
-
-                # Verificar si el despliegue fue exitoso
                 if result.returncode != 0:
                     raise HTTPException(status_code=500, detail=f"Error al desplegar MLflow: {result.stderr}")
-                
                 print("Despliegue de MLflow completado exitosamente.")
-                mlflow_server_url = "http://mlflow-tracking.mlflow.svc.cluster.local:80"  # URL predeterminada para MLflow
-
+                mlflow_server_url = "http://mlflow-tracking.mlflow.svc.cluster.local:80"
             except subprocess.CalledProcessError as e:
                 raise HTTPException(status_code=500, detail=f"Error al ejecutar el script de despliegue: {e.stderr}")
 
-        return {"message": f"URL de MLflow configurada: {mlflow_server_url}"}
+    # Esperar a que el servidor MLflow esté disponible
+    timeout_seconds = 120
+    interval_seconds = 10
+    attempts = timeout_seconds // interval_seconds
 
+    print(f"Esperando a que MLflow esté accesible en {mlflow_server_url}...")
+
+    for i in range(attempts):
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(f"{mlflow_server_url}/")
+                if response.status_code == 200:
+                    print("MLflow está accesible.")
+                    break
+        except Exception as e:
+            print(f"Intento {i+1}/{attempts}: MLflow no está disponible aún ({e})")
+        time.sleep(interval_seconds)
+    else:
+        raise HTTPException(status_code=504, detail=f"No se pudo establecer conexión con MLflow en {mlflow_server_url} después de {timeout_seconds} segundos.")
+
+    return {"message": f"URL de MLflow configurada: {mlflow_server_url}"}
 
 
 @router.post("/listener/{asset_name}")
