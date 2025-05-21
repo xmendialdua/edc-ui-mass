@@ -110,10 +110,13 @@ python3 train.py
 ```
 
 5. Desplegar Data App del Provider:
+
+Primero edita el archivo main.py de la API para configurar los datos de conexion al agregador deseados. Si realizas cambios, utiliza el script de agilP.sh para generar la imagen en base a ese codigo. Solamente deberias modificar el nombre y tag de la imagen (actualmente se usa un repo privado de Docker Hub).
+
 ```bash
 cd ../dataapp-api/
-chmod +x agilP.sh
-./agilP.sh
+terraform init
+terraform apply --auto-aprove
 ```
 6. Desplegar ingress del proveedor:
 ```bash
@@ -126,7 +129,7 @@ kubectl apply -f ingress_provider_ikerlan.yaml -n fl-api-provider
 ```bash
 cd consumer-kit/dataapp-api
 terraform init
-terraform apply
+terraform apply --auto-aprove
 ```
 2. Desplegar ingress del consumidor:
 ```bash
