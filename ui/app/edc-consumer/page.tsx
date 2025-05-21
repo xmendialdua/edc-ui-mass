@@ -384,22 +384,25 @@ export default function ConsumerPage() {
   const dataAppsFilterRef = useRef<HTMLDivElement>(null)
 
   // Estados para los filtros y ordenación
+  // Modificar los estados de los filtros para usar arrays en lugar de strings
+  // Buscar la declaración de catalogFilters y reemplazarla con:
   const [catalogFilters, setCatalogFilters] = useState({
-    assetType: "all", // "all", "fl", "model", "normal"
+    assetType: ["fl", "model", "normal"], // Todas marcadas por defecto
     sortBy: "default", // "default", "name"
   })
 
+  // Convertir negotiationsFilters para usar array en assetType
   const [negotiationsFilters, setNegotiationsFilters] = useState({
-    assetType: "all", // "all", "fl", "model", "normal"
+    assetType: ["fl", "model", "normal"], // Todas marcadas por defecto
     timeFrame: "all", // "all", "30min", "2hours", "1day", "2days"
     sortBy: "time", // "time", "name"
     sortDirection: "desc", // "asc", "desc"
   })
 
   const [transfersFilters, setTransfersFilters] = useState({
-    assetType: "all", // "all", "fl", "model", "normal"
+    assetType: ["fl", "model", "normal"], // Todas marcadas por defecto
     timeFrame: "all", // "all", "30min", "2hours", "1day", "2days"
-    state: "all", // "all", "STARTED", "COMPLETED", etc.
+    state: ["STARTED", "COMPLETED", "DEPROVISIONED", "TERMINATED"], // Todos los estados marcados por defecto
     sortBy: "time", // "time", "name"
     sortDirection: "desc", // "asc", "desc"
   })
@@ -1293,11 +1296,13 @@ Value: ${Math.random() * 100} units`
   }
 
   // Función para filtrar y ordenar los elementos del catálogo
+  // Modificar la función getFilteredCatalogItems para manejar selección múltiple
+  // Reemplazar la función getFilteredCatalogItems con:
   const getFilteredCatalogItems = () => {
     let filtered = [...catalogItems]
 
-    // Filtrar por tipo de asset
-    if (catalogFilters.assetType !== "all") {
+    // Filtrar por tipo de asset (ahora sin opción "all")
+    if (catalogFilters.assetType.length > 0) {
       filtered = filtered.filter((item) => {
         const isFlService =
           item.id.toLowerCase().includes("fl-") ||
@@ -1307,11 +1312,12 @@ Value: ${Math.random() * 100} units`
 
         const isModel = item.id.toLowerCase().includes("model") || item.name.toLowerCase().includes("ml")
 
-        if (catalogFilters.assetType === "fl") return isFlService
-        if (catalogFilters.assetType === "model") return isModel
-        if (catalogFilters.assetType === "normal") return !isFlService && !isModel
+        // Verificar si alguno de los tipos seleccionados coincide
+        if (catalogFilters.assetType.includes("fl") && isFlService) return true
+        if (catalogFilters.assetType.includes("model") && isModel) return true
+        if (catalogFilters.assetType.includes("normal") && !isFlService && !isModel) return true
 
-        return true
+        return false
       })
     }
 
@@ -1327,8 +1333,8 @@ Value: ${Math.random() * 100} units`
   const getFilteredNegotiations = () => {
     let filtered = [...contractNegotiations]
 
-    // Filtrar por tipo de asset
-    if (negotiationsFilters.assetType !== "all") {
+    // Filtrar por tipo de asset (ahora con selección múltiple)
+    if (negotiationsFilters.assetType.length > 0) {
       filtered = filtered.filter((negotiation) => {
         const assetId = negotiation.assetId || ""
         const assetName = negotiation.assetName || ""
@@ -1341,11 +1347,12 @@ Value: ${Math.random() * 100} units`
 
         const isModel = assetId.toLowerCase().includes("model") || assetName.toLowerCase().includes("ml")
 
-        if (negotiationsFilters.assetType === "fl") return isFlService
-        if (negotiationsFilters.assetType === "model") return isModel
-        if (negotiationsFilters.assetType === "normal") return !isFlService && !isModel
+        // Verificar si alguno de los tipos seleccionados coincide
+        if (negotiationsFilters.assetType.includes("fl") && isFlService) return true
+        if (negotiationsFilters.assetType.includes("model") && isModel) return true
+        if (negotiationsFilters.assetType.includes("normal") && !isFlService && !isModel) return true
 
-        return true
+        return false
       })
     }
 
@@ -1385,11 +1392,13 @@ Value: ${Math.random() * 100} units`
   }
 
   // Función para filtrar y ordenar las transferencias
+  // Modificar la función getFilteredTransfers para manejar selección múltiple
+  // Reemplazar la función getFilteredTransfers con:
   const getFilteredTransfers = () => {
     let filtered = [...transferProcesses]
 
-    // Filtrar por tipo de asset
-    if (transfersFilters.assetType !== "all") {
+    // Filtrar por tipo de asset (ahora sin opción "all")
+    if (transfersFilters.assetType.length > 0) {
       filtered = filtered.filter((transfer) => {
         const assetId = transfer.assetId || ""
 
@@ -1400,11 +1409,12 @@ Value: ${Math.random() * 100} units`
 
         const isModel = assetId.toLowerCase().includes("model") || transfer.assetType === "Model"
 
-        if (transfersFilters.assetType === "fl") return isFlService
-        if (transfersFilters.assetType === "model") return isModel
-        if (transfersFilters.assetType === "normal") return !isFlService && !isModel
+        // Verificar si alguno de los tipos seleccionados coincide
+        if (transfersFilters.assetType.includes("fl") && isFlService) return true
+        if (transfersFilters.assetType.includes("model") && isModel) return true
+        if (transfersFilters.assetType.includes("normal") && !isFlService && !isModel) return true
 
-        return true
+        return false
       })
     }
 
@@ -1423,9 +1433,9 @@ Value: ${Math.random() * 100} units`
       })
     }
 
-    // Filtrar por estado
-    if (transfersFilters.state !== "all") {
-      filtered = filtered.filter((transfer) => transfer.state === transfersFilters.state)
+    // Filtrar por estado (ahora sin opción "all")
+    if (transfersFilters.state.length > 0) {
+      filtered = filtered.filter((transfer) => transfersFilters.state.includes(transfer.state))
     }
 
     // Ordenar
@@ -1505,106 +1515,236 @@ Value: ${Math.random() * 100} units`
   // Reemplazar los componentes de filtros con versiones más compactas:
 
   // Componente de filtros para el catálogo
-  const CatalogFilters = () => (
-    <div className="absolute z-10 left-0 right-0 bg-white border-t border-lime-500 shadow-md cursor-pointer">
-      <div className="flex flex-col">
-        <select
-          value={catalogFilters.assetType}
-          onChange={(e) => setCatalogFilters({ ...catalogFilters, assetType: e.target.value })}
-          className="w-full text-xs border-0 border-b border-lime-200 px-2 py-1.5 bg-white focus:ring-1 focus:ring-lime-500 focus:border-lime-500 rounded-none cursor-pointer"
-          aria-label="Filter by asset type"
-        >
-          <option value="all">All Types</option>
-          <option value="fl">FL Service</option>
-          <option value="model">Model</option>
-          <option value="normal">Normal</option>
-        </select>
-
-        <select
-          value={catalogFilters.sortBy}
-          onChange={(e) => setCatalogFilters({ ...catalogFilters, sortBy: e.target.value })}
-          className="w-full text-xs border-0 border-b border-lime-200 px-2 py-1.5 bg-white focus:ring-1 focus:ring-lime-500 focus:border-lime-500 rounded-none cursor-pointer"
-          aria-label="Sort by"
-        >
-          <option value="default">Default Order</option>
-          <option value="name">Sort by Name</option>
-        </select>
-      </div>
-    </div>
-  )
-
-  // Reemplazar NegotiationsFilters con esta versión actualizada:
-  const NegotiationsFilters = () => (
-    <div className="absolute z-10 left-0 right-0 bg-white border-t border-lime-500 shadow-md cursor-pointer">
-      <div className="flex flex-col">
-        <select
-          value={negotiationsFilters.assetType}
-          onChange={(e) => setNegotiationsFilters({ ...negotiationsFilters, assetType: e.target.value })}
-          className="w-full text-xs border-0 border-b border-lime-200 px-2 py-1.5 bg-white focus:ring-1 focus:ring-lime-500 focus:border-lime-500 rounded-none cursor-pointer"
-          aria-label="Filter by asset type"
-        >
-          <option value="all">All Types</option>
-          <option value="fl">FL Service</option>
-          <option value="model">Model</option>
-          <option value="normal">Normal</option>
-        </select>
-
-        <select
-          value={negotiationsFilters.timeFrame}
-          onChange={(e) => setNegotiationsFilters({ ...negotiationsFilters, timeFrame: e.target.value })}
-          className="w-full text-xs border-0 border-b border-lime-200 px-2 py-1.5 bg-white focus:ring-1 focus:ring-lime-500 focus:border-lime-500 rounded-none cursor-pointer"
-          aria-label="Filter by time frame"
-        >
-          <option value="all">All Time</option>
-          <option value="30min">Last 30 Min</option>
-          <option value="2hours">Last 2 Hours</option>
-          <option value="1day">Last Day</option>
-          <option value="2days">Last 2 Days</option>
-        </select>
-
-        <select
-          value={negotiationsFilters.sortBy}
-          onChange={(e) => setNegotiationsFilters({ ...negotiationsFilters, sortBy: e.target.value })}
-          className="w-full text-xs border-0 border-b border-lime-200 px-2 py-1.5 bg-white focus:ring-1 focus:ring-lime-500 focus:border-lime-500 rounded-none cursor-pointer"
-          aria-label="Sort by"
-        >
-          <option value="time">Sort by Time</option>
-          <option value="name">Sort by Name</option>
-        </select>
-
-        <select
-          value={negotiationsFilters.sortDirection}
-          onChange={(e) => setNegotiationsFilters({ ...negotiationsFilters, sortDirection: e.target.value })}
-          className="w-full text-xs border-0 border-b border-lime-200 px-2 py-1.5 bg-white focus:ring-1 focus:ring-lime-500 focus:border-lime-500 rounded-none cursor-pointer"
-          aria-label="Sort direction"
-        >
-          <option value="desc">Newest First</option>
-          <option value="asc">Oldest First</option>
-        </select>
-      </div>
-    </div>
-  )
-
-  // Reemplazar TransfersFilters con esta versión actualizada:
-  const TransfersFilters = () => {
-    // Obtener los estados únicos de las transferencias
-    const uniqueStates = Array.from(new Set(transferProcesses.map((t) => t.state)))
+  // Reemplazar el componente CatalogFilters con la versión de selección múltiple
+  // Reemplazar el componente CatalogFilters con:
+  const CatalogFilters = () => {
+    // Función para manejar cambios en los checkboxes de tipo de asset
+    const handleAssetTypeChange = (type: string) => {
+      if (catalogFilters.assetType.includes(type)) {
+        // Si ya está seleccionado, quitarlo (asegurándose de que queda al menos uno seleccionado)
+        const newTypes = catalogFilters.assetType.filter((t) => t !== type)
+        if (newTypes.length > 0) {
+          setCatalogFilters({ ...catalogFilters, assetType: newTypes })
+        }
+      } else {
+        // Si no está seleccionado, agregarlo
+        setCatalogFilters({ ...catalogFilters, assetType: [...catalogFilters.assetType, type] })
+      }
+    }
 
     return (
       <div className="absolute z-10 left-0 right-0 bg-white border-t border-lime-500 shadow-md cursor-pointer">
         <div className="flex flex-col">
+          {/* Sección de tipos de asset con checkboxes - sin opción All */}
+          <div className="p-2 border-b border-lime-200">
+            <p className="text-xs font-medium text-gray-700 mb-1">Filter by asset type:</p>
+            <div className="space-y-1">
+              <label className="flex items-center text-xs">
+                <input
+                  type="checkbox"
+                  checked={catalogFilters.assetType.includes("fl")}
+                  onChange={() => handleAssetTypeChange("fl")}
+                  className="mr-1.5 h-3 w-3 rounded border-gray-300 text-lime-600 focus:ring-lime-500"
+                />
+                FL Service
+              </label>
+              <label className="flex items-center text-xs">
+                <input
+                  type="checkbox"
+                  checked={catalogFilters.assetType.includes("model")}
+                  onChange={() => handleAssetTypeChange("model")}
+                  className="mr-1.5 h-3 w-3 rounded border-gray-300 text-lime-600 focus:ring-lime-500"
+                />
+                Model
+              </label>
+              <label className="flex items-center text-xs">
+                <input
+                  type="checkbox"
+                  checked={catalogFilters.assetType.includes("normal")}
+                  onChange={() => handleAssetTypeChange("normal")}
+                  className="mr-1.5 h-3 w-3 rounded border-gray-300 text-lime-600 focus:ring-lime-500"
+                />
+                Normal
+              </label>
+            </div>
+          </div>
+
+          {/* Mantener el select para ordenación */}
           <select
-            value={transfersFilters.assetType}
-            onChange={(e) => setTransfersFilters({ ...transfersFilters, assetType: e.target.value })}
+            value={catalogFilters.sortBy}
+            onChange={(e) => setCatalogFilters({ ...catalogFilters, sortBy: e.target.value })}
             className="w-full text-xs border-0 border-b border-lime-200 px-2 py-1.5 bg-white focus:ring-1 focus:ring-lime-500 focus:border-lime-500 rounded-none cursor-pointer"
-            aria-label="Filter by asset type"
+            aria-label="Sort by"
           >
-            <option value="all">All Types</option>
-            <option value="fl">FL Service</option>
-            <option value="model">Model</option>
-            <option value="normal">Normal</option>
+            <option value="default">Default Order</option>
+            <option value="name">Sort by Name</option>
+          </select>
+        </div>
+      </div>
+    )
+  }
+
+  // Reemplazar NegotiationsFilters por la versión con checkboxes
+  const NegotiationsFilters = () => {
+    // Función para manejar cambios en los checkboxes de tipo de asset
+    const handleAssetTypeChange = (type: string) => {
+      if (negotiationsFilters.assetType.includes(type)) {
+        // Si ya está seleccionado, quitarlo (asegurándose de que queda al menos uno seleccionado)
+        const newTypes = negotiationsFilters.assetType.filter((t) => t !== type)
+        if (newTypes.length > 0) {
+          setNegotiationsFilters({ ...negotiationsFilters, assetType: newTypes })
+        }
+      } else {
+        // Si no está seleccionado, agregarlo
+        setNegotiationsFilters({ ...negotiationsFilters, assetType: [...negotiationsFilters.assetType, type] })
+      }
+    }
+
+    return (
+      <div className="absolute z-10 left-0 right-0 bg-white border-t border-lime-500 shadow-md cursor-pointer">
+        <div className="flex flex-col">
+          {/* Sección de tipos de asset con checkboxes - sin opción All */}
+          <div className="p-2 border-b border-lime-200">
+            <p className="text-xs font-medium text-gray-700 mb-1">Filter by asset type:</p>
+            <div className="space-y-1">
+              <label className="flex items-center text-xs">
+                <input
+                  type="checkbox"
+                  checked={negotiationsFilters.assetType.includes("fl")}
+                  onChange={() => handleAssetTypeChange("fl")}
+                  className="mr-1.5 h-3 w-3 rounded border-gray-300 text-lime-600 focus:ring-lime-500"
+                />
+                FL Service
+              </label>
+              <label className="flex items-center text-xs">
+                <input
+                  type="checkbox"
+                  checked={negotiationsFilters.assetType.includes("model")}
+                  onChange={() => handleAssetTypeChange("model")}
+                  className="mr-1.5 h-3 w-3 rounded border-gray-300 text-lime-600 focus:ring-lime-500"
+                />
+                Model
+              </label>
+              <label className="flex items-center text-xs">
+                <input
+                  type="checkbox"
+                  checked={negotiationsFilters.assetType.includes("normal")}
+                  onChange={() => handleAssetTypeChange("normal")}
+                  className="mr-1.5 h-3 w-3 rounded border-gray-300 text-lime-600 focus:ring-lime-500"
+                />
+                Normal
+              </label>
+            </div>
+          </div>
+
+          <select
+            value={negotiationsFilters.timeFrame}
+            onChange={(e) => setNegotiationsFilters({ ...negotiationsFilters, timeFrame: e.target.value })}
+            className="w-full text-xs border-0 border-b border-lime-200 px-2 py-1.5 bg-white focus:ring-1 focus:ring-lime-500 focus:border-lime-500 rounded-none cursor-pointer"
+            aria-label="Filter by time frame"
+          >
+            <option value="all">All Time</option>
+            <option value="30min">Last 30 Min</option>
+            <option value="2hours">Last 2 Hours</option>
+            <option value="1day">Last Day</option>
+            <option value="2days">Last 2 Days</option>
           </select>
 
+          <select
+            value={negotiationsFilters.sortBy}
+            onChange={(e) => setNegotiationsFilters({ ...negotiationsFilters, sortBy: e.target.value })}
+            className="w-full text-xs border-0 border-b border-lime-200 px-2 py-1.5 bg-white focus:ring-1 focus:ring-lime-500 focus:border-lime-500 rounded-none cursor-pointer"
+            aria-label="Sort by"
+          >
+            <option value="time">Sort by Time</option>
+            <option value="name">Sort by Name</option>
+          </select>
+
+          <select
+            value={negotiationsFilters.sortDirection}
+            onChange={(e) => setNegotiationsFilters({ ...negotiationsFilters, sortDirection: e.target.value })}
+            className="w-full text-xs border-0 border-b border-lime-200 px-2 py-1.5 bg-white focus:ring-1 focus:ring-lime-500 focus:border-lime-500 rounded-none cursor-pointer"
+            aria-label="Sort direction"
+          >
+            <option value="desc">Newest First</option>
+            <option value="asc">Oldest First</option>
+          </select>
+        </div>
+      </div>
+    )
+  }
+
+  // Modificar TransfersFilters para quitar las opciones "All"
+  const TransfersFilters = () => {
+    // Definir estados predefinidos
+    const predefinedStates = ["STARTED", "COMPLETED", "DEPROVISIONED", "TERMINATED"]
+
+    // Función para manejar cambios en los checkboxes de tipo de asset
+    const handleAssetTypeChange = (type: string) => {
+      if (transfersFilters.assetType.includes(type)) {
+        // Si ya está seleccionado, quitarlo (asegurándose de que queda al menos uno seleccionado)
+        const newTypes = transfersFilters.assetType.filter((t) => t !== type)
+        if (newTypes.length > 0) {
+          setTransfersFilters({ ...transfersFilters, assetType: newTypes })
+        }
+      } else {
+        // Si no está seleccionado, agregarlo
+        setTransfersFilters({ ...transfersFilters, assetType: [...transfersFilters.assetType, type] })
+      }
+    }
+
+    // Función para manejar cambios en los checkboxes de estado
+    const handleStateChange = (state: string) => {
+      if (transfersFilters.state.includes(state)) {
+        // Si ya está seleccionado, quitarlo (asegurándose de que queda al menos uno seleccionado)
+        const newStates = transfersFilters.state.filter((s) => s !== state)
+        if (newStates.length > 0) {
+          setTransfersFilters({ ...transfersFilters, state: newStates })
+        }
+      } else {
+        // Si no está seleccionado, agregarlo
+        setTransfersFilters({ ...transfersFilters, state: [...transfersFilters.state, state] })
+      }
+    }
+
+    return (
+      <div className="absolute z-10 left-0 right-0 bg-white border-t border-lime-500 shadow-md cursor-pointer">
+        <div className="flex flex-col">
+          {/* Sección de tipos de asset con checkboxes - sin opción All */}
+          <div className="p-2 border-b border-lime-200">
+            <p className="text-xs font-medium text-gray-700 mb-1">Filter by asset type:</p>
+            <div className="space-y-1">
+              <label className="flex items-center text-xs">
+                <input
+                  type="checkbox"
+                  checked={transfersFilters.assetType.includes("fl")}
+                  onChange={() => handleAssetTypeChange("fl")}
+                  className="mr-1.5 h-3 w-3 rounded border-gray-300 text-lime-600 focus:ring-lime-500"
+                />
+                FL Service
+              </label>
+              <label className="flex items-center text-xs">
+                <input
+                  type="checkbox"
+                  checked={transfersFilters.assetType.includes("model")}
+                  onChange={() => handleAssetTypeChange("model")}
+                  className="mr-1.5 h-3 w-3 rounded border-gray-300 text-lime-600 focus:ring-lime-500"
+                />
+                Model
+              </label>
+              <label className="flex items-center text-xs">
+                <input
+                  type="checkbox"
+                  checked={transfersFilters.assetType.includes("normal")}
+                  onChange={() => handleAssetTypeChange("normal")}
+                  className="mr-1.5 h-3 w-3 rounded border-gray-300 text-lime-600 focus:ring-lime-500"
+                />
+                Normal
+              </label>
+            </div>
+          </div>
+
+          {/* Mantener el select para timeFrame */}
           <select
             value={transfersFilters.timeFrame}
             onChange={(e) => setTransfersFilters({ ...transfersFilters, timeFrame: e.target.value })}
@@ -1618,20 +1758,25 @@ Value: ${Math.random() * 100} units`
             <option value="2days">Last 2 Days</option>
           </select>
 
-          <select
-            value={transfersFilters.state}
-            onChange={(e) => setTransfersFilters({ ...transfersFilters, state: e.target.value })}
-            className="w-full text-xs border-0 border-b border-lime-200 px-2 py-1.5 bg-white focus:ring-1 focus:ring-lime-500 focus:border-lime-500 rounded-none cursor-pointer"
-            aria-label="Filter by state"
-          >
-            <option value="all">All States</option>
-            {uniqueStates.map((state) => (
-              <option key={state} value={state}>
-                {state}
-              </option>
-            ))}
-          </select>
+          {/* Sección de estados con checkboxes - sin opción All */}
+          <div className="p-2 border-b border-lime-200">
+            <p className="text-xs font-medium text-gray-700 mb-1">Filter by state:</p>
+            <div className="space-y-1">
+              {predefinedStates.map((state) => (
+                <label key={state} className="flex items-center text-xs">
+                  <input
+                    type="checkbox"
+                    checked={transfersFilters.state.includes(state)}
+                    onChange={() => handleStateChange(state)}
+                    className="mr-1.5 h-3 w-3 rounded border-gray-300 text-lime-600 focus:ring-lime-500"
+                  />
+                  {state}
+                </label>
+              ))}
+            </div>
+          </div>
 
+          {/* Mantener los selects para ordenación */}
           <select
             value={transfersFilters.sortBy}
             onChange={(e) => setTransfersFilters({ ...transfersFilters, sortBy: e.target.value })}
@@ -2200,7 +2345,7 @@ Value: ${Math.random() * 100} units`
                         <span className="font-medium">Contract ID:</span> {transfer.contractId.substring(0, 8)}...
                       </p>
                       {/* En el componente DataApplicationsBlock, dentro del mapeo de getFilteredDataApps()
-                      // Reemplazar la parte donde se muestra el tipo de transferencia: */}
+                    // Reemplazar la parte donde se muestra el tipo de transferencia: */}
                       <p className="text-xs text-gray-400">
                         <span className="font-medium">Type:</span>{" "}
                         {transfer.transferType?.includes("FL-DataApp") ||

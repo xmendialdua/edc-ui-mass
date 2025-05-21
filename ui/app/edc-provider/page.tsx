@@ -2,8 +2,19 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
-import { Check, AlertCircle, Loader2, Trash2, ChevronDown, Server, Database, Network, BarChart2 } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import {
+  Check,
+  AlertCircle,
+  Loader2,
+  Trash2,
+  ChevronDown,
+  Server,
+  Database,
+  Network,
+  BarChart2,
+  Filter,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -116,6 +127,20 @@ export default function ProviderPage() {
   // Añadir un nuevo estado para controlar la expansión de los Contract Definitions
   const [expandedContractId, setExpandedContractId] = useState<string | null>(null)
 
+  // Estado para controlar qué sección de filtros está abierta
+  const [pinnedSection, setPinnedSection] = useState<string | null>(null)
+  const [hoveredTitle, setHoveredTitle] = useState<string | null>(null)
+
+  // Referencias para detectar clics fuera de los paneles de filtros
+  const assetsFilterRef = useRef<HTMLDivElement>(null)
+  const titleRef = useRef<HTMLDivElement>(null)
+
+  // Estados para los filtros
+  const [assetsFilters, setAssetsFilters] = useState({
+    assetType: ["fl", "model", "normal"], // Todas marcadas por defecto
+    sortBy: "name", // Cambiado de "default" a "name"
+  })
+
   // Función para alternar la expansión de un asset
   const toggleAssetExpansion = (id: string) => {
     setExpandedAssetId(expandedAssetId === id ? null : id)
@@ -185,6 +210,30 @@ export default function ProviderPage() {
       }
     }
   }, [])
+
+  // Efecto para detectar clics fuera de los paneles de filtros
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      // Si el panel de filtros está abierto y el clic no fue dentro del panel ni en el título
+      if (
+        pinnedSection === "assets" &&
+        assetsFilterRef.current &&
+        !assetsFilterRef.current.contains(event.target as Node) &&
+        titleRef.current &&
+        !titleRef.current.contains(event.target as Node)
+      ) {
+        setPinnedSection(null)
+      }
+    }
+
+    // Añadir el event listener
+    document.addEventListener("mousedown", handleClickOutside)
+
+    // Limpiar el event listener
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [pinnedSection])
 
   // Add this function to check the current connector status
   const checkCurrentConnectorStatus = async () => {
@@ -690,6 +739,113 @@ export default function ProviderPage() {
     setExpandedPolicyId(null)
   }
 
+  // Función para manejar los cambios en los checkboxes de tipo de asset
+  const handleAssetTypeChange = (type: string) => {
+    setAssetsFilters((prev) => {
+      // Si ya está seleccionado, lo quitamos
+      if (prev.assetType.includes(type)) {
+        // No permitir deseleccionar todos los tipos
+        if (prev.assetType.length === 1) {
+          return prev
+        }
+        return { ...prev, assetType: prev.assetType.filter((t) => t !== type) }
+      }
+      // Si no está seleccionado, lo añadimos
+      return { ...prev, assetType: [...prev.assetType, type] }
+    })
+  }
+
+  // Función para determinar el tipo de asset
+  const getAssetType = (asset: Asset): string => {
+    const isFlService =
+      asset.id.toLowerCase().includes("fl-") ||
+      asset.id.toLowerCase().includes("flower") ||
+      asset.name.toLowerCase().includes("federated") ||
+      asset.name.toLowerCase().includes("fl service")
+
+    const isModel = asset.id.toLowerCase().includes("model") || asset.name.toLowerCase().includes("ml")
+
+    if (isFlService) return "fl"
+    if (isModel) return "model"
+    return "normal"
+  }
+
+  // Función para filtrar los assets según los filtros seleccionados
+  const getFilteredAssets = () => {
+    let filtered = [...assets]
+
+    // Filtrar por tipo de asset
+    if (assetsFilters.assetType.length > 0) {
+      filtered = filtered.filter((asset) => assetsFilters.assetType.includes(getAssetType(asset)))
+    }
+
+    // Ordenar
+    if (assetsFilters.sortBy === "name") {
+      filtered.sort((a, b) => a.name.localeCompare(b.name))
+    }
+
+    return filtered
+  }
+
+  // Función para manejar el clic en una sección para mostrar/ocultar filtros
+  const handleSectionClick = () => {
+    // Si el panel está abierto, cerrarlo; si está cerrado, abrirlo
+    setPinnedSection(pinnedSection === "assets" ? null : "assets")
+  }
+
+  // Función para verificar si una sección está activa
+  const isSectionActive = (section: string) => {
+    return pinnedSection === section
+  }
+
+  // Función para verificar si un título está siendo hover
+  const isTitleHovered = (section: string) => {
+    return hoveredTitle === section
+  }
+
+  // Componente de filtros para los assets
+  const AssetsFilters = () => {
+    return (
+      <div className="absolute z-10 left-0 right-0 bg-white border-t border-lime-500 shadow-md cursor-pointer">
+        <div className="flex flex-col">
+          {/* Sección de tipos de asset con checkboxes */}
+          <div className="p-2">
+            <p className="text-xs font-medium text-gray-700 mb-1">Filter by asset type:</p>
+            <div className="space-y-1">
+              <label className="flex items-center text-xs">
+                <input
+                  type="checkbox"
+                  checked={assetsFilters.assetType.includes("fl")}
+                  onChange={() => handleAssetTypeChange("fl")}
+                  className="mr-1.5 h-3 w-3 rounded border-gray-300 text-lime-600 focus:ring-lime-500"
+                />
+                FL Service
+              </label>
+              <label className="flex items-center text-xs">
+                <input
+                  type="checkbox"
+                  checked={assetsFilters.assetType.includes("model")}
+                  onChange={() => handleAssetTypeChange("model")}
+                  className="mr-1.5 h-3 w-3 rounded border-gray-300 text-lime-600 focus:ring-lime-500"
+                />
+                Model
+              </label>
+              <label className="flex items-center text-xs">
+                <input
+                  type="checkbox"
+                  checked={assetsFilters.assetType.includes("normal")}
+                  onChange={() => handleAssetTypeChange("normal")}
+                  className="mr-1.5 h-3 w-3 rounded border-gray-300 text-lime-600 focus:ring-lime-500"
+                />
+                Normal
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <main className="min-h-screen flex flex-col pb-20">
       {/* Top bar with lime green accent border */}
@@ -801,109 +957,140 @@ export default function ProviderPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Assets Column */}
             <div className="border rounded-lg p-4 bg-gray-50 border-t-2 border-t-lime-500">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-medium text-lime-700">{t("assets")}</h2>
-                {/* Replace AssetFormDialog component usage */}
-                <AssetFormDialog onAddAsset={handleAddAsset} />
-              </div>
-              <div className="space-y-3">
-                {assets.map((asset) => {
-                  // Determinar el tipo de asset basado en su ID o nombre
-                  const isFlService =
-                    asset.id.toLowerCase().includes("fl-") ||
-                    asset.id.toLowerCase().includes("flower") ||
-                    asset.name.toLowerCase().includes("federated") ||
-                    asset.name.toLowerCase().includes("fl service")
-
-                  const isModel = asset.id.toLowerCase().includes("model") || asset.name.toLowerCase().includes("ml")
-
-                  // Determinar el icono según el tipo
-                  let assetTypeIcon = <Database className="h-5 w-5 text-white" />
-
-                  if (isFlService) {
-                    assetTypeIcon = <Network className="h-5 w-5 text-white" />
-                  } else if (isModel) {
-                    assetTypeIcon = <BarChart2 className="h-5 w-5 text-white" />
-                  }
-
-                  // Verificar si este asset está referenciado por el contrato seleccionado
-                  const isReferenced = isAssetReferencedBySelectedContract(asset.id)
-
-                  return (
-                    <div
-                      key={asset.id}
-                      className={`rounded border transition-colors mb-1 ${
-                        expandedAssetId === asset.id
-                          ? "border-lime-500 bg-white"
-                          : isReferenced
-                            ? "border-gray-300 bg-gray-100"
-                            : "hover:border-lime-300 bg-white"
+              <div className="relative">
+                <div
+                  ref={titleRef}
+                  className="flex justify-between items-center mb-4 cursor-pointer h-8"
+                  onClick={handleSectionClick}
+                  onMouseEnter={() => setHoveredTitle("assets")}
+                  onMouseLeave={() => setHoveredTitle(null)}
+                >
+                  <div className="flex items-center">
+                    <h2 className="text-lg font-medium text-lime-700">{t("assets")}</h2>
+                    <Filter
+                      className={`ml-2 h-4 w-4 transition-colors ${
+                        isSectionActive("assets")
+                          ? "text-lime-600"
+                          : isTitleHovered("assets")
+                            ? "text-lime-400"
+                            : "text-gray-300"
                       }`}
-                    >
+                    />
+                  </div>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <AssetFormDialog onAddAsset={handleAddAsset} />
+                  </div>
+                </div>
+
+                {isSectionActive("assets") && (
+                  <div ref={assetsFilterRef}>
+                    <AssetsFilters />
+                  </div>
+                )}
+
+                <div className="space-y-3 mt-4">
+                  {getFilteredAssets().map((asset) => {
+                    // Determinar el tipo de asset basado en su ID o nombre
+                    const isFlService =
+                      asset.id.toLowerCase().includes("fl-") ||
+                      asset.id.toLowerCase().includes("flower") ||
+                      asset.name.toLowerCase().includes("federated") ||
+                      asset.name.toLowerCase().includes("fl service")
+
+                    const isModel = asset.id.toLowerCase().includes("model") || asset.name.toLowerCase().includes("ml")
+
+                    // Determinar el icono según el tipo
+                    let assetTypeIcon = <Database className="h-5 w-5 text-white" />
+
+                    if (isFlService) {
+                      assetTypeIcon = <Network className="h-5 w-5 text-white" />
+                    } else if (isModel) {
+                      assetTypeIcon = <BarChart2 className="h-5 w-5 text-white" />
+                    }
+
+                    // Verificar si este asset está referenciado por el contrato seleccionado
+                    const isReferenced = isAssetReferencedBySelectedContract(asset.id)
+
+                    return (
                       <div
-                        className="flex items-start relative overflow-hidden cursor-pointer"
-                        onClick={() => toggleAssetExpansion(asset.id)}
+                        key={asset.id}
+                        className={`rounded border transition-colors mb-1 ${
+                          expandedAssetId === asset.id
+                            ? "border-lime-500 bg-white"
+                            : isReferenced
+                              ? "border-gray-300 bg-gray-100"
+                              : "hover:border-lime-300 bg-white"
+                        }`}
                       >
-                        {/* Barra lateral más ancha */}
                         <div
-                          className={`w-6 h-full absolute left-0 top-0 bottom-0 ${
-                            isFlService ? "bg-teal-500" : isModel ? "bg-indigo-500" : "bg-amber-500"
-                          }`}
-                        ></div>
+                          className="flex items-start relative overflow-hidden cursor-pointer"
+                          onClick={() => toggleAssetExpansion(asset.id)}
+                        >
+                          {/* Barra lateral más ancha */}
+                          <div
+                            className={`w-6 h-full absolute left-0 top-0 bottom-0 ${
+                              isFlService ? "bg-teal-500" : isModel ? "bg-indigo-500" : "bg-amber-500"
+                            }`}
+                          ></div>
 
-                        {/* Icono centrado directamente sobre la barra sin fondo blanco */}
-                        <div className="w-6 flex items-center justify-center absolute left-0 top-0 bottom-0 text-white">
-                          {assetTypeIcon}
-                        </div>
+                          {/* Icono centrado directamente sobre la barra sin fondo blanco */}
+                          <div className="w-6 flex items-center justify-center absolute left-0 top-0 bottom-0 text-white">
+                            {assetTypeIcon}
+                          </div>
 
-                        {/* Contenido con padding ajustado para la barra más ancha */}
-                        <div className="flex-1 pl-8 p-3">
-                          <div className="flex items-start">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleDeleteAsset(asset.id)
-                              }}
-                              className="h-8 w-8 mr-2 text-red-500 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                            <div className="flex-1">
-                              <h3 className="font-medium">{asset.name}</h3>
-                              <p className="text-sm text-gray-600 break-words">{asset.description}</p>
-                              {asset.baseUrl && (
-                                <p className="text-xs text-gray-500 mt-1">
-                                  <span className="font-medium">URL:</span> {asset.baseUrl}
+                          {/* Contenido con padding ajustado para la barra más ancha */}
+                          <div className="flex-1 pl-8 p-3">
+                            <div className="flex items-start">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDeleteAsset(asset.id)
+                                }}
+                                className="h-8 w-8 mr-2 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <div className="flex-1">
+                                <h3 className="font-medium">{asset.name}</h3>
+                                <p className="text-sm text-gray-600 break-words">{asset.description}</p>
+                                {asset.baseUrl && (
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    <span className="font-medium">URL:</span> {asset.baseUrl}
+                                  </p>
+                                )}
+                                <p className="text-xs text-gray-400 mt-1">
+                                  <span className="font-medium">ID:</span> {asset.id}
                                 </p>
-                              )}
-                              <p className="text-xs text-gray-400 mt-1">
-                                <span className="font-medium">ID:</span> {asset.id}
-                              </p>
+                              </div>
+                              <ChevronDown
+                                className={`h-5 w-5 text-gray-400 transition-transform ${expandedAssetId === asset.id ? "rotate-180" : ""}`}
+                              />
                             </div>
-                            <ChevronDown
-                              className={`h-5 w-5 text-gray-400 transition-transform ${expandedAssetId === asset.id ? "rotate-180" : ""}`}
-                            />
                           </div>
                         </div>
-                      </div>
 
-                      {/* Panel expandible con información adicional */}
-                      {expandedAssetId === asset.id && (
-                        <div className="px-4 pb-4 pt-2 border-t border-gray-100">
-                          <div className="bg-gray-50 p-3 rounded-md">
-                            <h4 className="text-sm font-medium mb-2 text-lime-700">Data Address</h4>
-                            <pre className="text-xs bg-white p-2 rounded border overflow-x-auto">
-                              {formatJsonForDisplay(asset.dataAddress || { baseUrl: asset.baseUrl, type: "HttpData" })}
-                            </pre>
+                        {/* Panel expandible con información adicional */}
+                        {expandedAssetId === asset.id && (
+                          <div className="px-4 pb-4 pt-2 border-t border-gray-100">
+                            <div className="bg-gray-50 p-3 rounded-md">
+                              <h4 className="text-sm font-medium mb-2 text-lime-700">Data Address</h4>
+                              <pre className="text-xs bg-white p-2 rounded border overflow-x-auto">
+                                {formatJsonForDisplay(
+                                  asset.dataAddress || { baseUrl: asset.baseUrl, type: "HttpData" },
+                                )}
+                              </pre>
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-                {assets.length === 0 && <p className="text-center text-gray-500 py-4">{t("noAssetsAvailable")}</p>}
+                        )}
+                      </div>
+                    )
+                  })}
+                  {getFilteredAssets().length === 0 && (
+                    <p className="text-center text-gray-500 py-4">{t("noAssetsAvailable")}</p>
+                  )}
+                </div>
               </div>
             </div>
 
