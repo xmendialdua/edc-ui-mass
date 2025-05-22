@@ -116,7 +116,7 @@ Primero edita el archivo main.py de la API para configurar los datos de conexion
 ```bash
 cd ../dataapp-api/
 terraform init
-terraform apply --auto-aprove
+terraform apply --auto-approve
 ```
 6. Desplegar ingress del proveedor:
 ```bash
@@ -129,7 +129,7 @@ kubectl apply -f ingress_provider_ikerlan.yaml -n fl-api-provider
 ```bash
 cd consumer-kit/dataapp-api
 terraform init
-terraform apply --auto-aprove
+terraform apply --auto-approve
 ```
 2. Desplegar ingress del consumidor:
 ```bash
