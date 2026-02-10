@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # Set namespace
-NAMESPACE="iflex-provider"
+NAMESPACE="edc-ui"
 
 # Set image name and tags
-IMAGE_NAME="jalvaro8/iflex-ui"
+IMAGE_NAME="xmendialdua/edc-mngmt-ui"
 IMAGE_TAG_LATEST="latest"
-IMAGE_TAG_VERSION="1104"
+IMAGE_TAG_VERSION="1105"
 
 # Create namespace if it doesn't exist
 echo "Checking if namespace $NAMESPACE exists..."
@@ -17,20 +17,22 @@ else
   echo "Namespace $NAMESPACE already exists."
 fi
 
-# Build the Docker image with both tags
-echo "Building Docker image with tags: ${IMAGE_NAME}:${IMAGE_TAG_LATEST} and ${IMAGE_NAME}:${IMAGE_TAG_VERSION}..."
-docker build -t ${IMAGE_NAME}:${IMAGE_TAG_LATEST} -t ${IMAGE_NAME}:${IMAGE_TAG_VERSION} -f Dockerfile.k8s .
+# Build the Docker image with both tags (DESACTIVADO - usamos imagen existente de Docker Hub)
+# echo "Building Docker image with tags: ${IMAGE_NAME}:${IMAGE_TAG_LATEST} and ${IMAGE_NAME}:${IMAGE_TAG_VERSION}..."
+# docker build -t ${IMAGE_NAME}:${IMAGE_TAG_LATEST} -t ${IMAGE_NAME}:${IMAGE_TAG_VERSION} -f Dockerfile.k8s .
 
-# Push the images to Docker Hub
-echo "Pushing images to Docker Hub..."
-docker push ${IMAGE_NAME}:${IMAGE_TAG_LATEST}
-docker push ${IMAGE_NAME}:${IMAGE_TAG_VERSION}
+# Push the images to Docker Hub (DESACTIVADO - usamos imagen existente de Docker Hub)
+# echo "Pushing images to Docker Hub..."
+# docker push ${IMAGE_NAME}:${IMAGE_TAG_LATEST}
+# docker push ${IMAGE_NAME}:${IMAGE_TAG_VERSION}
 
-# Check if we're running in a kind cluster
-if kubectl cluster-info | grep -q "kind"; then
-  echo "Detected kind cluster, loading image directly..."
-  kind load docker-image ${IMAGE_NAME}:${IMAGE_TAG_LATEST}
-fi
+echo "Using existing Docker Hub image: ${IMAGE_NAME}:${IMAGE_TAG_LATEST}"
+
+# Check if we're running in a kind cluster (COMENTADO - desplegando en OVH)
+# if kubectl cluster-info | grep -q "kind"; then
+#   echo "Detected kind cluster, loading image directly..."
+#   kind load docker-image ${IMAGE_NAME}:${IMAGE_TAG_LATEST}
+# fi
 
 # Update the deployment.yaml file to use the new image
 sed -i "s|image:.*|image: ${IMAGE_NAME}:${IMAGE_TAG_LATEST}|g" k8s/deployment.yaml
@@ -57,15 +59,18 @@ kubectl apply -f k8s/rbac.yaml -n $NAMESPACE
 kubectl apply -f k8s/configmap.yaml -n $NAMESPACE
 kubectl apply -f k8s/deployment.yaml -n $NAMESPACE
 kubectl apply -f k8s/service.yaml -n $NAMESPACE
+kubectl apply -f k8s/ingress.yaml -n $NAMESPACE
 
 # Wait for deployment to be ready
 echo "Waiting for deployment to be ready..."
 kubectl rollout status deployment/edc-ui -n $NAMESPACE
 
-# Get the NodePort URL
-NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}')
-NODE_PORT=$(kubectl get svc edc-ui -n $NAMESPACE -o jsonpath='{.spec.ports[0].nodePort}')
+# Get the Ingress URL
+INGRESS_HOST=$(kubectl get ingress edc-ui -n $NAMESPACE -o jsonpath='{.spec.rules[0].host}')
 
 echo ""
-echo "EDC UI is now available at: http://$NODE_IP:$NODE_PORT"
+echo "==================================================================="
+echo "EDC UI deployed successfully!"
+echo "Access the UI at: http://$INGRESS_HOST"
+echo "==================================================================="
 echo ""

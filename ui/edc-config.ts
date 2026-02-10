@@ -1,13 +1,13 @@
 // edc-config.ts
 
 export const authConfig = {
-  apiKey: "TEST1", // Default API key
+  apiKey: "mass-api-key-change-in-production", // Default API key for MASS connector
 }
 
 // Configuración de conectores por defecto
 export const connectorDefaults = {
-  provider: "https://control-plane-connector1.dataspace-ikerlan.es/management", 
-  consumer: "https://control-plane-connector4.dataspace-ikerlan.es/management", 
+  provider: "https://edc-mass-control.51.178.94.25.nip.io/management", 
+  consumer: "https://edc-ikln-control.51.178.94.25.nip.io/management", 
 }
 
 // Configuración general de la aplicación
@@ -18,45 +18,81 @@ export const appConfig = {
 // Catálogo de conectores
 export const connectorCatalog = [
   {
-    name: "Ikerlan Connector Black",
-    address: "https://control-plane-connector1.dataspace-ikerlan.es/api/v1/dsp",
-    id: "BPNL000000000065",
-    description: "Conector consumidor de FL-KIT",
+    name: "MondragonAssembly Connector",
+    address: "https://edc-mass-control.51.178.94.25.nip.io/management",
+    dspAddress: "https://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp",
+    id: "BPNL00000000MASS",
+    description: "Conector EDC de MondragonAssembly",
+    type: "provider",
+    apiKey: "mass-api-key-change-in-production",
+  },
+  {
+    name: "Ikerlan Connector",
+    address: "https://edc-ikln-control.51.178.94.25.nip.io/management",
+    dspAddress: "https://edc-ikln-control.51.178.94.25.nip.io/api/v1/dsp",
+    id: "BPNL00000000IKLN",
+    description: "Conector EDC de Ikerlan",
+    type: "provider",
+    apiKey: "ikln-api-key-change-in-production",
+  },
+  {
+    name: "MondragonAssembly Connector",
+    address: "https://edc-mass-control.51.178.94.25.nip.io/management",
+    dspAddress: "https://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp",
+    id: "BPNL00000000MASS",
+    description: "Conector EDC de MondragonAssembly",
     type: "consumer",
-    apiKey: "TEST1", // Añadido apiKey específico
+    apiKey: "mass-api-key-change-in-production",
   },
   {
-    name: "Provider FL",
-    address: "http://provider-fl-controlplane:8082/api/dsp",
-    id: "did:web:provider-fl%3A7083:provider",
-    description: "Conector para servicios de Federated Learning",
-    type: "provider",
-    apiKey: "TEST1", // Añadido apiKey específico
-  },
-  {
-    name: "Provider ML",
-    address: "http://provider-ml-controlplane:8082/api/dsp",
-    id: "did:web:provider-ml%3A7083:provider",
-    description: "Conector para servicios de Machine Learning",
-    type: "provider",
-    apiKey: "TEST1", // Añadido apiKey específico
-  },
-  {
-    name: "Consumer Default",
-    address: "http://consumer-controlplane:8082/api/dsp",
-    id: "did:web:consumer-identityhub%3A7083:consumer",
-    description: "Conector de consumo por defecto",
+    name: "Ikerlan Connector",
+    address: "https://edc-ikln-control.51.178.94.25.nip.io/management",
+    dspAddress: "https://edc-ikln-control.51.178.94.25.nip.io/api/v1/dsp",
+    id: "BPNL00000000IKLN",
+    description: "Conector EDC de Ikerlan",
     type: "consumer",
-    apiKey: "TEST1", // Añadido apiKey específico
+    apiKey: "ikln-api-key-change-in-production",
   },
-  {
-    name: "Ikerlan Connector Green",
-    address: "https://control-plane-connector1.dataspace-ikerlan.es/api/v1/dsp",
-    id: "BPNL000000000065",
-    description: "Conector de Ikerlan Dataspace para proveer servicios de federated learning",
-    type: "provider",
-    apiKey: "TEST1", // Clave específica para este conector
-  },
+  //{
+  //  name: "Ikerlan Connector Black",
+  //  address: "https://control-plane-connector1.dataspace-ikerlan.es/api/v1/dsp",
+  //  id: "BPNL000000000065",
+  //  description: "Conector consumidor de FL-KIT",
+  //  type: "consumer",
+  //  apiKey: "TEST1", // Añadido apiKey específico
+  //},
+  //{
+  //  name: "Provider FL",
+  //  address: "http://provider-fl-controlplane:8082/api/dsp",
+  //  id: "did:web:provider-fl%3A7083:provider",
+  //  description: "Conector para servicios de Federated Learning",
+  //  type: "provider",
+  //  apiKey: "TEST1", // Añadido apiKey específico
+  //},
+  //{
+  //  name: "Provider ML",
+  //  address: "http://provider-ml-controlplane:8082/api/dsp",
+  //  id: "did:web:provider-ml%3A7083:provider",
+  //  description: "Conector para servicios de Machine Learning",
+  //  type: "provider",
+  //  apiKey: "TEST1", // Añadido apiKey específico
+  //},
+  //{
+  //  name: "Consumer Default",
+  //  address: "http://consumer-controlplane:8082/api/dsp",
+  //  id: "did:web:consumer-identityhub%3A7083:consumer",
+  //  description: "Conector de consumo por defecto",
+  //  type: "consumer",
+  //  apiKey: "TEST1", // Añadido apiKey específico
+  //},
+  //{
+  //  name: "Ikerlan Connector Green",
+  //  address: "https://control-plane-connector1.dataspace-ikerlan.es/api/v1/dsp",
+  //  id: "BPNL000000000065",
+  //  description: "Conector de Ikerlan Dataspace para proveer servicios de federated learning",
+  //  type: "provider",
+  //  apiKey: "TEST1", // Clave específica para este conector
+  //},
 ]
 
 // Función para obtener conectores por tipo
