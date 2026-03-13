@@ -44,7 +44,7 @@ export function CatalogSearchDialog({
     const connector = providerConnectors.find((c) => c.name === connectorName)
     if (connector) {
       setCounterPartyId(connector.id)
-      setCounterPartyAddress(connector.address)
+      setCounterPartyAddress(connector.dspAddress)  // Usar dspAddress en lugar de address
     }
   }
 

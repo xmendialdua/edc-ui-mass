@@ -20,7 +20,7 @@ export const connectorCatalog = [
   {
     name: "MondragonAssembly Connector",
     address: "https://edc-mass-control.51.178.94.25.nip.io/management",
-    dspAddress: "https://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp",
+    dspAddress: "http://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp",  // Cambiado a HTTP
     id: "BPNL00000000MASS",
     description: "Conector EDC de MondragonAssembly",
     type: "provider",
@@ -29,7 +29,7 @@ export const connectorCatalog = [
   {
     name: "Ikerlan Connector",
     address: "https://edc-ikln-control.51.178.94.25.nip.io/management",
-    dspAddress: "https://edc-ikln-control.51.178.94.25.nip.io/api/v1/dsp",
+    dspAddress: "http://edc-ikln-control.51.178.94.25.nip.io/api/v1/dsp",  // Cambiado a HTTP
     id: "BPNL00000000IKLN",
     description: "Conector EDC de Ikerlan",
     type: "provider",
@@ -38,7 +38,7 @@ export const connectorCatalog = [
   {
     name: "MondragonAssembly Connector",
     address: "https://edc-mass-control.51.178.94.25.nip.io/management",
-    dspAddress: "https://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp",
+    dspAddress: "http://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp",  // Cambiado a HTTP
     id: "BPNL00000000MASS",
     description: "Conector EDC de MondragonAssembly",
     type: "consumer",
@@ -47,7 +47,7 @@ export const connectorCatalog = [
   {
     name: "Ikerlan Connector",
     address: "https://edc-ikln-control.51.178.94.25.nip.io/management",
-    dspAddress: "https://edc-ikln-control.51.178.94.25.nip.io/api/v1/dsp",
+    dspAddress: "http://edc-ikln-control.51.178.94.25.nip.io/api/v1/dsp",  // Cambiado a HTTP
     id: "BPNL00000000IKLN",
     description: "Conector EDC de Ikerlan",
     type: "consumer",
