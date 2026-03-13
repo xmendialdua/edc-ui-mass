@@ -50,10 +50,6 @@ import { PolicyFormDialog } from "@/app/edc-provider/policies/policy-form-dialog
 import { ContractFormDialog } from "@/app/edc-provider/contracts/contract-form-dialog"
 import { ConnectivityCheckDialog } from "@/app/edc-provider/common/connectivity-check-dialog"
 
-// Añadir los imports para los nuevos componentes de diálogo
-import { FlowerServerLogsDialog } from "./dataapps/flower-server-logs-dialog"
-import { MLflowDialog } from "./dataapps/mlflow-dialog"
-
 // Importar el componente AppHeader
 import { AppHeader } from "@/components/app-header"
 
@@ -115,10 +111,6 @@ export default function ProviderPage() {
   const [connectorStatus, setConnectorStatus] = useState<"connected" | "disconnected" | "unknown">("unknown")
   // Modificar el estado para almacenar la dirección que causó el error
   const [failedConnectorAddress, setFailedConnectorAddress] = useState<string | null>(null)
-
-  // Añadir estados para controlar la apertura de los diálogos
-  const [isFlowerLogsOpen, setIsFlowerLogsOpen] = useState(false)
-  const [isMLflowOpen, setIsMLflowOpen] = useState(false)
 
   // Estados para controlar la expansión y selección de elementos
   const [expandedAssetId, setExpandedAssetId] = useState<string | null>(null)
@@ -1252,35 +1244,6 @@ export default function ProviderPage() {
           </div>
         )}
       </div>
-
-      {/* Fixed bottom bar with buttons - solo se muestra si FL Data App está activado */}
-      {isFlDataAppEnabled && (
-        <div className="fixed bottom-0 left-0 right-0 bg-gray-100 p-2 z-40 border-t border-gray-200">
-          <div className="container mx-auto grid grid-cols-2 gap-3">
-            <div className="flex justify-center">
-              <Button
-                className="bg-indigo-400 hover:bg-indigo-500 text-white h-9 text-sm w-11/12"
-                onClick={() => setIsFlowerLogsOpen(true)}
-              >
-                <Server className="h-4 w-4 mr-1" />
-                Connect to Flower Server
-              </Button>
-            </div>
-            <div className="flex justify-center">
-              <Button
-                className="bg-green-400 hover:bg-green-500 text-white h-9 text-sm w-11/12"
-                onClick={() => setIsMLflowOpen(true)}
-              >
-                <BarChart2 className="h-4 w-4 mr-1" />
-                Connect to MLflow Server
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <FlowerServerLogsDialog open={isFlowerLogsOpen} onOpenChange={setIsFlowerLogsOpen} />
-      <MLflowDialog open={isMLflowOpen} onOpenChange={setIsMLflowOpen} />
 
       {/* Connectivity Check Dialog */}
       <ConnectivityCheckDialog open={isCheckDialogOpen} onOpenChange={setIsCheckDialogOpen} />
