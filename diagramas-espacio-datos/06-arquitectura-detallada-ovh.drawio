@@ -1,0 +1,155 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" version="29.5.6">
+  <diagram name="Arquitectura OVH" id="arch-ovh">
+    <mxGraphModel dx="3785" dy="1125" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="cloud-ovh" parent="1" style="swimlane;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;strokeWidth=3;fontSize=14;fontStyle=1;" value="☁️ CLOUD OVH - Kubernetes Cluster (51.178.94.25)" vertex="1">
+          <mxGeometry height="510" width="1370" x="199" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="core-services" parent="cloud-ovh" style="swimlane;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#6A1B9A;strokeWidth=2;fontSize=13;fontStyle=1;horizontal=1;" value="🌐 TRACTUS-X CORE SERVICES" vertex="1">
+          <mxGeometry height="120" width="1050" x="118" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="portal" parent="core-services" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#6A1B9A;strokeWidth=2;fontSize=12;" value="🏠 Portal Tractus-X&lt;br&gt;Gestión del Espacio&lt;br&gt;de Datos" vertex="1">
+          <mxGeometry height="70" width="200" x="200" y="35" as="geometry" />
+        </mxCell>
+        <mxCell id="iatp" parent="core-services" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;strokeWidth=2;fontSize=12;" value="🔐 IATP&lt;br&gt;Identity Access Trust Protocol&lt;br&gt;Autenticación y Autorización" vertex="1">
+          <mxGeometry height="70" width="200" x="714" y="35" as="geometry" />
+        </mxCell>
+        <mxCell id="provider-interface" parent="cloud-ovh" style="swimlane;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;strokeWidth=2;fontSize=12;fontStyle=1;" value="📊 PROVIDER UI" vertex="1">
+          <mxGeometry height="220" width="240" x="53" y="262" as="geometry" />
+        </mxCell>
+        <mxCell id="pub-dashboard" parent="provider-interface" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;strokeWidth=2;fontSize=11;" value="Publication Dashboard&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;Publicación de Documentos" vertex="1">
+          <mxGeometry height="160" width="110" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="edc-mass" parent="cloud-ovh" style="swimlane;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;strokeWidth=3;fontSize=12;fontStyle=1;" value="🏭 EDC CONNECTOR - MONDRAGON ASSEMBLY" vertex="1">
+          <mxGeometry height="220" width="260" x="346" y="262" as="geometry" />
+        </mxCell>
+        <mxCell id="mass-cp" parent="edc-mass" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A5D6A7;strokeColor=#2E7D32;strokeWidth=2;fontSize=11;" value="Control Plane&lt;br&gt;BPNL00000000MASS&lt;br&gt;&lt;br&gt;Gestión de Contratos&lt;br&gt;y Políticas" vertex="1">
+          <mxGeometry height="70" width="220" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="mass-dp" parent="edc-mass" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;strokeWidth=2;fontSize=11;" value="Data Plane&lt;br&gt;&lt;br&gt;Transferencia de Datos" vertex="1">
+          <mxGeometry height="70" width="220" x="20" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="edc-ikln" parent="cloud-ovh" style="swimlane;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#D84315;strokeWidth=3;fontSize=12;fontStyle=1;" value="🏢 EDC CONNECTOR - IKERLAN" vertex="1">
+          <mxGeometry height="220" width="260" x="700" y="262" as="geometry" />
+        </mxCell>
+        <mxCell id="ikln-cp" parent="edc-ikln" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCCBC;strokeColor=#D84315;strokeWidth=2;fontSize=11;" value="Control Plane&lt;br&gt;BPNL00000002IKLN&lt;br&gt;&lt;br&gt;Gestión de Contratos&lt;br&gt;y Políticas" vertex="1">
+          <mxGeometry height="70" width="220" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ikln-dp" parent="edc-ikln" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFAB91;strokeColor=#D84315;strokeWidth=2;fontSize=11;" value="Data Plane&lt;br&gt;&lt;br&gt;Transferencia de Datos" vertex="1">
+          <mxGeometry height="70" width="220" x="20" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="consumer-interface" parent="cloud-ovh" style="swimlane;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#D84315;strokeWidth=2;fontSize=12;fontStyle=1;" value="🌐 CONSUMER UI" vertex="1">
+          <mxGeometry height="220" width="187" x="1032" y="262" as="geometry" />
+        </mxCell>
+        <mxCell id="query-catalog" parent="consumer-interface" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFAB91;strokeColor=#D84315;strokeWidth=2;fontSize=11;" value="Data Space Query Catalog&lt;br&gt;&lt;br&gt;&lt;br&gt;Búsqueda y Descarga" vertex="1">
+          <mxGeometry height="160" width="110" x="38" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-pubdash-mass" edge="1" parent="cloud-ovh" source="pub-dashboard" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#2E7D32;fontSize=10;endArrow=block;endFill=1;" target="mass-cp" value="Management API&lt;br&gt;Publica Assets">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-catalog-ikln" edge="1" parent="cloud-ovh" source="query-catalog" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#D84315;fontSize=10;endArrow=block;endFill=1;" target="ikln-cp" value="Management API&lt;br&gt;Consulta Catálogo">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-mass-cp-dp" edge="1" parent="cloud-ovh" source="mass-cp" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#2E7D32;endArrow=block;endFill=1;" target="mass-dp" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-ikln-cp-dp" edge="1" parent="cloud-ovh" source="ikln-cp" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#D84315;endArrow=block;endFill=1;" target="ikln-dp" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-portal-iatp" edge="1" parent="cloud-ovh" source="portal" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#6A1B9A;dashed=1;fontSize=10;endArrow=block;endFill=1;" target="iatp" value="Autentica via">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-mass-iatp" edge="1" parent="cloud-ovh" source="mass-cp" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#C62828;dashed=1;fontSize=9;endArrow=block;endFill=1;" target="iatp" value="Autentica y Autoriza">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-ikln-iatp" edge="1" parent="cloud-ovh" source="ikln-cp" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#C62828;dashed=1;fontSize=9;endArrow=block;endFill=1;" target="iatp" value="Autentica y Autoriza">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-portal-mass" edge="1" parent="cloud-ovh" source="portal" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#6A1B9A;dashed=1;fontSize=9;endArrow=block;endFill=1;" target="mass-cp" value="Registra Partners&lt;br&gt;Gestiona BPNs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-portal-ikln" edge="1" parent="cloud-ovh" source="portal" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#6A1B9A;dashed=1;fontSize=9;endArrow=block;endFill=1;" target="ikln-cp" value="Registra Partners&lt;br&gt;Gestiona BPNs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-dsp-1" edge="1" parent="cloud-ovh" source="ikln-cp" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#FF6F00;fontSize=9;endArrow=block;endFill=1;" target="mass-cp" value="1. Consulta Catálogo&lt;br&gt;DSP Protocol">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="613" y="312" />
+              <mxPoint x="613" y="312" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="conn-dsp-2" edge="1" parent="cloud-ovh" source="mass-cp" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#FF6F00;fontSize=9;endArrow=block;endFill=1;" target="ikln-cp" value="2. Retorna Assets&lt;br&gt;Documentos Disponibles">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="613" y="332" />
+              <mxPoint x="613" y="332" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="conn-dsp-transfer" edge="1" parent="cloud-ovh" source="mass-dp" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=4;strokeColor=#FF6F00;fontSize=10;endArrow=block;endFill=1;" target="ikln-dp" value="5. Transferencia de Documento&lt;br&gt;HTTP DSP">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="613" y="427" />
+              <mxPoint x="613" y="427" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="corp-network" parent="cloud-ovh" style="swimlane;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F57F17;strokeWidth=3;fontSize=14;fontStyle=1;" value="🏢 RED CORPORATIVA MONDRAGON ASSEMBLY" vertex="1">
+          <mxGeometry height="140" width="358" x="183" y="573" as="geometry" />
+        </mxCell>
+        <mxCell id="sharepoint" parent="corp-network" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F57F17;strokeWidth=2;fontSize=12;" value="📁 SharePoint&lt;br&gt;Documentación Técnica&lt;br&gt;Manuales, Planos, etc." vertex="1">
+          <mxGeometry height="70" width="200" x="60" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-sp-mass" edge="1" parent="cloud-ovh" source="sharepoint" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#F57F17;dashed=0;fontSize=10;startArrow=none;startFill=0;endArrow=block;endFill=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" value="VPN/Túnel Seguro&lt;br&gt;Acceso a Documentos">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="912" y="580" as="sourcePoint" />
+            <mxPoint x="481.0666666666666" y="462" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RarDztU8SpAEjNKh_YVf-9" edge="1" parent="cloud-ovh" source="sharepoint" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#F57F17;dashed=0;fontSize=10;startArrow=none;startFill=0;endArrow=block;endFill=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="pub-dashboard" value="VPN/Túnel Seguro&lt;br&gt;Acceso a Documentos">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="912" y="580" as="sourcePoint" />
+            <mxPoint x="481.0666666666666" y="462" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="conn-consumer-catalog" edge="1" parent="1" source="RarDztU8SpAEjNKh_YVf-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#C2185B;fontSize=10;endArrow=block;endFill=1;" target="query-catalog" value="Acceso Web HTTPS">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1670" y="651.0666666666666" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="conn-admin-pubdash" edge="1" parent="1" source="RarDztU8SpAEjNKh_YVf-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#1565C0;fontSize=10;endArrow=block;endFill=1;" target="pub-dashboard" value="Acceso Web HTTPS">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-10" y="602" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RarDztU8SpAEjNKh_YVf-2" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" value="&lt;span style=&quot;text-wrap-mode: wrap;&quot;&gt;👤 Gestor Mondragon&lt;/span&gt;&lt;br style=&quot;text-wrap-mode: wrap;&quot;&gt;&lt;span style=&quot;text-wrap-mode: wrap;&quot;&gt;Publica Documentos&lt;/span&gt;" vertex="1">
+          <mxGeometry height="60" width="30" x="-93" y="572" as="geometry" />
+        </mxCell>
+        <mxCell id="RarDztU8SpAEjNKh_YVf-7" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" value="&lt;span style=&quot;text-wrap-mode: wrap;&quot;&gt;👤 Usuario Cliente&lt;/span&gt;&lt;br style=&quot;text-wrap-mode: wrap;&quot;&gt;&lt;span style=&quot;text-wrap-mode: wrap;&quot;&gt;Descarga Documentos&lt;/span&gt;" vertex="1">
+          <mxGeometry height="60" width="30" x="1703" y="569" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" parent="1" style="swimlane;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#424242;strokeWidth=2;fontSize=12;fontStyle=1;" value="LEYENDA" vertex="1">
+          <mxGeometry height="200" width="400" x="1450" y="970" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-1" parent="legend" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;" value="━━━━ Conexión directa (API, acceso web)" vertex="1">
+          <mxGeometry height="25" width="380" x="10" y="35" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-2" parent="legend" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;" value="┄┄┄┄ Autenticación/Autorización" vertex="1">
+          <mxGeometry height="25" width="380" x="10" y="65" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-3" parent="legend" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;" value="━━━━ VPN/Túnel Seguro (red corporativa)" vertex="1">
+          <mxGeometry height="25" width="380" x="10" y="95" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-4" parent="legend" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;" value="━━━━ Protocolo DSP (intercambio de datos)" vertex="1">
+          <mxGeometry height="25" width="380" x="10" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-5" parent="legend" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;" value="🏭 Provider / 🏢 Consumer / 👤 Usuario" vertex="1">
+          <mxGeometry height="25" width="380" x="10" y="155" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
