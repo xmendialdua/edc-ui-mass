@@ -27,6 +27,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 import {
   getAssets,
@@ -60,6 +67,18 @@ import { ConnectivityCheckDialog } from "@/app/edc-provider/common/connectivity-
 
 // Importar el componente PublishDataHeader
 import { PublishDataHeader } from "./publish-data-header"
+
+// Importar el storage de documentos compartido
+import {
+  getDocuments,
+  addDocument,
+  updateDocumentSharing,
+  type Document,
+  type Company,
+} from "@/lib/documents-storage"
+
+// Importar el diálogo para añadir documentos
+import { AddDocumentDialog } from "./components/add-document-dialog"
 
 // Connector fijo para EDC-MASS
 const EDC_MASS_CONNECTOR = "https://edc-mass-control.51.178.94.25.nip.io/management"
@@ -137,34 +156,48 @@ export default function PublishDataPage() {
     sortBy: "name", // Cambiado de "default" a "name"
   })
 
-  // Estado para controlar qué documentos están compartidos (null = no compartido, string = nombre de la empresa)
-  const [sharedDocuments, setSharedDocuments] = useState<Record<string, string | null>>({
-    documento1: null,
-    documento2: null,
-    documento3: null,
-    documento4: null,
-    documento5: null,
-    documento6: null,
-    documento7: null,
-  })
+  // Estado para controlar los documentos (desde el storage compartido)
+  const [documents, setDocuments] = useState<Document[]>([])
+  
+  // Estado para filtro por cliente
+  const [companyFilter, setCompanyFilter] = useState<Company | "all">("all")
 
   // Lista de empresas disponibles para compartir
-  const availableCompanies = ["Ikerlan", "Ederlan", "Gestamp", "Bexen"]
+  const availableCompanies: Company[] = ["Ikerlan", "Ederlan", "Gestamp", "Bexen"]
+
+  // Cargar documentos al montar el componente
+  useEffect(() => {
+    const docs = getDocuments()
+    setDocuments(docs)
+  }, [])
+
+  // Función para añadir un nuevo documento
+  const handleAddDocument = (name: string) => {
+    const newDoc = addDocument(name)
+    setDocuments(getDocuments())
+    showSuccessMessage(`Document "${name}" added successfully`)
+  }
 
   // Función para compartir un documento con una empresa
-  const shareDocumentWith = (docName: string, company: string) => {
-    setSharedDocuments((prev) => ({
-      ...prev,
-      [docName]: company,
-    }))
+  const shareDocumentWith = (docId: string, company: Company) => {
+    updateDocumentSharing(docId, company)
+    setDocuments(getDocuments())
+    showSuccessMessage(`Document shared with ${company}`)
   }
 
   // Función para dejar de compartir un documento
-  const unshareDocument = (docName: string) => {
-    setSharedDocuments((prev) => ({
-      ...prev,
-      [docName]: null,
-    }))
+  const unshareDocument = (docId: string) => {
+    updateDocumentSharing(docId, null)
+    setDocuments(getDocuments())
+    showSuccessMessage("Document unshared successfully")
+  }
+
+  // Función para filtrar documentos según el cliente seleccionado
+  const getFilteredDocuments = () => {
+    if (companyFilter === "all") {
+      return documents
+    }
+    return documents.filter((doc) => doc.sharedWith === companyFilter)
   }
 
   // Función para alternar la expansión de un asset
@@ -398,9 +431,8 @@ export default function PublishDataPage() {
 
           if (hasError) {
             setError(`${errorMessage} Using fallback data.`)
-          } else {
-            showSuccessMessage("Data loaded from API successfully")
           }
+          // No mostrar mensaje de éxito al cargar datos
         } catch (apiError: any) {
           console.error("API error:", apiError)
           setError(`Failed to load data from API: ${apiError.message}. Falling back to mock data.`)
@@ -893,27 +925,45 @@ export default function PublishDataPage() {
 
         {/* Documents Section */}
         <div className="mb-6 border rounded-lg p-6 bg-gray-50 border-t-2 border-t-lime-500">
-          <h2 className="text-xl font-medium text-lime-700 mb-4">Documents</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-medium text-lime-700">Documents</h2>
+            <div className="flex items-center gap-3">
+              {/* Filtro por cliente */}
+              <Select value={companyFilter} onValueChange={(value) => setCompanyFilter(value as Company | "all")}>
+                <SelectTrigger className="w-[180px] focus:ring-lime-500">
+                  <SelectValue placeholder="Filter by client" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Clients</SelectItem>
+                  <SelectItem value="Ikerlan">Ikerlan</SelectItem>
+                  <SelectItem value="Ederlan">Ederlan</SelectItem>
+                  <SelectItem value="Gestamp">Gestamp</SelectItem>
+                  <SelectItem value="Bexen">Bexen</SelectItem>
+                </SelectContent>
+              </Select>
+              {/* Botón para añadir nuevo documento */}
+              <AddDocumentDialog onAddDocument={handleAddDocument} />
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {Object.keys(sharedDocuments).map((docName) => {
-              const sharedWith = sharedDocuments[docName]
-              const isShared = sharedWith !== null
+            {getFilteredDocuments().map((doc) => {
+              const isShared = doc.sharedWith !== null
               return (
                 <div
-                  key={docName}
+                  key={doc.id}
                   className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-lime-300 transition-colors"
                 >
                   <div className="p-2 bg-gray-100 rounded">
                     <FileText className="h-5 w-5 text-gray-600" />
                   </div>
-                  <span className="font-medium text-gray-700 flex-1">{docName}</span>
+                  <span className="font-medium text-gray-700 flex-1">{doc.name}</span>
                   {isShared ? (
                     <Button
-                      onClick={() => unshareDocument(docName)}
+                      onClick={() => unshareDocument(doc.id)}
                       className="bg-lime-600 hover:bg-lime-700 text-white flex items-center gap-2"
                     >
                       <Share2 className="h-4 w-4" />
-                      {sharedWith}
+                      {doc.sharedWith}
                     </Button>
                   ) : (
                     <DropdownMenu>
@@ -927,7 +977,7 @@ export default function PublishDataPage() {
                         {availableCompanies.map((company) => (
                           <DropdownMenuItem
                             key={company}
-                            onClick={() => shareDocumentWith(docName, company)}
+                            onClick={() => shareDocumentWith(doc.id, company)}
                             className="cursor-pointer"
                           >
                             {company}
@@ -940,6 +990,11 @@ export default function PublishDataPage() {
               )
             })}
           </div>
+          {getFilteredDocuments().length === 0 && (
+            <p className="text-center text-gray-500 py-8">
+              {companyFilter === "all" ? "No documents available." : `No documents shared with ${companyFilter}.`}
+            </p>
+          )}
         </div>
 
         {loading ? (
