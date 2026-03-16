@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" version="29.5.6">
   <diagram name="Arquitectura OVH" id="arch-ovh">
-    <mxGraphModel dx="3785" dy="1125" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
+    <mxGraphModel dx="2861" dy="649" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -19,31 +19,31 @@
         <mxCell id="provider-interface" parent="cloud-ovh" style="swimlane;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;strokeWidth=2;fontSize=12;fontStyle=1;" value="📊 PROVIDER UI" vertex="1">
           <mxGeometry height="220" width="240" x="53" y="262" as="geometry" />
         </mxCell>
-        <mxCell id="pub-dashboard" parent="provider-interface" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;strokeWidth=2;fontSize=11;" value="Publication Dashboard&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;Publicación de Documentos" vertex="1">
+        <mxCell id="pub-dashboard" parent="provider-interface" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;strokeWidth=2;fontSize=11;" value="Publication Dashboard&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;i&gt;Publicación de Documentos&lt;/i&gt;" vertex="1">
           <mxGeometry height="160" width="110" x="20" y="40" as="geometry" />
         </mxCell>
         <mxCell id="edc-mass" parent="cloud-ovh" style="swimlane;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;strokeWidth=3;fontSize=12;fontStyle=1;" value="🏭 EDC CONNECTOR - MONDRAGON ASSEMBLY" vertex="1">
           <mxGeometry height="220" width="260" x="346" y="262" as="geometry" />
         </mxCell>
-        <mxCell id="mass-cp" parent="edc-mass" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A5D6A7;strokeColor=#2E7D32;strokeWidth=2;fontSize=11;" value="Control Plane&lt;br&gt;BPNL00000000MASS&lt;br&gt;&lt;br&gt;Gestión de Contratos&lt;br&gt;y Políticas" vertex="1">
+        <mxCell id="mass-cp" parent="edc-mass" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A5D6A7;strokeColor=#2E7D32;strokeWidth=2;fontSize=11;" value="Control Plane&lt;br&gt;BPNL00000000MASS&lt;br&gt;&lt;br&gt;&lt;i&gt;Gestión de Contratos&lt;br&gt;y Políticas&lt;/i&gt;" vertex="1">
           <mxGeometry height="70" width="220" x="20" y="40" as="geometry" />
         </mxCell>
-        <mxCell id="mass-dp" parent="edc-mass" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;strokeWidth=2;fontSize=11;" value="Data Plane&lt;br&gt;&lt;br&gt;Transferencia de Datos" vertex="1">
+        <mxCell id="mass-dp" parent="edc-mass" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;strokeWidth=2;fontSize=11;" value="Data Plane&lt;br&gt;&lt;br&gt;&lt;i&gt;Transferencia de Datos&lt;/i&gt;" vertex="1">
           <mxGeometry height="70" width="220" x="20" y="130" as="geometry" />
         </mxCell>
         <mxCell id="edc-ikln" parent="cloud-ovh" style="swimlane;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#D84315;strokeWidth=3;fontSize=12;fontStyle=1;" value="🏢 EDC CONNECTOR - IKERLAN" vertex="1">
           <mxGeometry height="220" width="260" x="700" y="262" as="geometry" />
         </mxCell>
-        <mxCell id="ikln-cp" parent="edc-ikln" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCCBC;strokeColor=#D84315;strokeWidth=2;fontSize=11;" value="Control Plane&lt;br&gt;BPNL00000002IKLN&lt;br&gt;&lt;br&gt;Gestión de Contratos&lt;br&gt;y Políticas" vertex="1">
+        <mxCell id="ikln-cp" parent="edc-ikln" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCCBC;strokeColor=#D84315;strokeWidth=2;fontSize=11;" value="Control Plane&lt;br&gt;BPNL00000002IKLN&lt;br&gt;&lt;br&gt;&lt;i&gt;Gestión de Contratos&lt;br&gt;y Políticas&lt;/i&gt;" vertex="1">
           <mxGeometry height="70" width="220" x="20" y="40" as="geometry" />
         </mxCell>
-        <mxCell id="ikln-dp" parent="edc-ikln" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFAB91;strokeColor=#D84315;strokeWidth=2;fontSize=11;" value="Data Plane&lt;br&gt;&lt;br&gt;Transferencia de Datos" vertex="1">
+        <mxCell id="ikln-dp" parent="edc-ikln" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFAB91;strokeColor=#D84315;strokeWidth=2;fontSize=11;" value="Data Plane&lt;br&gt;&lt;br&gt;&lt;i&gt;Transferencia de Datos&lt;/i&gt;" vertex="1">
           <mxGeometry height="70" width="220" x="20" y="130" as="geometry" />
         </mxCell>
         <mxCell id="consumer-interface" parent="cloud-ovh" style="swimlane;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#D84315;strokeWidth=2;fontSize=12;fontStyle=1;" value="🌐 CONSUMER UI" vertex="1">
           <mxGeometry height="220" width="187" x="1032" y="262" as="geometry" />
         </mxCell>
-        <mxCell id="query-catalog" parent="consumer-interface" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFAB91;strokeColor=#D84315;strokeWidth=2;fontSize=11;" value="Data Space Query Catalog&lt;br&gt;&lt;br&gt;&lt;br&gt;Búsqueda y Descarga" vertex="1">
+        <mxCell id="query-catalog" parent="consumer-interface" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFAB91;strokeColor=#D84315;strokeWidth=2;fontSize=11;" value="Data Space Query Catalog&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;i&gt;Consulta y Descarga&lt;/i&gt;" vertex="1">
           <mxGeometry height="160" width="110" x="38" y="40" as="geometry" />
         </mxCell>
         <mxCell id="conn-pubdash-mass" edge="1" parent="cloud-ovh" source="pub-dashboard" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#2E7D32;fontSize=10;endArrow=block;endFill=1;" target="mass-cp" value="Management API&lt;br&gt;Publica Assets">
@@ -68,7 +68,9 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="conn-portal-mass" edge="1" parent="cloud-ovh" source="portal" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#6A1B9A;dashed=1;fontSize=9;endArrow=block;endFill=1;" target="mass-cp" value="Registra Partners&lt;br&gt;Gestiona BPNs">
-          <mxGeometry relative="1" as="geometry" />
+          <mxGeometry relative="1" x="-0.0052" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
         </mxCell>
         <mxCell id="conn-portal-ikln" edge="1" parent="cloud-ovh" source="portal" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#6A1B9A;dashed=1;fontSize=9;endArrow=block;endFill=1;" target="ikln-cp" value="Registra Partners&lt;br&gt;Gestiona BPNs">
           <mxGeometry relative="1" as="geometry" />
