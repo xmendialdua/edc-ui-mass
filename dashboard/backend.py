@@ -933,16 +933,11 @@ def list_assets():
                     results.append(f"  {idx}. {asset_id}")
                     results.append(f"     └─ Nombre: {asset_name}")
                 
-                results.append("")
-                results.append(log_message("=" * 60, "info"))
-                results.append(log_message("📄 JSON completo de todos los assets:", "info"))
-                results.append(log_message("=" * 60, "info"))
-                results.append("")
-                
-                # Mostrar JSON completo de todos los assets
-                results.append(json.dumps(assets, indent=2))
+                # Devolver también los assets como estructura JSON para el viewer
+                return jsonify({"success": True, "logs": results, "assets": assets})
             else:
                 results.append(log_message("ℹ️  No hay assets registrados en MASS", "info"))
+                return jsonify({"success": True, "logs": results, "assets": []})
                 
         else:
             results.append(log_message(f"❌ Error HTTP {response.status_code}", "error"))
@@ -952,8 +947,63 @@ def list_assets():
     except Exception as e:
         results.append(log_message(f"❌ Error: {str(e)}", "error"))
         return jsonify({"success": False, "logs": results})
+
+
+@app.route('/api/phase2/delete-asset', methods=['POST'])
+def delete_asset():
+    """Elimina un asset específico de MASS"""
+    results = []
     
-    return jsonify({"success": True, "logs": results})
+    # Obtener el asset ID del request body
+    data = request.get_json()
+    if not data or 'assetId' not in data:
+        results.append(log_message("❌ Error: assetId no proporcionado", "error"))
+        return jsonify({"success": False, "logs": results})
+    
+    asset_id = data['assetId']
+    
+    results.append(log_message(f"🗑️ Eliminando asset '{asset_id}' de MASS...", "info"))
+    
+    try:
+        # EDC v3 API - DELETE /v3/assets/{id}
+        response = requests.delete(
+            f"{MASS_API}/v3/assets/{asset_id}",
+            headers={
+                "X-Api-Key": MASS_API_KEY,
+                "Content-Type": "application/json"
+            },
+            verify=False,
+            timeout=10
+        )
+        
+        results.append(log_message(f"📡 HTTP {response.status_code}", "info"))
+        
+        if response.status_code == 204:
+            results.append(log_message(f"✅ Asset '{asset_id}' eliminado exitosamente", "success"))
+            results.append("")
+            results.append(log_message("⚠️ Importante:", "warning"))
+            results.append(log_message("   Si este asset estaba vinculado a Contract Definitions,", "warning"))
+            results.append(log_message("   considera eliminar también esos contratos.", "warning"))
+            return jsonify({"success": True, "logs": results})
+        elif response.status_code == 404:
+            results.append(log_message(f"⚠️ Asset '{asset_id}' no encontrado", "warning"))
+            return jsonify({"success": False, "logs": results})
+        elif response.status_code == 409:
+            results.append(log_message(f"❌ No se puede eliminar el asset '{asset_id}'", "error"))
+            results.append(log_message("   El asset puede estar en uso por Contract Definitions activos", "error"))
+            results.append(log_message("   Elimina primero los Contract Definitions que lo referencian", "error"))
+            results.append("")
+            results.append(log_message("   Respuesta del servidor:", "info"))
+            results.append(response.text[:500])
+            return jsonify({"success": False, "logs": results})
+        else:
+            results.append(log_message(f"❌ Error HTTP {response.status_code}", "error"))
+            results.append(response.text[:500])
+            return jsonify({"success": False, "logs": results})
+            
+    except Exception as e:
+        results.append(log_message(f"❌ Error: {str(e)}", "error"))
+        return jsonify({"success": False, "logs": results})
 
 
 # ============================================================================
