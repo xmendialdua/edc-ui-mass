@@ -1404,6 +1404,48 @@
         </div>
     </div>
 
+    <!-- Modal para crear Contract Definition -->
+    <div id="contract-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>🔗 Crear Contract Definition</h3>
+                <p>Vincula un asset con sus políticas de acceso y uso</p>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="contract-name">Nombre del Contrato:</label>
+                    <input type="text" id="contract-name" class="form-control" placeholder="Ej: Dummy PDF for IKERLAN" value="Dummy PDF for IKERLAN">
+                </div>
+                <div class="form-group">
+                    <label for="contract-asset-select">Asset a vincular:</label>
+                    <select id="contract-asset-select" class="form-control">
+                        <option value="">Cargando assets...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="contract-access-policy-select">Access Policy:</label>
+                    <select id="contract-access-policy-select" class="form-control">
+                        <option value="">Cargando políticas...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="contract-contract-policy-select">Contract Policy:</label>
+                    <select id="contract-contract-policy-select" class="form-control">
+                        <option value="">Cargando políticas...</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeContractModal()">
+                    <span>✖</span> Cancelar
+                </button>
+                <button class="btn btn-success" onclick="confirmCreateContractDefinition()">
+                    <span>✅</span> Crear Contract Definition
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script src="dashboard.js"></script>
 </body>
 </html>

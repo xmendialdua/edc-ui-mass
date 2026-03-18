@@ -1282,22 +1282,37 @@ def create_contract_definition():
     """Crea la Contract Definition vinculando asset y políticas"""
     results = []
     
-    results.append(log_message(f"🔗 Creando Contract Definition '{CONTRACT_DEF_ID}'...", "info"))
+    # Obtener datos del request body
+    data = request.get_json() or {}
+    contract_name = data.get('contractName', CONTRACT_DEF_ID)
+    asset_id = data.get('assetId', ASSET_ID)
+    access_policy_id = data.get('accessPolicyId', ACCESS_POLICY_ID)
+    contract_policy_id = data.get('contractPolicyId', CONTRACT_POLICY_ID)
+    
+    # Generar ID del contrato a partir del nombre (limpiar caracteres especiales)
+    contract_def_id = contract_name.lower().replace(' ', '-').replace('_', '-')
+    # Eliminar caracteres no alfanuméricos excepto guiones
+    import re
+    contract_def_id = re.sub(r'[^a-z0-9-]', '', contract_def_id)
+    
+    results.append(log_message(f"🔗 Creando Contract Definition '{contract_def_id}'...", "info"))
     results.append(log_message(f"ℹ️ Contract Definition: Vincula un asset con sus políticas", "info"))
-    results.append(log_message(f"ℹ️ Define: Asset '{ASSET_ID}' + Access Policy + Contract Policy", "info"))
+    results.append(log_message(f"ℹ️ Asset: {asset_id}", "info"))
+    results.append(log_message(f"ℹ️ Access Policy: {access_policy_id}", "info"))
+    results.append(log_message(f"ℹ️ Contract Policy: {contract_policy_id}", "info"))
     
     contract_def_payload = {
         "@context": {
             "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
         },
-        "@id": CONTRACT_DEF_ID,
+        "@id": contract_def_id,
         "@type": "ContractDefinition",
-        "accessPolicyId": ACCESS_POLICY_ID,
-        "contractPolicyId": CONTRACT_POLICY_ID,
+        "accessPolicyId": access_policy_id,
+        "contractPolicyId": contract_policy_id,
         "assetsSelector": {
             "operandLeft": "https://w3id.org/edc/v0.0.1/ns/id",
             "operator": "=",
-            "operandRight": ASSET_ID
+            "operandRight": asset_id
         }
     }
     
@@ -1319,10 +1334,13 @@ def create_contract_definition():
         results.append(log_message(f"📡 HTTP {response.status_code}", "info"))
         
         if response.status_code in [200, 201]:
-            results.append(log_message("✅ Contract Definition creada exitosamente", "success"))
+            results.append(log_message("✅ Contract Definition creado exitosamente", "success"))
             results.append(json.dumps(response.json(), indent=2))
+            return jsonify({"success": True, "logs": results})
         elif response.status_code == 409:
             results.append(log_message("⚠️ Contract Definition ya existe (409 Conflict)", "warning"))
+            results.append(log_message("El contrato ya está registrado en el EDC", "warning"))
+            return jsonify({"success": False, "error": "CONTRACT_EXISTS", "logs": results})
         else:
             results.append(log_message(f"❌ Error HTTP {response.status_code}", "error"))
             results.append(response.text)
@@ -1331,8 +1349,6 @@ def create_contract_definition():
     except Exception as e:
         results.append(log_message(f"❌ Error: {str(e)}", "error"))
         return jsonify({"success": False, "logs": results})
-    
-    return jsonify({"success": True, "logs": results})
 
 
 @app.route('/api/phase4/list-contract-definitions', methods=['POST'])

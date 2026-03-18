@@ -507,19 +507,167 @@
         }
 
         // FASE 4 Functions
-        async function createContractDefinition() {
-            clearLogs(4);
-            addLog(4, '🔗 Creando Contract Definition...');
+        async function openContractModal() {
+            const modal = document.getElementById('contract-modal');
+            modal.classList.add('active');
             
-            const result = await callAPI('/phase4/create-contract-definition');
+            // Cargar assets
+            await loadAssetsForContract();
+            
+            // Cargar políticas
+            await loadPoliciesForContract();
+        }
+
+        function closeContractModal() {
+            const modal = document.getElementById('contract-modal');
+            modal.classList.remove('active');
+        }
+
+        async function loadAssetsForContract() {
+            const select = document.getElementById('contract-asset-select');
+            select.innerHTML = '<option value="">Cargando...</option>';
+            
+            const result = await callAPI('/phase2/list-assets');
+            
+            if (result.success && result.assets && result.assets.length > 0) {
+                select.innerHTML = '';
+                result.assets.forEach((asset, index) => {
+                    const assetId = asset['@id'] || `asset-${index}`;
+                    const option = document.createElement('option');
+                    option.value = assetId;
+                    option.textContent = assetId;
+                    
+                    // Seleccionar por defecto si contiene "dummy" o "pdf"
+                    if (assetId.toLowerCase().includes('dummy') || assetId.toLowerCase().includes('pdf')) {
+                        option.selected = true;
+                    }
+                    
+                    select.appendChild(option);
+                });
+            } else {
+                select.innerHTML = '<option value="">No hay assets disponibles</option>';
+            }
+        }
+
+        async function loadPoliciesForContract() {
+            const accessSelect = document.getElementById('contract-access-policy-select');
+            const contractSelect = document.getElementById('contract-contract-policy-select');
+            
+            accessSelect.innerHTML = '<option value="">Cargando...</option>';
+            contractSelect.innerHTML = '<option value="">Cargando...</option>';
+            
+            const result = await callAPI('/phase3/list-policies');
+            
+            if (result.success && result.policies && result.policies.length > 0) {
+                accessSelect.innerHTML = '';
+                contractSelect.innerHTML = '';
+                
+                result.policies.forEach((policy, index) => {
+                    const policyId = policy['@id'] || `policy-${index}`;
+                    const policyJSON = JSON.stringify(policy).toLowerCase();
+                    
+                    // Determinar si es Access o Contract Policy
+                    const isAccessPolicy = policyId.includes('access') || policyJSON.includes('"action":"access"') || policyJSON.includes('"action": "access"');
+                    const isContractPolicy = policyId.includes('contract') || policyJSON.includes('"action":"use"') || policyJSON.includes('"action": "use"');
+                    
+                    if (isAccessPolicy) {
+                        const option = document.createElement('option');
+                        option.value = policyId;
+                        option.textContent = policyId;
+                        
+                        // Seleccionar por defecto si contiene "ikln" o "ikerlan"
+                        if (policyId.toLowerCase().includes('ikln') || policyId.toLowerCase().includes('ikerlan')) {
+                            option.selected = true;
+                        }
+                        
+                        accessSelect.appendChild(option);
+                    }
+                    
+                    if (isContractPolicy) {
+                        const option = document.createElement('option');
+                        option.value = policyId;
+                        option.textContent = policyId;
+                        
+                        // Seleccionar por defecto si contiene "ikln" o "ikerlan"
+                        if (policyId.toLowerCase().includes('ikln') || policyId.toLowerCase().includes('ikerlan')) {
+                            option.selected = true;
+                        }
+                        
+                        contractSelect.appendChild(option);
+                    }
+                });
+                
+                if (accessSelect.children.length === 0) {
+                    accessSelect.innerHTML = '<option value="">No hay Access Policies disponibles</option>';
+                }
+                if (contractSelect.children.length === 0) {
+                    contractSelect.innerHTML = '<option value="">No hay Contract Policies disponibles</option>';
+                }
+            } else {
+                accessSelect.innerHTML = '<option value="">No hay políticas disponibles</option>';
+                contractSelect.innerHTML = '<option value="">No hay políticas disponibles</option>';
+            }
+        }
+
+        async function createContractDefinition() {
+            // Abrir modal para configurar el Contract Definition
+            await openContractModal();
+        }
+
+        async function confirmCreateContractDefinition() {
+            const contractName = document.getElementById('contract-name').value.trim();
+            const assetId = document.getElementById('contract-asset-select').value;
+            const accessPolicyId = document.getElementById('contract-access-policy-select').value;
+            const contractPolicyId = document.getElementById('contract-contract-policy-select').value;
+            
+            // Validaciones
+            if (!contractName) {
+                alert('Por favor introduce un nombre para el contrato');
+                return;
+            }
+            if (!assetId) {
+                alert('Por favor selecciona un asset');
+                return;
+            }
+            if (!accessPolicyId) {
+                alert('Por favor selecciona una Access Policy');
+                return;
+            }
+            if (!contractPolicyId) {
+                alert('Por favor selecciona una Contract Policy');
+                return;
+            }
+            
+            // Cerrar modal
+            closeContractModal();
+            
+            // Crear Contract Definition
+            clearLogs(4);
+            addLog(4, `🔗 Creando Contract Definition "${contractName}"...`);
+            addLog(4, `   Asset: ${assetId}`);
+            addLog(4, `   Access Policy: ${accessPolicyId}`);
+            addLog(4, `   Contract Policy: ${contractPolicyId}`);
+            addLog(4, '');
+            
+            const result = await callAPI('/phase4/create-contract-definition', 'POST', {
+                contractName: contractName,
+                assetId: assetId,
+                accessPolicyId: accessPolicyId,
+                contractPolicyId: contractPolicyId
+            });
             
             if (result.logs) {
                 result.logs.forEach(log => addLog(4, log));
             }
             
             if (result.success) {
-                addLog(4, '\n✅ Contract Definition creada exitosamente');
+                addLog(4, '\n✅ Contract Definition creado exitosamente');
                 updateStatus(4, 'complete');
+            } else if (result.error === 'CONTRACT_EXISTS') {
+                addLog(4, '\n⚠️ ERROR: El Contract Definition ya existe');
+                addLog(4, '💡 Usa otro nombre o elimina el contrato existente');
+            } else {
+                addLog(4, '\n❌ Error al crear el Contract Definition');
             }
         }
 
