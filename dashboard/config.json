@@ -12,6 +12,33 @@
     "api_key": "ikln-api-key-change-in-production",
     "bpn": "BPNL00000002IKLN"
   },
+  "dataspace_partners": [
+    {
+      "bpn": "BPNL00000002IKLN",
+      "name": "IKERLAN",
+      "description": "IKERLAN Technology Centre"
+    },
+    {
+      "bpn": "BPNL00000000MASS",
+      "name": "MASS",
+      "description": "MASS Connector"
+    },
+    {
+      "bpn": "BPNL00000003EDLN",
+      "name": "EDERLAN",
+      "description": "Ederlan Group"
+    },
+    {
+      "bpn": "BPNL00000004GSTP",
+      "name": "GESTAMP",
+      "description": "Gestamp Automoción"
+    },
+    {
+      "bpn": "BPNL00000005BEXN",
+      "name": "BEXEN",
+      "description": "Bexen Medical"
+    }
+  ],
   "asset": {
     "id": "pdf-dummy-mass-ikln",
     "url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",

@@ -1,6 +1,51 @@
         const API_BASE = 'http://localhost:5000/api';
         let currentNegotiationId = null;
         let currentContractAgreementId = null;
+        let availableBpns = [];
+
+        // Cargar configuración y BPNs al inicio
+        async function loadConfig() {
+            try {
+                const response = await fetch('config.json');
+                const config = await response.json();
+                availableBpns = config.dataspace_partners || [];
+                
+                if (availableBpns.length === 0) {
+                    console.warn('No se encontraron partners en config.json');
+                    addLog(1, '⚠️ Advertencia: No hay partners configurados en config.json');
+                }
+                
+                populateBpnSelect();
+            } catch (error) {
+                console.error('Error loading config:', error);
+                addLog(1, '❌ Error cargando configuración: ' + error.message);
+                availableBpns = [];
+                populateBpnSelect();
+            }
+        }
+
+        // Poblar el select de BPNs en el modal
+        function populateBpnSelect() {
+            const select = document.getElementById('bpn-select');
+            select.innerHTML = '';
+            
+            availableBpns.forEach((bpnInfo, index) => {
+                const option = document.createElement('option');
+                option.value = bpnInfo.bpn;
+                option.className = 'bpn-option';
+                option.innerHTML = `${bpnInfo.bpn} - ${bpnInfo.name}`;
+                
+                // Seleccionar por defecto el que termina en 2IKLN
+                if (bpnInfo.bpn.endsWith('2IKLN')) {
+                    option.selected = true;
+                }
+                
+                select.appendChild(option);
+            });
+        }
+
+        // Cargar config al cargar la página
+        document.addEventListener('DOMContentLoaded', loadConfig);
 
         // Toggle phase accordion
         function togglePhase(phaseNum) {
@@ -296,11 +341,37 @@
         }
 
         // FASE 3 Functions
+        function openBpnModal() {
+            const modal = document.getElementById('bpn-modal');
+            modal.classList.add('active');
+        }
+
+        function closeBpnModal() {
+            const modal = document.getElementById('bpn-modal');
+            modal.classList.remove('active');
+        }
+
         async function createAccessPolicy() {
-            clearLogs(3);
-            addLog(3, '🔐 Creando Access Policy...');
+            // Abrir modal para seleccionar BPN
+            openBpnModal();
+        }
+
+        async function confirmCreateAccessPolicy() {
+            const selectedBpn = document.getElementById('bpn-select').value;
             
-            const result = await callAPI('/phase3/create-access-policy');
+            if (!selectedBpn) {
+                alert('Por favor selecciona un BPN');
+                return;
+            }
+            
+            // Cerrar modal
+            closeBpnModal();
+            
+            // Crear policy con el BPN seleccionado
+            clearLogs(3);
+            addLog(3, `🔐 Creando Access Policy para BPN: ${selectedBpn}...`);
+            
+            const result = await callAPI('/phase3/create-access-policy', 'POST', { bpn: selectedBpn });
             
             if (result.logs) {
                 result.logs.forEach(log => addLog(3, log));
@@ -308,6 +379,9 @@
             
             if (result.success) {
                 addLog(3, '\n✅ Access Policy creada exitosamente');
+            } else if (result.error === 'POLICY_EXISTS') {
+                addLog(3, '\n⚠️ ERROR: La Access Policy ya existe');
+                addLog(3, '💡 Elimina la política existente antes de crear una nueva o usa otro nombre');
             }
         }
 
@@ -324,6 +398,9 @@
             if (result.success) {
                 addLog(3, '\n✅ Contract Policy creada exitosamente');
                 updateStatus(3, 'complete');
+            } else if (result.error === 'POLICY_EXISTS') {
+                addLog(3, '\n⚠️ ERROR: La Contract Policy ya existe');
+                addLog(3, '💡 Elimina la política existente antes de crear una nueva o usa otro nombre');
             }
         }
 
@@ -349,7 +426,15 @@
                 // Crear botón para cada política
                 result.policies.forEach((policy, index) => {
                     const policyId = policy['@id'] || `policy-${index}`;
-                    const policyType = policy['@type'] || 'PolicyDefinition';
+                    let policyType = policy['@type'] || 'PolicyDefinition';
+                    
+                    // Diferenciar entre Access Policy y Contract Policy
+                    const policyJSON = JSON.stringify(policy).toLowerCase();
+                    if (policyId.includes('access') || policyJSON.includes('"action":"access"') || policyJSON.includes('"action": "access"')) {
+                        policyType = 'Access Policy Definition';
+                    } else if (policyId.includes('contract') || policyJSON.includes('"action":"use"') || policyJSON.includes('"action": "use"')) {
+                        policyType = 'Contract Policy Definition';
+                    }
                     
                     const btn = document.createElement('button');
                     btn.className = 'policy-btn';

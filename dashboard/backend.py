@@ -1015,9 +1015,16 @@ def create_access_policy():
     """Crea la Access Policy restringida por BPN"""
     results = []
     
-    results.append(log_message(f"🔐 Creando Access Policy '{ACCESS_POLICY_ID}'...", "info"))
+    # Obtener el BPN del request body (si existe, sino usar IKLN_BPN por defecto)
+    data = request.get_json() or {}
+    target_bpn = data.get('bpn', IKLN_BPN)
+    
+    # Generar ID de política basado en el BPN
+    policy_id = f"access-policy-{target_bpn.lower()}"
+    
+    results.append(log_message(f"🔐 Creando Access Policy '{policy_id}'...", "info"))
     results.append(log_message(f"ℹ️ Access Policy: Controla VISIBILIDAD en el catálogo", "info"))
-    results.append(log_message(f"ℹ️ Solo {IKLN_BPN} podrá VER el asset en su catalog discovery", "info"))
+    results.append(log_message(f"ℹ️ Solo {target_bpn} podrá VER el asset en su catalog discovery", "info"))
     
     # Formato oficial de Catena-X (validado con tractus-x-umbrella docs)
     policy_payload = {
@@ -1028,7 +1035,7 @@ def create_access_policy():
                 "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
             }
         ],
-        "@id": ACCESS_POLICY_ID,
+        "@id": policy_id,
         "@type": "PolicyDefinition",
         "policy": {
             "@type": "Set",
@@ -1049,7 +1056,7 @@ def create_access_policy():
                         {
                             "leftOperand": "BusinessPartnerNumber",
                             "operator": "isAnyOf",
-                            "rightOperand": [IKLN_BPN]
+                            "rightOperand": [target_bpn]
                         }
                     ]
                 }]
@@ -1077,8 +1084,11 @@ def create_access_policy():
         if response.status_code in [200, 201]:
             results.append(log_message("✅ Access Policy creada exitosamente", "success"))
             results.append(json.dumps(response.json(), indent=2))
+            return jsonify({"success": True, "logs": results})
         elif response.status_code == 409:
             results.append(log_message("⚠️ Policy ya existe (409 Conflict)", "warning"))
+            results.append(log_message("La política ya está registrada en el EDC", "warning"))
+            return jsonify({"success": False, "error": "POLICY_EXISTS", "logs": results})
         else:
             results.append(log_message(f"❌ Error HTTP {response.status_code}", "error"))
             results.append(response.text)
@@ -1087,8 +1097,6 @@ def create_access_policy():
     except Exception as e:
         results.append(log_message(f"❌ Error: {str(e)}", "error"))
         return jsonify({"success": False, "logs": results})
-    
-    return jsonify({"success": True, "logs": results})
 
 
 @app.route('/api/phase3/create-contract-policy', methods=['POST'])
@@ -1160,8 +1168,11 @@ def create_contract_policy():
         if response.status_code in [200, 201]:
             results.append(log_message("✅ Contract Policy creada exitosamente", "success"))
             results.append(json.dumps(response.json(), indent=2))
+            return jsonify({"success": True, "logs": results})
         elif response.status_code == 409:
             results.append(log_message("⚠️ Policy ya existe (409 Conflict)", "warning"))
+            results.append(log_message("La política ya está registrada en el EDC", "warning"))
+            return jsonify({"success": False, "error": "POLICY_EXISTS", "logs": results})
         else:
             results.append(log_message(f"❌ Error HTTP {response.status_code}", "error"))
             results.append(response.text)
