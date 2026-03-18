@@ -210,6 +210,89 @@
             if (result.logs) {
                 result.logs.forEach(log => addLog(2, log));
             }
+            
+            if (result.success && result.assets && result.assets.length > 0) {
+                // Mostrar el contenedor de assets
+                const assetsViewer = document.getElementById('assets-viewer');
+                assetsViewer.style.display = 'block';
+                
+                // Limpiar contenido previo
+                const assetsButtons = document.getElementById('assets-buttons');
+                assetsButtons.innerHTML = '';
+                
+                // Crear botón para cada asset
+                result.assets.forEach((asset, index) => {
+                    const assetId = asset['@id'] || `asset-${index}`;
+                    const assetType = asset['@type'] || 'Asset';
+                    
+                    const btn = document.createElement('button');
+                    btn.className = 'policy-btn';
+                    btn.innerHTML = `
+                        <div class="policy-btn-content">
+                            <div class="policy-btn-title">${assetType}</div>
+                            <div class="policy-btn-id">${assetId}</div>
+                        </div>
+                        <button class="policy-btn-delete" onclick="event.stopPropagation(); deleteAsset('${assetId}');" title="Eliminar asset">
+                            🗑️
+                        </button>
+                    `;
+                    
+                    btn.onclick = () => showAssetDetail(asset, btn);
+                    
+                    assetsButtons.appendChild(btn);
+                });
+                
+                addLog(2, `\n✅ ${result.assets.length} assets cargados. Selecciona uno para ver su detalle.`);
+            } else if (result.success && result.assets) {
+                addLog(2, '\nℹ️  No hay assets registrados en MASS');
+                document.getElementById('assets-viewer').style.display = 'none';
+            }
+        }
+        
+        function showAssetDetail(asset, button) {
+            // Remover clase active de todos los botones
+            document.querySelectorAll('#assets-buttons .policy-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Marcar el botón actual como activo
+            button.classList.add('active');
+            
+            // Mostrar el detalle del asset
+            const detailContent = document.getElementById('asset-detail-content');
+            detailContent.innerHTML = '';
+            
+            const assetJson = JSON.stringify(asset, null, 2);
+            const pre = document.createElement('pre');
+            pre.style.margin = '0';
+            pre.style.whiteSpace = 'pre-wrap';
+            pre.style.wordWrap = 'break-word';
+            pre.textContent = assetJson;
+            
+            detailContent.appendChild(pre);
+        }
+        
+        async function deleteAsset(assetId) {
+            // Solicitar confirmación
+            const confirmed = confirm(`¿Estás seguro de que deseas eliminar el asset "${assetId}"?\n\nEsta acción no se puede deshacer.`);
+            
+            if (!confirmed) {
+                return;
+            }
+            
+            addLog(2, `🗑️ Eliminando asset "${assetId}"...`);
+            
+            const result = await callAPI('/phase2/delete-asset', 'POST', { assetId });
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(2, log));
+            }
+            
+            if (result.success) {
+                addLog(2, `\n✅ Asset "${assetId}" eliminado exitosamente`);
+                // Recargar la lista de assets
+                setTimeout(() => listAssets(), 1000);
+            }
         }
 
         // FASE 3 Functions

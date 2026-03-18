@@ -988,12 +988,30 @@
                     </div>
 
                     <div class="actions">
-                        <button class="btn btn-success" onclick="createAsset()">
-                            <span>📦</span> Crear Asset
-                        </button>
                         <button class="btn btn-info" onclick="listAssets()">
                             <span>📋</span> Listar Assets
                         </button>
+                        <button class="btn btn-success" onclick="createAsset()">
+                            <span>📦</span> Crear Asset
+                        </button>
+                    </div>
+
+                    <!-- Contenedor para listar assets -->
+                    <div id="assets-viewer" class="policies-viewer" style="display: none;">
+                        <div class="policies-layout">
+                            <div class="policies-list">
+                                <h4>📦 Assets Disponibles</h4>
+                                <div id="assets-buttons"></div>
+                            </div>
+                            <div class="policy-detail">
+                                <h4>📄 Detalle del Asset</h4>
+                                <div id="asset-detail-content" class="policy-detail-content">
+                                    <p style="color: #999; text-align: center; margin-top: 50px;">
+                                        Selecciona un asset de la lista para ver su detalle
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="logs-container" id="logs-phase2"></div>
