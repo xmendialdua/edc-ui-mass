@@ -1,0 +1,1764 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EDC Asset Publishing Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .info-box {
+            background: #f0f4f8;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 10px;
+            font-size: 13px;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-label {
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 3px;
+        }
+
+        .info-value {
+            color: #333;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+
+        .phase-accordion {
+            background: white;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .phase-accordion:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .phase-header {
+            padding: 20px 25px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            user-select: none;
+        }
+
+        .phase-header:hover {
+            opacity: 0.95;
+        }
+
+        .phase-title {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .phase-number {
+            background: rgba(255,255,255,0.2);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            margin-right: 15px;
+        }
+
+        .phase-toggle {
+            font-size: 24px;
+            transition: transform 0.3s ease;
+        }
+
+        .phase-accordion.active .phase-toggle {
+            transform: rotate(180deg);
+        }
+
+        .phase-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .phase-accordion.active .phase-content {
+            max-height: 2000px;
+        }
+
+        .phase-body {
+            padding: 25px;
+        }
+
+        .description {
+            background: #f8f9fa;
+            padding: 15px;
+            border-left: 4px solid #667eea;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .description h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .description p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .description ul {
+            margin-left: 20px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .description ul li {
+            margin-bottom: 5px;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .btn-info {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .logs-container {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin-top: 15px;
+        }
+
+        .logs-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .logs-container::-webkit-scrollbar-track {
+            background: #2d2d2d;
+        }
+
+        .logs-container::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+
+        .log-line {
+            margin-bottom: 4px;
+            line-height: 1.4;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .status-pending {
+            background: #ffeaa7;
+            color: #d63031;
+        }
+
+        .status-complete {
+            background: #55efc4;
+            color: #00b894;
+        }
+
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 30px;
+            opacity: 0.8;
+            font-size: 14px;
+        }
+
+        .phase-state {
+            display: flex;
+            align-items: center;
+        }
+
+        /* Architecture Section - integrado con phase-accordion */
+        #architecture .phase-body {
+            padding: 20px;
+        }
+
+        .architecture-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .architecture-diagram {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .arch-layer {
+            background: #fff3e0;
+            border: 2px solid #ff9800;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .identity-layer {
+            background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+        }
+
+        .layer-title {
+            font-weight: bold;
+            font-size: 16px;
+            color: #e65100;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .components-row {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .components-vertical {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .component {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            text-align: center;
+            position: relative;
+        }
+
+        .component.real {
+            background: #c8e6c9;
+            border: 2px solid #4caf50;
+            color: #1b5e20;
+        }
+
+        .component.mock {
+            background: #ffe0b2;
+            border: 2px solid #ff9800;
+            color: #e65100;
+        }
+
+        .component.demo {
+            background: #bbdefb;
+            border: 2px solid #2196f3;
+            color: #0d47a1;
+        }
+
+        .component-info {
+            text-align: center;
+            font-size: 11px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .arch-connectors-layer {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .arch-box {
+            background: white;
+            border: 3px solid;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .consumer-box {
+            border-color: #2196f3;
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        }
+
+        .provider-box {
+            border-color: #4caf50;
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+        }
+
+        .box-title {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 5px;
+            text-align: center;
+        }
+
+        .box-subtitle {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            margin-bottom: 15px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .port-badge {
+            background: rgba(0,0,0,0.1);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            margin-left: 5px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .protocol-badge {
+            margin-top: 10px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .dcp-badge {
+            background: #1565c0;
+            color: white;
+        }
+
+        .dsp-connection {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: linear-gradient(90deg, #e3f2fd, #c8e6c9);
+            border-radius: 8px;
+            border: 2px dashed #666;
+        }
+
+        .dsp-arrow {
+            font-size: 32px;
+            color: #1976d2;
+            font-weight: bold;
+        }
+
+        .dsp-label {
+            font-weight: bold;
+            font-size: 14px;
+            color: #0d47a1;
+            margin-top: 5px;
+        }
+
+        .dsp-sublabel {
+            font-size: 11px;
+            color: #666;
+            text-align: center;
+            margin-top: 5px;
+            line-height: 1.4;
+        }
+
+        .arch-backend-layer {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            align-items: start;
+            margin-top: 20px;
+        }
+
+        .pdf-asset-island {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(33, 150, 243, 0.05);
+            border: 2px dashed #2196f3;
+            border-radius: 12px;
+            min-height: 150px;
+        }
+
+        .mass-backend-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .backend-box {
+            background: #e1f5fe;
+            border: 2px dashed #0288d1;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .arch-backend-layer .arch-box {
+            min-width: 250px;
+        }
+
+        .arch-legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-color {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            border: 2px solid #333;
+        }
+
+        .legend-color.real {
+            background: #c8e6c9;
+        }
+
+        .legend-color.mock {
+            background: #ffe0b2;
+        }
+
+        .legend-color.demo {
+            background: #bbdefb;
+        }
+
+        .legend-text {
+            font-size: 13px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .protocol-descriptions {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fafafa;
+            border-left: 4px solid #667eea;
+            border-radius: 4px;
+        }
+
+        .protocol-desc {
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+
+        .protocol-desc strong {
+            color: #1976d2;
+            font-weight: 600;
+        }
+
+        @media (max-width: 768px) {
+            .arch-connectors-layer {
+                grid-template-columns: 1fr;
+            }
+            
+            .dsp-connection {
+                order: 2;
+            }
+
+            .arch-backend-layer {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* JSON syntax highlighting in logs */
+        .logs-container .json-key { color: #9cdcfe; }
+        .logs-container .json-string { color: #ce9178; }
+        .logs-container .json-number { color: #b5cea8; }
+        .logs-container .json-boolean { color: #569cd6; }
+        .logs-container .json-null { color: #569cd6; }
+
+        /* Policies Viewer Styles */
+        .policies-viewer {
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        .policies-layout {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+            min-height: 400px;
+        }
+
+        .policies-list {
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 15px;
+            overflow-y: auto;
+            max-height: 600px;
+        }
+
+        .policies-list h4 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 16px;
+        }
+
+        #policies-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .policy-btn {
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            padding: 12px;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .policy-btn-content {
+            flex: 1;
+        }
+
+        .policy-btn-delete {
+            background: #dc3545;
+            border: none;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s ease;
+            margin-left: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .policy-btn-delete:hover {
+            background: #c82333;
+            transform: scale(1.1);
+        }
+
+        .policy-btn:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+            transform: translateX(4px);
+        }
+
+        .policy-btn.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            transform: translateX(4px);
+        }
+
+        .policy-btn-title {
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .policy-btn-id {
+            font-size: 11px;
+            opacity: 0.8;
+            font-family: 'Courier New', monospace;
+        }
+
+        .policy-detail {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            overflow-y: auto;
+            max-height: 600px;
+        }
+
+        .policy-detail h4 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 16px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .policy-detail-content {
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            color: #333;
+        }
+
+        @media (max-width: 968px) {
+            .policies-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .policies-list {
+                max-height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 EDC Asset Publishing Dashboard</h1>
+            <p>Publicación de Asset PDF en MASS-EDC con Acceso Restringido por BPN a IKLN-EDC</p>
+            
+            <div class="info-box">
+                <div class="info-item">
+                    <span class="info-label">Provider (MASS):</span>
+                    <span class="info-value">BPNL00000000MASS</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Consumer (IKLN):</span>
+                    <span class="info-value">BPNL00000002IKLN</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Asset ID:</span>
+                    <span class="info-value">pdf-dummy-mass-ikln</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">PDF URL:</span>
+                    <span class="info-value">dummy.pdf (w3.org)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Arquitectura del Data Space -->
+        <div class="phase-accordion" id="architecture">
+            <div class="phase-header" onclick="togglePhase('architecture')">
+                <div class="phase-state">
+                    <span class="phase-number">🏗️</span>
+                    <span class="phase-title">Arquitectura del Data Space</span>
+                </div>
+                <span class="phase-toggle">▼</span>
+            </div>
+            <div class="phase-content">
+                <div class="phase-body">
+                    <div class="architecture-header">
+                        <p style="color: #666; font-size: 14px; text-align: center; margin-bottom: 20px;">Componentes y flujo de comunicación del ecosistema Tractus-X</p>
+                    </div>
+                    
+                    <div class="architecture-diagram">
+                <!-- Identity & Trust Layer -->
+                <div class="arch-layer identity-layer">
+                    <div class="layer-title">🔐 Identity & Trust Protocol</div>
+                    <div class="components-row">
+                        <div class="component mock">DIM Wallet Stub</div>
+                        <div class="component mock">BDRS Mock</div>
+                        <div class="component mock">OAuth2 / STS</div>
+                        <div class="component mock">DID:web</div>
+                    </div>
+                    <div class="component-info">Port: 8080 | Issuer: BPNL00000003CRHK</div>
+                </div>
+
+                <!-- Dataspace Connectors Layer -->
+                <div class="arch-connectors-layer">
+                    <!-- IKLN (Consumer) -->
+                    <div class="arch-box consumer-box">
+                        <div class="box-title">🔷 IKLN EDC (Consumer)</div>
+                        <div class="box-subtitle">BPN: BPNL00000002IKLN</div>
+                        <div class="components-vertical">
+                            <div class="component real">Control Plane
+                                <span class="port-badge">:8081</span>
+                            </div>
+                            <div class="component real">Data Plane
+                                <span class="port-badge">:8081</span>
+                            </div>
+                            <div class="component real">PostgreSQL
+                                <span class="port-badge">:5432</span>
+                            </div>
+                            <div class="component real">Vault
+                                <span class="port-badge">:8200</span>
+                            </div>
+                        </div>
+                        <div class="protocol-badge dcp-badge">DCP / IATP</div>
+                    </div>
+
+                    <!-- DSP Protocol in center -->
+                    <div class="dsp-connection">
+                        <div class="dsp-arrow">⟷</div>
+                        <div class="dsp-label">DSP Protocol</div>
+                        <div class="dsp-sublabel">Catalog Discovery<br>Contract Negotiation<br>Data Transfer</div>
+                    </div>
+
+                    <!-- MASS (Provider) -->
+                    <div class="arch-box provider-box">
+                        <div class="box-title">🟢 MASS EDC (Provider)</div>
+                        <div class="box-subtitle">BPN: BPNL00000000MASS</div>
+                        <div class="components-vertical">
+                            <div class="component real">Control Plane
+                                <span class="port-badge">:8081</span>
+                            </div>
+                            <div class="component real">Data Plane
+                                <span class="port-badge">:8081</span>
+                            </div>
+                            <div class="component real">PostgreSQL
+                                <span class="port-badge">:5432</span>
+                            </div>
+                            <div class="component real">Vault
+                                <span class="port-badge">:8200</span>
+                            </div>
+                        </div>
+                        <div class="protocol-badge dcp-badge">DCP / IATP</div>
+                    </div>
+                </div>
+
+                <!-- Backend Data Layer -->
+                <div class="arch-backend-layer">
+                    <!-- PDF Asset (isla independiente) -->
+                    <div class="pdf-asset-island">
+                        <div class="component demo" style="padding: 15px; font-size: 14px;">
+                            📄 PDF Asset (Público)
+                        </div>
+                        <div class="component-info" style="margin-top: 8px;">
+                            https://www.w3.org/.../dummy.pdf
+                        </div>
+                    </div>
+
+                    <!-- MASS Backend Components (stacked) -->
+                    <div class="mass-backend-stack">
+                        <!-- MASS Backend -->
+                        <div class="arch-box" style="border-color: #4caf50; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);">
+                            <div class="box-title">🟢 MASS Backend</div>
+                            <div class="box-subtitle">Data Management</div>
+                            <div class="components-vertical">
+                                <div class="component demo">DS Dashboard
+                                    <span class="port-badge">UI</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- MASS Sharepoint -->
+                        <div class="arch-box" style="border-color: #4caf50; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); margin-top: 15px;">
+                            <div class="box-title">🟢 MASS Sharepoint</div>
+                            <div class="box-subtitle">Document Storage</div>
+                            <div class="components-vertical">
+                                <div class="component real">Shared files & folders
+                                    <span class="port-badge">Docs</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Legend -->
+                <div class="arch-legend">
+                    <div class="legend-item">
+                        <span class="legend-color real"></span>
+                        <span class="legend-text">Real (Producción)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color mock"></span>
+                        <span class="legend-text">Mock (Simulado)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color demo"></span>
+                        <span class="legend-text">Demo / Público</span>
+                    </div>
+                </div>
+
+                <!-- Protocol Descriptions -->
+                <div class="protocol-descriptions">
+                    <div class="protocol-desc">
+                        <strong>DSP</strong> — Data Space Protocol: Protocolo estándar para catálogo, negociación y transferencia entre conectores
+                    </div>
+                    <div class="protocol-desc">
+                        <strong>DCP</strong> — Decentralized Claims Protocol: Protocolo de identidad descentralizada (Verifiable Credentials / Presentations)
+                    </div>
+                    <div class="protocol-desc">
+                        <strong>IATP</strong> — Identity And Trust Protocol: Gestión de identidad y confianza con issuers verificables
+                    </div>
+                </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FASE 1 -->
+        <div class="phase-accordion" id="phase1">
+            <div class="phase-header" onclick="togglePhase(1)">
+                <div class="phase-state">
+                    <span class="phase-number">FASE 1</span>
+                    <span class="phase-title">Verificación de Prerequisitos</span>
+                    <span class="status-badge status-pending" id="status-phase1">Pendiente</span>
+                </div>
+                <span class="phase-toggle">▼</span>
+            </div>
+            <div class="phase-content">
+                <div class="phase-body">
+                    <div class="description">
+                        <h3>🎯 Objetivo</h3>
+                        <p>Verificar que la infraestructura EDC está lista antes de publicar datos.</p>
+                        
+                        <h3 style="margin-top: 15px;">📋 Verificaciones</h3>
+                        <ul>
+                            <li><strong>Conectividad APIs:</strong> HEAD request a /management (404 = OK), health checks (health API, liveness, readiness) y consulta de assets existentes en ambos conectores</li>
+                            <li><strong>Estado de Pods:</strong> Lista pods en namespace umbrella, analiza componentes EDC (control-plane, data-plane, postgresql, vault), muestra servicios y comandos port-forward</li>
+                            <li><strong>Business Partners Trust:</strong> Verifica conectividad básica y proporciona instrucciones para confirmar relación bidireccional MASS ↔ IKLN (requiere seeding o port-forward)</li>
+                        </ul>
+
+                        <h3 style="margin-top: 15px;">🔗 Endpoints</h3>
+                        <ul>
+                            <li><strong>MASS Management API:</strong> https://edc-mass-control.51.178.94.25.nip.io/management</li>
+                            <li><strong>IKLN Management API:</strong> https://edc-ikln-control.51.178.94.25.nip.io/management</li>
+                        </ul>
+                    </div>
+
+                    <div class="actions">
+                        <button class="btn btn-primary" onclick="checkConnectivity()">
+                            <span>🔌</span> Verificar Conectividad APIs
+                        </button>
+                        <button class="btn btn-info" onclick="checkPods()">
+                            <span>📦</span> Verificar Estado de Pods
+                        </button>
+                        <button class="btn btn-success" onclick="checkTrust()">
+                            <span>🤝</span> Verificar Trust Partners
+                        </button>
+                        <button class="btn btn-warning" onclick="seedPartners()">
+                            <span>🌱</span> Ejecutar Seeding (si necesario)
+                        </button>
+                    </div>
+
+                    <div class="logs-container" id="logs-phase1"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FASE 2 -->
+        <div class="phase-accordion" id="phase2">
+            <div class="phase-header" onclick="togglePhase(2)">
+                <div class="phase-state">
+                    <span class="phase-number">FASE 2</span>
+                    <span class="phase-title">Publicación del Asset en MASS</span>
+                    <span class="status-badge status-pending" id="status-phase2">Pendiente</span>
+                </div>
+                <span class="phase-toggle">▼</span>
+            </div>
+            <div class="phase-content">
+                <div class="phase-body">
+                    <div class="description">
+                        <h3>🎯 Objetivo</h3>
+                        <p>Crear el asset que representa el PDF público en el conector MASS.</p>
+                        
+                        <h3 style="margin-top: 15px;">💡 ¿Qué es un Asset?</h3>
+                        <p>Un <strong>Asset</strong> es la representación lógica de los datos que quieres compartir. Contiene:</p>
+                        <ul>
+                            <li><strong>Metadatos:</strong> ID, nombre, descripción, tipo de contenido</li>
+                            <li><strong>DataAddress:</strong> Ubicación física del recurso (URL, base de datos, etc.)</li>
+                            <li><strong>Properties:</strong> Atributos adicionales para clasificación</li>
+                        </ul>
+
+                        <h3 style="margin-top: 15px;">📄 Datos del Asset</h3>
+                        <ul>
+                            <li><strong>Asset ID:</strong> pdf-dummy-mass-ikln</li>
+                            <li><strong>Tipo:</strong> HttpData (URL pública)</li>
+                            <li><strong>URL:</strong> https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf</li>
+                            <li><strong>Content-Type:</strong> application/pdf</li>
+                        </ul>
+                    </div>
+
+                    <div class="actions">
+                        <button class="btn btn-success" onclick="createAsset()">
+                            <span>📦</span> Crear Asset
+                        </button>
+                        <button class="btn btn-info" onclick="listAssets()">
+                            <span>📋</span> Listar Assets
+                        </button>
+                    </div>
+
+                    <div class="logs-container" id="logs-phase2"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FASE 3 -->
+        <div class="phase-accordion" id="phase3">
+            <div class="phase-header" onclick="togglePhase(3)">
+                <div class="phase-state">
+                    <span class="phase-number">FASE 3</span>
+                    <span class="phase-title">Configuración de Políticas de Acceso</span>
+                    <span class="status-badge status-pending" id="status-phase3">Pendiente</span>
+                </div>
+                <span class="phase-toggle">▼</span>
+            </div>
+            <div class="phase-content">
+                <div class="phase-body">
+                    <div class="description">
+                        <h3>🎯 Objetivo</h3>
+                        <p>Definir quién puede descubrir y usar el asset mediante políticas ODRL basadas en BPN.</p>
+                        
+                        <h3 style="margin-top: 15px;">💡 Tipos de Políticas</h3>
+                        <p><strong>1. Access Policy (Visibilidad en Catálogo)</strong></p>
+                        <ul>
+                            <li>Controla quién puede <strong>VER</strong> el asset en el catalog discovery</li>
+                            <li>Si un partner no cumple la Access Policy, el asset no aparecerá en su catálogo</li>
+                            <li>En nuestro caso: Solo IKLN (BPNL00000002IKLN) verá el asset</li>
+                        </ul>
+
+                        <p style="margin-top: 10px;"><strong>2. Contract Policy (Derechos de Uso)</strong></p>
+                        <ul>
+                            <li>Controla qué puede <strong>HACER</strong> un partner con el asset una vez negociado</li>
+                            <li>Define los términos del contrato (uso, restricciones temporales, etc.)</li>
+                            <li>En nuestro caso: IKLN puede usar (download) el asset</li>
+                        </ul>
+
+                        <h3 style="margin-top: 15px;">🔐 Restricción por BPN</h3>
+                        <p>Usaremos una constraint ODRL que verifica el Business Partner Number:</p>
+                        <ul>
+                            <li><strong>leftOperand:</strong> BusinessPartnerNumber</li>
+                            <li><strong>operator:</strong> eq (equals)</li>
+                            <li><strong>rightOperand:</strong> BPNL00000002IKLN</li>
+                        </ul>
+                    </div>
+
+                    <div class="actions">
+                        <button class="btn btn-info" onclick="listPolicies()">
+                            <span>📋</span> Listar Políticas
+                        </button>
+                        <button class="btn btn-success" onclick="createAccessPolicy()">
+                            <span>🔐</span> Crear Access Policy
+                        </button>
+                        <button class="btn btn-success" onclick="createContractPolicy()">
+                            <span>📜</span> Crear Contract Policy
+                        </button>
+                    </div>
+
+                    <!-- Contenedor para listar políticas -->
+                    <div id="policies-viewer" class="policies-viewer" style="display: none;">
+                        <div class="policies-layout">
+                            <div class="policies-list">
+                                <h4>📋 Políticas Disponibles</h4>
+                                <div id="policies-buttons"></div>
+                            </div>
+                            <div class="policy-detail">
+                                <h4>📄 Detalle de la Política</h4>
+                                <div id="policy-detail-content" class="policy-detail-content">
+                                    <p style="color: #999; text-align: center; margin-top: 50px;">
+                                        Selecciona una política de la lista para ver su detalle
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="logs-container" id="logs-phase3"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FASE 4 -->
+        <div class="phase-accordion" id="phase4">
+            <div class="phase-header" onclick="togglePhase(4)">
+                <div class="phase-state">
+                    <span class="phase-number">FASE 4</span>
+                    <span class="phase-title">Vinculación Asset-Políticas (Contract Definition)</span>
+                    <span class="status-badge status-pending" id="status-phase4">Pendiente</span>
+                </div>
+                <span class="phase-toggle">▼</span>
+            </div>
+            <div class="phase-content">
+                <div class="phase-body">
+                    <div class="description">
+                        <h3>🎯 Objetivo</h3>
+                        <p>Vincular el asset con las políticas mediante una Contract Definition.</p>
+                        
+                        <h3 style="margin-top: 15px;">💡 ¿Qué es una Contract Definition?</h3>
+                        <p>Una <strong>Contract Definition</strong> es el "pegamento" que une assets con políticas. Define:</p>
+                        <ul>
+                            <li><strong>Assets Selector:</strong> Qué assets están sujetos a estas políticas (por ID, criterios, etc.)</li>
+                            <li><strong>Access Policy:</strong> Qué política controla la visibilidad</li>
+                            <li><strong>Contract Policy:</strong> Qué política controla el uso</li>
+                        </ul>
+
+                        <h3 style="margin-top: 15px;">🔗 Nuestra Contract Definition</h3>
+                        <ul>
+                            <li><strong>Assets Selector:</strong> Asset ID = "pdf-dummy-mass-ikln"</li>
+                            <li><strong>Access Policy ID:</strong> access-policy-ikln-only</li>
+                            <li><strong>Contract Policy ID:</strong> contract-policy-ikln-only</li>
+                        </ul>
+
+                        <p style="margin-top: 10px;"><strong>Importante:</strong> Sin una Contract Definition, el asset existe pero no está disponible para descubrimiento ni negociación.</p>
+                    </div>
+
+                    <div class="actions">
+                        <button class="btn btn-info" onclick="listContractDefinitions()">
+                            <span>📋</span> Listar Contract Definitions
+                        </button>
+                        <button class="btn btn-success" onclick="createContractDefinition()">
+                            <span>🔗</span> Crear Contract Definition
+                        </button>
+                    </div>
+
+                    <!-- Contenedor para listar Contract Definitions -->
+                    <div id="contracts-viewer" class="policies-viewer" style="display: none;">
+                        <div class="policies-layout">
+                            <div class="policies-list">
+                                <h4>📋 Contract Definitions Disponibles</h4>
+                                <div id="contracts-buttons"></div>
+                            </div>
+                            <div class="policy-detail">
+                                <h4>📄 Detalle del Contract Definition</h4>
+                                <div id="contract-detail-content" class="policy-detail-content">
+                                    <p style="color: #999; text-align: center; margin-top: 50px;">
+                                        Selecciona un Contract Definition de la lista para ver su detalle
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="logs-container" id="logs-phase4"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FASE 5 -->
+        <div class="phase-accordion" id="phase5">
+            <div class="phase-header" onclick="togglePhase(5)">
+                <div class="phase-state">
+                    <span class="phase-number">FASE 5</span>
+                    <span class="phase-title">Descubrimiento desde IKLN (Catalog Discovery)</span>
+                    <span class="status-badge status-pending" id="status-phase5">Pendiente</span>
+                </div>
+                <span class="phase-toggle">▼</span>
+            </div>
+            <div class="phase-content">
+                <div class="phase-body">
+                    <div class="description">
+                        <h3>🎯 Objetivo</h3>
+                        <p>Verificar que IKLN puede descubrir el asset de MASS en su catálogo.</p>
+                        
+                        <h3 style="margin-top: 15px;">💡 Protocolo DSP (Dataspace Protocol)</h3>
+                        <p>El <strong>Dataspace Protocol</strong> es el estándar de comunicación entre conectores EDC:</p>
+                        <ul>
+                            <li><strong>Catalog Request:</strong> Un conector pregunta a otro "¿qué datos tienes disponibles para mí?"</li>
+                            <li><strong>Evaluación de Políticas:</strong> El proveedor evalúa las Access Policies con el BPN del solicitante</li>
+                            <li><strong>Respuesta del Catálogo:</strong> Retorna solo los assets que el solicitante puede ver</li>
+                        </ul>
+
+                        <h3 style="margin-top: 15px;">🔍 Nuestro Catalog Request</h3>
+                        <p><strong>IKLN</strong> consultará el catálogo de <strong>MASS</strong> con:</p>
+                        <ul>
+                            <li><strong>Counter Party Address:</strong> https://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp</li>
+                            <li><strong>Protocol:</strong> dataspace-protocol-http</li>
+                            <li><strong>BPN de IKLN:</strong> BPNL00000002IKLN (enviado automáticamente)</li>
+                        </ul>
+
+                        <p style="margin-top: 10px;"><strong>Resultado esperado:</strong> El asset "pdf-dummy-mass-ikln" debe aparecer en el catálogo de IKLN.</p>
+                    </div>
+
+                    <div class="actions">
+                        <button class="btn btn-primary" onclick="catalogRequest()">
+                            <span>🔍</span> Consultar Catálogo de MASS desde IKLN
+                        </button>
+                    </div>
+
+                    <div class="logs-container" id="logs-phase5"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FASE 6 -->
+        <div class="phase-accordion" id="phase6">
+            <div class="phase-header" onclick="togglePhase(6)">
+                <div class="phase-state">
+                    <span class="phase-number">FASE 6</span>
+                    <span class="phase-title">Negociación y Acceso (Opcional)</span>
+                    <span class="status-badge status-pending" id="status-phase6">Pendiente</span>
+                </div>
+                <span class="phase-toggle">▼</span>
+            </div>
+            <div class="phase-content">
+                <div class="phase-body">
+                    <div class="description">
+                        <h3>🎯 Objetivo</h3>
+                        <p>Completar el flujo negociando el contrato y descargando el PDF.</p>
+                        
+                        <h3 style="margin-top: 15px;">💡 Flujo de Negociación</h3>
+                        <p><strong>1. Contract Negotiation (Negociación)</strong></p>
+                        <ul>
+                            <li>IKLN solicita un contrato para el asset basándose en la oferta del catálogo</li>
+                            <li>MASS evalúa la Contract Policy con el BPN de IKLN</li>
+                            <li>Si cumple las políticas, se crea un <strong>Contract Agreement</strong></li>
+                            <li>Estados: REQUESTED → NEGOTIATING → AGREED → FINALIZED</li>
+                        </ul>
+
+                        <p style="margin-top: 10px;"><strong>2. Transfer Process (Transferencia)</strong></p>
+                        <ul>
+                            <li>Con el Contract Agreement, IKLN solicita la transferencia del asset</li>
+                            <li>MASS Data Plane proporciona acceso al PDF</li>
+                            <li>IKLN puede descargar/acceder al recurso</li>
+                        </ul>
+
+                        <h3 style="margin-top: 15px;">⏱️ Nota</h3>
+                        <p>La negociación es un proceso asíncrono que puede tardar varios segundos.</p>
+                    </div>
+
+                    <div class="actions">
+                        <button class="btn btn-success" onclick="negotiateContract()">
+                            <span>🤝</span> Iniciar Negociación de Contrato
+                        </button>
+                        <button class="btn btn-info" onclick="checkNegotiation()" id="btn-check-negotiation" style="display:none;">
+                            <span>🔍</span> Verificar Estado de Negociación
+                        </button>
+                        <button class="btn btn-primary" onclick="initiateTransfer()" id="btn-initiate-transfer" style="display:none;">
+                            <span>📥</span> Iniciar Transferencia
+                        </button>
+                    </div>
+
+                    <div class="logs-container" id="logs-phase6"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>🚀 EDC Asset Publishing Dashboard | Tractus-X EDC Connectors | 2026</p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api';
+        let currentNegotiationId = null;
+        let currentContractAgreementId = null;
+
+        // Toggle phase accordion
+        function togglePhase(phaseNum) {
+            // Manejar tanto números como strings (ej: 'architecture')
+            const phaseId = typeof phaseNum === 'number' ? `phase${phaseNum}` : phaseNum;
+            const phase = document.getElementById(phaseId);
+            if (phase) {
+                phase.classList.toggle('active');
+            }
+        }
+
+        // Add log to container
+        function addLog(phaseNum, message) {
+            const logsContainer = document.getElementById(`logs-phase${phaseNum}`);
+            const logLine = document.createElement('div');
+            logLine.className = 'log-line';
+            logLine.textContent = message;
+            logsContainer.appendChild(logLine);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        // Clear logs
+        function clearLogs(phaseNum) {
+            const logsContainer = document.getElementById(`logs-phase${phaseNum}`);
+            logsContainer.innerHTML = '';
+        }
+
+        // Update phase status
+        function updateStatus(phaseNum, status) {
+            const statusBadge = document.getElementById(`status-phase${phaseNum}`);
+            if (status === 'complete') {
+                statusBadge.textContent = 'Completado';
+                statusBadge.className = 'status-badge status-complete';
+            } else if (status === 'pending') {
+                statusBadge.textContent = 'Pendiente';
+                statusBadge.className = 'status-badge status-pending';
+            }
+        }
+
+        // Generic API call
+        async function callAPI(endpoint, method = 'POST', body = null) {
+            try {
+                const options = {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                };
+                
+                if (body) {
+                    options.body = JSON.stringify(body);
+                }
+
+                const response = await fetch(`${API_BASE}${endpoint}`, options);
+                return await response.json();
+            } catch (error) {
+                return { success: false, logs: [`Error: ${error.message}`] };
+            }
+        }
+
+        // Disable button temporarily
+        function disableButton(button, duration = 2000) {
+            button.disabled = true;
+            setTimeout(() => {
+                button.disabled = false;
+            }, duration);
+        }
+
+        // FASE 1 Functions
+        async function checkConnectivity() {
+            clearLogs(1);
+            addLog(1, '🔌 Verificando conectividad a Management APIs...');
+            
+            const result = await callAPI('/phase1/check-connectivity');
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(1, log));
+            }
+            
+            if (result.success) {
+                addLog(1, '\n✅ Verificación de conectividad completada');
+            }
+        }
+
+        async function checkPods() {
+            clearLogs(1);
+            addLog(1, '📦 Verificando estado de pods en Kubernetes...');
+            
+            const result = await callAPI('/phase1/check-pods');
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(1, log));
+            }
+            
+            if (result.success) {
+                addLog(1, '\n✅ Verificación de pods completada');
+            }
+        }
+
+        async function checkTrust() {
+            clearLogs(1);
+            addLog(1, '🤝 Verificando relación de trust entre partners...');
+            
+            const result = await callAPI('/phase1/check-trust');
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(1, log));
+            }
+            
+            addLog(1, '\n✅ Verificación de trust completada');
+        }
+
+        async function seedPartners() {
+            if (!confirm('¿Ejecutar script de seeding de business partners? Esto puede tardar varios minutos.')) {
+                return;
+            }
+            
+            clearLogs(1);
+            addLog(1, '🌱 Ejecutando seed-business-partners.sh...');
+            addLog(1, '⏳ Por favor espera, esto puede tardar varios minutos...');
+            
+            const result = await callAPI('/phase1/seed-partners');
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(1, log));
+            }
+            
+            if (result.success) {
+                addLog(1, '\n✅ Seeding completado exitosamente');
+                updateStatus(1, 'complete');
+            }
+        }
+
+        // FASE 2 Functions
+        async function createAsset() {
+            clearLogs(2);
+            
+            // Pedir nombre del asset
+            let assetName = prompt('Introduce el nombre del asset (letras, números, guiones):');
+            
+            // Validar que se introdujo un nombre
+            if (!assetName) {
+                addLog(2, '❌ Operación cancelada');
+                return;
+            }
+            
+            // Limpiar y validar el nombre
+            assetName = assetName.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+            
+            if (assetName.length === 0) {
+                alert('❌ Error: El nombre del asset no puede estar vacío');
+                return;
+            }
+            
+            addLog(2, `🔍 Verificando si el asset '${assetName}' ya existe...`);
+            
+            // Verificar si el asset ya existe
+            const listResult = await callAPI('/phase2/list-assets');
+            
+            if (listResult.success) {
+                // Buscar en los logs si el asset existe
+                const logsText = listResult.logs.join('\n');
+                
+                // Parsear la respuesta para buscar el asset
+                try {
+                    // Buscar línea con "Encontrados X assets"
+                    const foundMatch = logsText.match(/Encontrados (\d+) assets/);
+                    
+                    if (foundMatch && parseInt(foundMatch[1]) > 0) {
+                        // Hay assets, verificar si existe el nuestro
+                        if (logsText.includes(`"@id": "${assetName}"`) || logsText.includes(`- ${assetName}`)) {
+                            addLog(2, `❌ Error: Ya existe un asset con el nombre '${assetName}'`);
+                            addLog(2, '💡 Por favor, elige otro nombre o elimina el asset existente primero');
+                            alert(`❌ Error: Ya existe un asset con el nombre '${assetName}'.\n\nPor favor, elige otro nombre.`);
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error parsing assets:', e);
+                }
+                
+                addLog(2, `✅ El nombre '${assetName}' está disponible`);
+                addLog(2, '');
+            }
+            
+            // Crear el asset
+            addLog(2, `📦 Creando asset '${assetName}' en MASS...`);
+            
+            const result = await callAPI('/phase2/create-asset', 'POST', { assetId: assetName });
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(2, log));
+            }
+            
+            if (result.success) {
+                addLog(2, '\n✅ Asset creado exitosamente');
+                updateStatus(2, 'complete');
+            }
+        }
+
+        async function listAssets() {
+            clearLogs(2);
+            addLog(2, '📋 Listando assets en MASS...');
+            
+            const result = await callAPI('/phase2/list-assets');
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(2, log));
+            }
+        }
+
+        // FASE 3 Functions
+        async function createAccessPolicy() {
+            clearLogs(3);
+            addLog(3, '🔐 Creando Access Policy...');
+            
+            const result = await callAPI('/phase3/create-access-policy');
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(3, log));
+            }
+            
+            if (result.success) {
+                addLog(3, '\n✅ Access Policy creada exitosamente');
+            }
+        }
+
+        async function createContractPolicy() {
+            clearLogs(3);
+            addLog(3, '📜 Creando Contract Policy...');
+            
+            const result = await callAPI('/phase3/create-contract-policy');
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(3, log));
+            }
+            
+            if (result.success) {
+                addLog(3, '\n✅ Contract Policy creada exitosamente');
+                updateStatus(3, 'complete');
+            }
+        }
+
+        async function listPolicies() {
+            clearLogs(3);
+            addLog(3, '📋 Listando políticas en MASS...');
+            
+            const result = await callAPI('/phase3/list-policies');
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(3, log));
+            }
+            
+            if (result.success && result.policies && result.policies.length > 0) {
+                // Mostrar el contenedor de políticas
+                const policiesViewer = document.getElementById('policies-viewer');
+                policiesViewer.style.display = 'block';
+                
+                // Limpiar contenido previo
+                const policiesButtons = document.getElementById('policies-buttons');
+                policiesButtons.innerHTML = '';
+                
+                // Crear botón para cada política
+                result.policies.forEach((policy, index) => {
+                    const policyId = policy['@id'] || `policy-${index}`;
+                    const policyType = policy['@type'] || 'PolicyDefinition';
+                    
+                    const btn = document.createElement('button');
+                    btn.className = 'policy-btn';
+                    btn.innerHTML = `
+                        <div class="policy-btn-content">
+                            <div class="policy-btn-title">${policyType}</div>
+                            <div class="policy-btn-id">${policyId}</div>
+                        </div>
+                        <button class="policy-btn-delete" onclick="event.stopPropagation(); deletePolicy('${policyId}');" title="Eliminar política">
+                            🗑️
+                        </button>
+                    `;
+                    
+                    btn.onclick = () => showPolicyDetail(policy, btn);
+                    
+                    policiesButtons.appendChild(btn);
+                });
+                
+                addLog(3, `\n✅ ${result.policies.length} políticas cargadas. Selecciona una para ver su detalle.`);
+            } else if (result.success && result.policies) {
+                addLog(3, '\nℹ️  No hay políticas registradas en MASS');
+                document.getElementById('policies-viewer').style.display = 'none';
+            }
+        }
+
+        function showPolicyDetail(policy, button) {
+            // Remover clase active de todos los botones
+            document.querySelectorAll('.policy-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Marcar el botón actual como activo
+            button.classList.add('active');
+            
+            // Mostrar el detalle de la política
+            const detailContent = document.getElementById('policy-detail-content');
+            detailContent.innerHTML = '';
+            
+            const policyJson = JSON.stringify(policy, null, 2);
+            const pre = document.createElement('pre');
+            pre.style.margin = '0';
+            pre.style.whiteSpace = 'pre-wrap';
+            pre.style.wordWrap = 'break-word';
+            pre.textContent = policyJson;
+            
+            detailContent.appendChild(pre);
+        }
+
+        async function deletePolicy(policyId) {
+            // Solicitar confirmación
+            const confirmed = confirm(`¿Estás seguro de que deseas eliminar la política "${policyId}"?\\n\\nEsta acción no se puede deshacer.`);
+            
+            if (!confirmed) {
+                return;
+            }
+            
+            addLog(3, `🗑️ Eliminando política "${policyId}"...`);
+            
+            const result = await callAPI('/phase3/delete-policy', 'POST', { policyId });
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(3, log));
+            }
+            
+            if (result.success) {
+                addLog(3, `\\n✅ Política "${policyId}" eliminada exitosamente`);
+                // Recargar la lista de políticas
+                setTimeout(() => listPolicies(), 1000);
+            }
+        }
+
+        // FASE 4 Functions
+        async function createContractDefinition() {
+            clearLogs(4);
+            addLog(4, '🔗 Creando Contract Definition...');
+            
+            const result = await callAPI('/phase4/create-contract-definition');
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(4, log));
+            }
+            
+            if (result.success) {
+                addLog(4, '\n✅ Contract Definition creada exitosamente');
+                updateStatus(4, 'complete');
+            }
+        }
+
+        async function listContractDefinitions() {
+            clearLogs(4);
+            addLog(4, '📋 Listando Contract Definitions en MASS...');
+            
+            const result = await callAPI('/phase4/list-contract-definitions');
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(4, log));
+            }
+            
+            if (result.success && result.contracts && result.contracts.length > 0) {
+                // Mostrar el contenedor de Contract Definitions
+                const contractsViewer = document.getElementById('contracts-viewer');
+                contractsViewer.style.display = 'block';
+                
+                // Limpiar contenido previo
+                const contractsButtons = document.getElementById('contracts-buttons');
+                contractsButtons.innerHTML = '';
+                
+                // Crear botón para cada Contract Definition
+                result.contracts.forEach((contract, index) => {
+                    const contractId = contract['@id'] || `contract-${index}`;
+                    const contractType = contract['@type'] || 'ContractDefinition';
+                    
+                    const btn = document.createElement('button');
+                    btn.className = 'policy-btn';
+                    btn.innerHTML = `
+                        <div class="policy-btn-content">
+                            <div class="policy-btn-title">${contractType}</div>
+                            <div class="policy-btn-id">${contractId}</div>
+                        </div>
+                    `;
+                    
+                    btn.onclick = () => showContractDetail(contract, btn);
+                    
+                    contractsButtons.appendChild(btn);
+                });
+                
+                addLog(4, `\\n✅ ${result.contracts.length} Contract Definitions cargados. Selecciona uno para ver su detalle.`);
+            } else if (result.success && result.contracts) {
+                addLog(4, '\\nℹ️  No hay Contract Definitions registrados en MASS');
+                document.getElementById('contracts-viewer').style.display = 'none';
+            }
+        }
+
+        function showContractDetail(contract, button) {
+            // Remover clase active de todos los botones
+            document.querySelectorAll('#contracts-buttons .policy-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Marcar el botón actual como activo
+            button.classList.add('active');
+            
+            // Mostrar el detalle del Contract Definition
+            const detailContent = document.getElementById('contract-detail-content');
+            detailContent.innerHTML = '';
+            
+            const contractJson = JSON.stringify(contract, null, 2);
+            const pre = document.createElement('pre');
+            pre.style.margin = '0';
+            pre.style.whiteSpace = 'pre-wrap';
+            pre.style.wordWrap = 'break-word';
+            pre.textContent = contractJson;
+            
+            detailContent.appendChild(pre);
+        }
+
+        // FASE 5 Functions
+        async function catalogRequest() {
+            clearLogs(5);
+            addLog(5, '🔍 Consultando catálogo de MASS desde IKLN...');
+            addLog(5, '⏳ Esto puede tardar unos segundos...');
+            
+            const result = await callAPI('/phase5/catalog-request');
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(5, log));
+            }
+            
+            if (result.success) {
+                addLog(5, '\n✅ Catalog Request completado');
+                updateStatus(5, 'complete');
+            }
+        }
+
+        // FASE 6 Functions
+        async function negotiateContract() {
+            clearLogs(6);
+            addLog(6, '🤝 Iniciando negociación de contrato...');
+            addLog(6, '⏳ Esto puede tardar varios segundos...');
+            
+            const result = await callAPI('/phase6/negotiate-contract');
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(6, log));
+            }
+            
+            if (result.success && result.negotiationId) {
+                currentNegotiationId = result.negotiationId;
+                addLog(6, '\n✅ Negociación iniciada exitosamente');
+                addLog(6, '💡 Usa el botón "Verificar Estado" para monitorear el progreso');
+                
+                document.getElementById('btn-check-negotiation').style.display = 'inline-flex';
+            }
+        }
+
+        async function checkNegotiation() {
+            if (!currentNegotiationId) {
+                addLog(6, '❌ No hay negociación activa');
+                return;
+            }
+            
+            addLog(6, '\n🔍 Verificando estado de negociación...');
+            
+            const result = await callAPI(`/phase6/check-negotiation/${currentNegotiationId}`, 'GET');
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(6, log));
+            }
+            
+            if (result.state === 'FINALIZED' && result.contractAgreementId) {
+                currentContractAgreementId = result.contractAgreementId;
+                addLog(6, '\n✅ Negociación finalizada. Puedes iniciar la transferencia.');
+                document.getElementById('btn-initiate-transfer').style.display = 'inline-flex';
+                updateStatus(6, 'complete');
+            }
+        }
+
+        async function initiateTransfer() {
+            if (!currentContractAgreementId) {
+                addLog(6, '❌ No hay Contract Agreement disponible');
+                return;
+            }
+            
+            addLog(6, '\n📥 Iniciando transferencia de datos...');
+            
+            const result = await callAPI('/phase6/initiate-transfer', 'POST', {
+                contractAgreementId: currentContractAgreementId
+            });
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(6, log));
+            }
+            
+            if (result.success) {
+                addLog(6, '\n✅ Transferencia iniciada exitosamente');
+                addLog(6, '🎉 ¡Proceso completo! El asset está siendo transferido.');
+            }
+        }
+
+        // Open phase 1 by default
+        window.onload = function() {
+            togglePhase(1);
+        };
+    </script>
+</body>
+</html>

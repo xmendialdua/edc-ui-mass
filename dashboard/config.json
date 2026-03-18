@@ -1,0 +1,38 @@
+{
+  "info": "Configuración opcional para el dashboard EDC. El backend usa valores por defecto si este archivo no existe.",
+  "mass": {
+    "api": "https://edc-mass-control.51.178.94.25.nip.io/management",
+    "dsp": "https://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp",
+    "api_key": "mass-api-key-change-in-production",
+    "bpn": "BPNL00000000MASS"
+  },
+  "ikln": {
+    "api": "https://edc-ikln-control.51.178.94.25.nip.io/management",
+    "dsp": "https://edc-ikln-control.51.178.94.25.nip.io/api/v1/dsp",
+    "api_key": "ikln-api-key-change-in-production",
+    "bpn": "BPNL00000002IKLN"
+  },
+  "asset": {
+    "id": "pdf-dummy-mass-ikln",
+    "url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    "name": "Dummy PDF Document",
+    "description": "PDF de prueba para demostración de políticas EDC basadas en BPN",
+    "contenttype": "application/pdf"
+  },
+  "policies": {
+    "access_policy_id": "access-policy-ikln-only",
+    "contract_policy_id": "contract-policy-ikln-only"
+  },
+  "contract": {
+    "definition_id": "contract-def-pdf-ikln"
+  },
+  "kubeconfig": {
+    "path": "../kubeconfig.yaml",
+    "namespace": "umbrella"
+  },
+  "server": {
+    "backend_port": 5000,
+    "frontend_port": 8080,
+    "debug": true
+  }
+}
