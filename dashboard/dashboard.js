@@ -277,9 +277,9 @@
                             <div class="policy-btn-title">${assetType}</div>
                             <div class="policy-btn-id">${assetId}</div>
                         </div>
-                        <button class="policy-btn-delete" onclick="event.stopPropagation(); deleteAsset('${assetId}');" title="Eliminar asset">
+                        <div class="policy-btn-delete" onclick="event.stopPropagation(); deleteAsset('${assetId}');" title="Eliminar asset">
                             🗑️
-                        </button>
+                        </div>
                     `;
                     
                     btn.onclick = () => showAssetDetail(asset, btn);
@@ -443,9 +443,9 @@
                             <div class="policy-btn-title">${policyType}</div>
                             <div class="policy-btn-id">${policyId}</div>
                         </div>
-                        <button class="policy-btn-delete" onclick="event.stopPropagation(); deletePolicy('${policyId}');" title="Eliminar política">
+                        <div class="policy-btn-delete" onclick="event.stopPropagation(); deletePolicy('${policyId}');" title="Eliminar política">
                             🗑️
-                        </button>
+                        </div>
                     `;
                     
                     btn.onclick = () => showPolicyDetail(policy, btn);
@@ -702,6 +702,9 @@
                             <div class="policy-btn-title">${contractType}</div>
                             <div class="policy-btn-id">${contractId}</div>
                         </div>
+                        <div class="policy-btn-delete" onclick="event.stopPropagation(); deleteContractDefinition('${contractId}');" title="Eliminar Contract Definition">
+                            🗑️
+                        </div>
                     `;
                     
                     btn.onclick = () => showContractDetail(contract, btn);
@@ -739,6 +742,29 @@
             detailContent.appendChild(pre);
         }
 
+        async function deleteContractDefinition(contractId) {
+            if (!confirm(`¿Estás seguro de que quieres eliminar el Contract Definition "${contractId}"?\n\nEsto no eliminará el asset ni las políticas vinculadas, solo el vínculo entre ellos.`)) {
+                return;
+            }
+            
+            clearLogs(4);
+            addLog(4, `🗑️ Eliminando Contract Definition "${contractId}"...`);
+            
+            const result = await callAPI('/phase4/delete-contract-definition', 'POST', {
+                contractId: contractId
+            });
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(4, log));
+            }
+            
+            if (result.success) {
+                addLog(4, `\\n✅ Contract Definition "${contractId}" eliminado exitosamente`);
+                // Recargar la lista de Contract Definitions
+                setTimeout(() => listContractDefinitions(), 1000);
+            }
+        }
+
         // FASE 5 Functions
         async function catalogRequest() {
             clearLogs(5);
@@ -752,9 +778,71 @@
             }
             
             if (result.success) {
+                if (result.datasets && result.datasets.length > 0) {
+                    // Mostrar el contenedor de datasets
+                    const catalogViewer = document.getElementById('catalog-viewer');
+                    catalogViewer.style.display = 'block';
+                    
+                    // Limpiar contenido previo
+                    const catalogButtons = document.getElementById('catalog-buttons');
+                    catalogButtons.innerHTML = '';
+                    
+                    // Crear botón para cada dataset
+                    result.datasets.forEach((dataset, index) => {
+                        const datasetId = dataset['@id'] || `dataset-${index}`;
+                        
+                        // Obtener nombre del dataset
+                        let datasetName = 'Dataset';
+                        const props = dataset.properties || dataset['edc:properties'] || {};
+                        if (props.name || props['edc:name']) {
+                            datasetName = props.name || props['edc:name'];
+                        }
+                        
+                        const btn = document.createElement('button');
+                        btn.className = 'policy-btn';
+                        btn.innerHTML = `
+                            <div class="policy-btn-content">
+                                <div class="policy-btn-title">${datasetName}</div>
+                                <div class="policy-btn-id">${datasetId}</div>
+                            </div>
+                        `;
+                        
+                        btn.onclick = () => showCatalogDetail(dataset, btn);
+                        
+                        catalogButtons.appendChild(btn);
+                    });
+                    
+                    addLog(5, `\n✅ ${result.datasets.length} datasets mostrados en el visor`);
+                } else {
+                    document.getElementById('catalog-viewer').style.display = 'none';
+                }
+                
                 addLog(5, '\n✅ Catalog Request completado');
                 updateStatus(5, 'complete');
             }
+        }
+        
+        function showCatalogDetail(dataset, button) {
+            // Remover clase active de todos los botones
+            document.querySelectorAll('#catalog-buttons .policy-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Marcar el botón actual como activo
+            button.classList.add('active');
+            
+            // Mostrar el detalle del dataset
+            const detailContent = document.getElementById('catalog-detail-content');
+            detailContent.innerHTML = '';
+            
+            const datasetJson = JSON.stringify(dataset, null, 2);
+            const pre = document.createElement('pre');
+            pre.style.margin = '0';
+            pre.style.whiteSpace = 'pre-wrap';
+            pre.style.wordWrap = 'break-word';
+            pre.textContent = datasetJson;
+            
+            detailContent.appendChild(pre);
         }
 
         // FASE 6 Functions

@@ -44,10 +44,12 @@ os.environ['KUBECONFIG'] = KUBECONFIG
 MASS_API = os.environ.get('MASS_API', "https://edc-mass-control.51.178.94.25.nip.io/management")
 MASS_API_KEY = os.environ.get('MASS_API_KEY', "mass-api-key-change-in-production")
 MASS_BPN = os.environ.get('MASS_BPN', "BPNL00000000MASS")
+MASS_DSP = os.environ.get('MASS_DSP', "http://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp")
 
 IKLN_API = os.environ.get('IKLN_API', "https://edc-ikln-control.51.178.94.25.nip.io/management")
 IKLN_API_KEY = os.environ.get('IKLN_API_KEY', "ikln-api-key-change-in-production")
 IKLN_BPN = os.environ.get('IKLN_BPN', "BPNL00000002IKLN")
+IKLN_DSP = os.environ.get('IKLN_DSP', "http://edc-ikln-control.51.178.94.25.nip.io/api/v1/dsp")
 
 PDF_URL = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
 
@@ -56,6 +58,17 @@ ASSET_ID = "pdf-dummy-mass-ikln"
 ACCESS_POLICY_ID = "access-policy-ikln-only"
 CONTRACT_POLICY_ID = "contract-policy-ikln-only"
 CONTRACT_DEF_ID = "contract-def-pdf-ikln"
+
+# Cargar config.json si existe
+try:
+    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+            MASS_DSP = config.get('mass', {}).get('dsp', MASS_DSP)
+            IKLN_DSP = config.get('ikln', {}).get('dsp', IKLN_DSP)
+except Exception as e:
+    print(f"Warning: Could not load config.json: {e}")
 
 
 def log_message(message, level="info"):
@@ -1413,6 +1426,61 @@ def list_contract_definitions():
         return jsonify({"success": False, "logs": results, "contracts": []})
 
 
+@app.route('/api/phase4/delete-contract-definition', methods=['POST'])
+def delete_contract_definition():
+    """Elimina una Contract Definition específica de MASS"""
+    results = []
+    
+    # Obtener el contract ID del request body
+    data = request.get_json()
+    if not data or 'contractId' not in data:
+        results.append(log_message("❌ Error: contractId no proporcionado", "error"))
+        return jsonify({"success": False, "logs": results})
+    
+    contract_id = data['contractId']
+    
+    results.append(log_message(f"🗑️ Eliminando Contract Definition '{contract_id}' de MASS...", "info"))
+    
+    try:
+        # EDC v3 API - DELETE /v3/contractdefinitions/{id}
+        response = requests.delete(
+            f"{MASS_API}/v3/contractdefinitions/{contract_id}",
+            headers={
+                "X-Api-Key": MASS_API_KEY,
+                "Content-Type": "application/json"
+            },
+            verify=False,
+            timeout=10
+        )
+        
+        results.append(log_message(f"📡 HTTP {response.status_code}", "info"))
+        
+        if response.status_code == 204:
+            results.append(log_message(f"✅ Contract Definition '{contract_id}' eliminado exitosamente", "success"))
+            results.append("")
+            results.append(log_message("ℹ️ El asset y las políticas vinculadas NO se eliminan", "info"))
+            results.append(log_message("   Solo se elimina el vínculo entre ellos", "info"))
+            return jsonify({"success": True, "logs": results})
+        elif response.status_code == 404:
+            results.append(log_message(f"⚠️ Contract Definition '{contract_id}' no encontrado", "warning"))
+            return jsonify({"success": False, "logs": results})
+        elif response.status_code == 409:
+            results.append(log_message(f"❌ No se puede eliminar el Contract Definition '{contract_id}'", "error"))
+            results.append(log_message("   Puede estar en uso por negociaciones activas", "error"))
+            results.append("")
+            results.append(log_message("   Respuesta del servidor:", "info"))
+            results.append(response.text[:500])
+            return jsonify({"success": False, "logs": results})
+        else:
+            results.append(log_message(f"❌ Error HTTP {response.status_code}", "error"))
+            results.append(response.text[:500])
+            return jsonify({"success": False, "logs": results})
+            
+    except Exception as e:
+        results.append(log_message(f"❌ Error: {str(e)}", "error"))
+        return jsonify({"success": False, "logs": results})
+
+
 # ============================================================================
 # FASE 5: Descubrimiento desde IKLN (Catalog Discovery)
 # ============================================================================
@@ -1425,15 +1493,14 @@ def catalog_request():
     results.append(log_message("🔍 IKLN consultando catálogo de MASS...", "info"))
     results.append(log_message(f"ℹ️ Protocolo DSP: Dataspace Protocol para descubrimiento", "info"))
     results.append(log_message(f"ℹ️ IKLN pregunta: '¿Qué datos tiene MASS disponibles para mí?'", "info"))
-    
-    # El DSP endpoint para catalog es diferente
-    dsp_endpoint = "https://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp"
+    results.append(log_message(f"🔗 DSP Endpoint: {MASS_DSP}", "info"))
+    results.append("")
     
     catalog_request_payload = {
         "@context": {
             "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
         },
-        "counterPartyAddress": dsp_endpoint,
+        "counterPartyAddress": MASS_DSP,
         "protocol": "dataspace-protocol-http",
         "querySpec": {
             "offset": 0,
@@ -1443,6 +1510,7 @@ def catalog_request():
     
     results.append(log_message("📄 Catalog Request Payload:", "info"))
     results.append(json.dumps(catalog_request_payload, indent=2))
+    results.append("")
     
     try:
         response = requests.post(
@@ -1467,37 +1535,68 @@ def catalog_request():
                 datasets = catalog.get("datasets", [])
             
             results.append(log_message(f"✅ Catálogo recibido con {len(datasets)} datasets", "success"))
+            results.append("")
             
-            # Buscar nuestro asset
-            our_asset_found = False
-            for dataset in datasets:
-                dataset_id = dataset.get("@id", "")
-                if ASSET_ID in dataset_id:
-                    our_asset_found = True
-                    results.append(log_message(f"✅ Asset '{ASSET_ID}' encontrado en el catálogo!", "success"))
-                    results.append(json.dumps(dataset, indent=2))
-                    break
-            
-            if not our_asset_found:
-                results.append(log_message(f"⚠️ Asset '{ASSET_ID}' NO encontrado en el catálogo", "warning"))
+            if len(datasets) > 0:
+                results.append(log_message("📋 Datasets encontrados:", "info"))
+                for idx, dataset in enumerate(datasets, 1):
+                    dataset_id = dataset.get("@id", "unknown")
+                    # Obtener properties si existen
+                    props = dataset.get("properties", {})
+                    if not props:
+                        props = dataset.get("edc:properties", {})
+                    
+                    dataset_name = props.get("name", props.get("edc:name", "Sin nombre"))
+                    results.append(f"  {idx}. {dataset_id}")
+                    if dataset_name != "Sin nombre":
+                        results.append(f"     └─ Nombre: {dataset_name}")
+                
+                # Devolver datasets para el frontend
+                return jsonify({
+                    "success": True, 
+                    "logs": results, 
+                    "datasets": datasets,
+                    "catalog": catalog
+                })
+            else:
+                results.append(log_message("⚠️ No se encontraron datasets en el catálogo", "warning"))
                 results.append(log_message("Posibles causas:", "info"))
                 results.append("  - Las políticas no permiten visibilidad a IKLN")
                 results.append("  - La Contract Definition no está correcta")
                 results.append("  - El trust entre partners no está establecido")
-                
-                if datasets:
-                    results.append(log_message(f"Datasets disponibles en el catálogo:", "info"))
-                    for ds in datasets[:5]:
-                        results.append(f"  - {ds.get('@id', 'unknown')}")
-            
-            # Mostrar catálogo completo (limitado)
-            results.append(log_message("📋 Respuesta completa del catálogo:", "info"))
-            results.append(json.dumps(catalog, indent=2)[:2000] + "..." if len(json.dumps(catalog)) > 2000 else json.dumps(catalog, indent=2))
+                results.append("  - No hay assets publicados en MASS")
+                return jsonify({"success": True, "logs": results, "datasets": []})
             
         else:
             results.append(log_message(f"❌ Error HTTP {response.status_code}", "error"))
-            results.append(response.text)
+            
+            # Intentar parsear el error
+            try:
+                error_data = response.json()
+                results.append(log_message("🔴 Detalle del error:", "error"))
+                if isinstance(error_data, list):
+                    for err in error_data:
+                        msg = err.get('message', str(err))
+                        results.append(f"  - {msg}")
+                else:
+                    results.append(json.dumps(error_data, indent=2))
+                
+                # Si es error 502 con credenciales
+                if response.status_code == 502 and 'credentials' in response.text.lower():
+                    results.append("")
+                    results.append(log_message("💡 Sugerencias para resolver:", "warning"))
+                    results.append("  1. Verifica que ambos conectores estén funcionando (kubectl get pods)")
+                    results.append("  2. Verifica la configuración del DIM Wallet / IATP")
+                    results.append("  3. Revisa los logs de los pods: kubectl logs -n umbrella <pod-name>")
+                    results.append("  4. Verifica que el DSP endpoint use HTTP (no HTTPS)")
+            except:
+                results.append(response.text[:500])
+            
             return jsonify({"success": False, "logs": results})
+            
+    except Exception as e:
+        results.append(log_message(f"❌ Error: {str(e)}", "error"))
+        return jsonify({"success": False, "logs": results})
             
     except Exception as e:
         results.append(log_message(f"❌ Error: {str(e)}", "error"))

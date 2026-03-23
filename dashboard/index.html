@@ -624,7 +624,23 @@
             gap: 8px;
         }
 
+        #assets-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        #contracts-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
         #assets-buttons .policy-btn {
+            width: 100%;
+        }
+
+        #contracts-buttons .policy-btn {
             width: 100%;
         }
 
@@ -1313,6 +1329,24 @@
                         <button class="btn btn-primary" onclick="catalogRequest()">
                             <span>🔍</span> Consultar Catálogo de MASS desde IKLN
                         </button>
+                    </div>
+
+                    <!-- Contenedor para mostrar datasets del catálogo -->
+                    <div id="catalog-viewer" class="policies-viewer" style="display: none;">
+                        <div class="policies-layout">
+                            <div class="policies-list">
+                                <h4>📖 Datasets Disponibles en el Catálogo</h4>
+                                <div id="catalog-buttons"></div>
+                            </div>
+                            <div class="policy-detail">
+                                <h4>📄 Detalle del Dataset</h4>
+                                <div id="catalog-detail-content" class="policy-detail-content">
+                                    <p style="color: #999; text-align: center; margin-top: 50px;">
+                                        Selecciona un dataset de la lista para ver su detalle
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="logs-container" id="logs-phase5"></div>
