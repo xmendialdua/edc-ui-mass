@@ -44,12 +44,12 @@ os.environ['KUBECONFIG'] = KUBECONFIG
 MASS_API = os.environ.get('MASS_API', "https://edc-mass-control.51.178.94.25.nip.io/management")
 MASS_API_KEY = os.environ.get('MASS_API_KEY', "mass-api-key-change-in-production")
 MASS_BPN = os.environ.get('MASS_BPN', "BPNL00000000MASS")
-MASS_DSP = os.environ.get('MASS_DSP', "http://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp")
+MASS_DSP = os.environ.get('MASS_DSP', "https://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp")
 
 IKLN_API = os.environ.get('IKLN_API', "https://edc-ikln-control.51.178.94.25.nip.io/management")
 IKLN_API_KEY = os.environ.get('IKLN_API_KEY', "ikln-api-key-change-in-production")
 IKLN_BPN = os.environ.get('IKLN_BPN', "BPNL00000002IKLN")
-IKLN_DSP = os.environ.get('IKLN_DSP', "http://edc-ikln-control.51.178.94.25.nip.io/api/v1/dsp")
+IKLN_DSP = os.environ.get('IKLN_DSP', "https://edc-ikln-control.51.178.94.25.nip.io/api/v1/dsp")
 
 PDF_URL = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
 
@@ -1038,8 +1038,10 @@ def create_access_policy():
     results.append(log_message(f"🔐 Creando Access Policy '{policy_id}'...", "info"))
     results.append(log_message(f"ℹ️ Access Policy: Controla VISIBILIDAD en el catálogo", "info"))
     results.append(log_message(f"ℹ️ Solo {target_bpn} podrá VER el asset en su catalog discovery", "info"))
+    results.append(log_message(f"⚠️ Política simplificada: Solo requiere MembershipCredential (compatible con wallet-stub)", "warning"))
     
-    # Formato oficial de Catena-X (validado con tractus-x-umbrella docs)
+    # Formato simplificado para wallet-stub (solo MembershipCredential)
+    # wallet-stub solo emite MembershipCredential, no FrameworkAgreement ni UsagePurpose
     policy_payload = {
         "@context": [
             "https://w3id.org/catenax/2025/9/policy/odrl.jsonld",
@@ -1060,11 +1062,6 @@ def create_access_policy():
                             "leftOperand": "Membership",
                             "operator": "eq",
                             "rightOperand": "active"
-                        },
-                        {
-                            "leftOperand": "FrameworkAgreement",
-                            "operator": "eq",
-                            "rightOperand": "DataExchangeGovernance:1.0"
                         },
                         {
                             "leftOperand": "BusinessPartnerNumber",
@@ -1120,8 +1117,13 @@ def create_contract_policy():
     results.append(log_message(f"📜 Creando Contract Policy '{CONTRACT_POLICY_ID}'...", "info"))
     results.append(log_message(f"ℹ️ Contract Policy: Controla DERECHOS DE USO del asset", "info"))
     results.append(log_message(f"ℹ️ Define qué puede hacer {IKLN_BPN} con el asset una vez negociado", "info"))
+    results.append(log_message(f"⚠️ Política incluye FrameworkAgreement + UsagePurpose (requerido por EDC)", "warning"))
+    results.append(log_message(f"⚠️ NOTA: wallet-stub solo provee MembershipCredential - negociación puede fallar", "warning"))
     
-    # Formato oficial de Catena-X (validado con tractus-x-umbrella docs)
+    # Contract Policy DEBE incluir FrameworkAgreement y UsagePurpose para pasar validación del EDC
+    # Tractus-X EDC v0.11.1 tiene validación estricta hardcoded que no se puede desactivar
+    # wallet-stub solo emite MembershipCredential, por lo que esto pasará la validación de creación
+    # pero fallará durante el flujo de negociación (esperado en entorno de testing)
     policy_payload = {
         "@context": [
             "https://w3id.org/catenax/2025/9/policy/odrl.jsonld",
@@ -1501,6 +1503,7 @@ def catalog_request():
             "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
         },
         "counterPartyAddress": MASS_DSP,
+        "counterPartyId": "BPNL00000000MASS",
         "protocol": "dataspace-protocol-http",
         "querySpec": {
             "offset": 0,
@@ -1510,6 +1513,26 @@ def catalog_request():
     
     results.append(log_message("📄 Catalog Request Payload:", "info"))
     results.append(json.dumps(catalog_request_payload, indent=2))
+    results.append("")
+    
+    # Construir comando CURL equivalente para debugging
+    results.append(log_message("=" * 60, "info"))
+    results.append(log_message("💻 Comando CURL equivalente:", "info"))
+    results.append(log_message("=" * 60, "info"))
+    
+    # Formatear el payload para CURL (compacto en una línea)
+    payload_compact = json.dumps(catalog_request_payload, separators=(',', ':'))
+    
+    curl_command = f"""curl -X POST "{IKLN_API}/v3/catalog/request" \\
+  -H "X-Api-Key: {IKLN_API_KEY}" \\
+  -H "Content-Type: application/json" \\
+  -k \\
+  -d '{payload_compact}'"""
+    
+    results.append(curl_command)
+    results.append("")
+    results.append(log_message("=" * 60, "info"))
+    results.append(log_message("📡 Enviando petición HTTP...", "info"))
     results.append("")
     
     try:
@@ -1530,25 +1553,37 @@ def catalog_request():
             catalog = response.json()
             
             # Buscar datasets en el catálogo
-            datasets = catalog.get("dcat:dataset", [])
-            if not datasets:
-                datasets = catalog.get("datasets", [])
+            # dcat:dataset puede ser un objeto único o una lista
+            datasets_raw = catalog.get("dcat:dataset", [])
+            if not datasets_raw:
+                datasets_raw = catalog.get("datasets", [])
             
-            results.append(log_message(f"✅ Catálogo recibido con {len(datasets)} datasets", "success"))
+            # Normalizar a lista (puede venir como dict si es un solo dataset)
+            if isinstance(datasets_raw, dict):
+                datasets = [datasets_raw]  # Convertir dict a lista de un elemento
+            elif isinstance(datasets_raw, list):
+                datasets = datasets_raw
+            else:
+                datasets = []
+            
+            results.append(log_message(f"✅ Catálogo recibido con {len(datasets)} dataset(s)", "success"))
             results.append("")
             
             if len(datasets) > 0:
                 results.append(log_message("📋 Datasets encontrados:", "info"))
                 for idx, dataset in enumerate(datasets, 1):
                     dataset_id = dataset.get("@id", "unknown")
-                    # Obtener properties si existen
-                    props = dataset.get("properties", {})
-                    if not props:
-                        props = dataset.get("edc:properties", {})
                     
-                    dataset_name = props.get("name", props.get("edc:name", "Sin nombre"))
+                    # Obtener nombre del dataset (puede estar en diferentes ubicaciones)
+                    dataset_name = dataset.get("name")
+                    if not dataset_name:
+                        props = dataset.get("properties", {})
+                        if not props:
+                            props = dataset.get("edc:properties", {})
+                        dataset_name = props.get("name", props.get("edc:name", "Sin nombre"))
+                    
                     results.append(f"  {idx}. {dataset_id}")
-                    if dataset_name != "Sin nombre":
+                    if dataset_name and dataset_name != "Sin nombre":
                         results.append(f"     └─ Nombre: {dataset_name}")
                 
                 # Devolver datasets para el frontend

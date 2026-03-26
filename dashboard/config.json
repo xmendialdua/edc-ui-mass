@@ -2,13 +2,13 @@
   "info": "Configuración opcional para el dashboard EDC. El backend usa valores por defecto si este archivo no existe.",
   "mass": {
     "api": "https://edc-mass-control.51.178.94.25.nip.io/management",
-    "dsp": "http://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp",
+    "dsp": "https://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp",
     "api_key": "mass-api-key-change-in-production",
     "bpn": "BPNL00000000MASS"
   },
   "ikln": {
     "api": "https://edc-ikln-control.51.178.94.25.nip.io/management",
-    "dsp": "http://edc-ikln-control.51.178.94.25.nip.io/api/v1/dsp",
+    "dsp": "https://edc-ikln-control.51.178.94.25.nip.io/api/v1/dsp",
     "api_key": "ikln-api-key-change-in-production",
     "bpn": "BPNL00000002IKLN"
   },
