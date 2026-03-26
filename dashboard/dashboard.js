@@ -845,7 +845,404 @@
             detailContent.appendChild(pre);
         }
 
-        // FASE 6 Functions
+        // FASE 6 Functions - Descubrimiento, Negociación y Transferencia
+        
+        // Estado global para FASE 6
+        let phase6CurrentDataset = null;
+        let phase6Negotiations = [];
+        let phase6Transfers = [];
+        
+        // Función para toggle de paneles desplegables
+        function togglePanel(panelId) {
+            const panel = document.getElementById(panelId);
+            if (!panel) return;
+            
+            const content = panel.querySelector('.panel-content');
+            const toggle = panel.querySelector('.panel-toggle');
+            
+            if (content.classList.contains('open')) {
+                content.classList.remove('open');
+                toggle.textContent = '▶';
+            } else {
+                content.classList.add('open');
+                toggle.textContent = '▼';
+            }
+        }
+        
+        // Consultar catálogo de MASS desde IKLN
+        async function phase6CatalogRequest() {
+            console.log('🔍 phase6CatalogRequest() called');
+            clearLogs(6);
+            addLog(6, '🔍 Consultando catálogo de MASS desde IKLN...');
+            
+            const result = await callAPI('/phase6/catalog-request', 'POST');
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(6, log));
+            }
+            
+            if (result.success && result.datasets) {
+                // Mostrar el contenedor de datasets
+                const catalogViewer = document.getElementById('phase6-catalog-viewer');
+                catalogViewer.style.display = 'block';
+                
+                // Limpiar contenido previo
+                const catalogButtons = document.getElementById('phase6-catalog-buttons');
+                catalogButtons.innerHTML = '';
+                
+                // Crear botón para cada dataset
+                result.datasets.forEach((dataset, index) => {
+                    const datasetId = dataset['@id'] || `dataset-${index}`;
+                    const datasetName = dataset['dcat:distribution']?.[0]?.['dcat:accessService']?.['dct:title'] || datasetId;
+                    
+                    const btn = document.createElement('button');
+                    btn.className = 'policy-btn';
+                    btn.innerHTML = `
+                        <div class="policy-btn-content">
+                            <div class="policy-btn-title">${datasetName}</div>
+                            <div class="policy-btn-id">${datasetId}</div>
+                        </div>
+                    `;
+                    
+                    btn.onclick = () => showPhase6CatalogDetail(dataset, btn);
+                    
+                    catalogButtons.appendChild(btn);
+                });
+                
+                addLog(6, `\n✅ ${result.datasets.length} dataset(s) cargados. Selecciona uno para ver sus assets.`);
+                
+                // Mostrar panel de assets (inicialmente vacío)
+                document.getElementById('phase6-assets-panel').style.display = 'block';
+            } else if (result.success && result.datasets) {
+                addLog(6, '\nℹ️  No hay datasets en el catálogo de MASS');
+                document.getElementById('phase6-catalog-viewer').style.display = 'none';
+            }
+        }
+        
+        // Mostrar detalle de un dataset y sus assets
+        function showPhase6CatalogDetail(dataset, button) {
+            // Remover clase active de todos los botones
+            document.querySelectorAll('#phase6-catalog-buttons .policy-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Marcar el botón actual como activo
+            button.classList.add('active');
+            
+            // Guardar dataset actual
+            phase6CurrentDataset = dataset;
+            
+            // Mostrar el detalle del dataset
+            const detailContent = document.getElementById('phase6-catalog-detail-content');
+            detailContent.innerHTML = '';
+            
+            const datasetJson = JSON.stringify(dataset, null, 2);
+            const pre = document.createElement('pre');
+            pre.style.margin = '0';
+            pre.style.whiteSpace = 'pre-wrap';
+            pre.style.wordWrap = 'break-word';
+            pre.textContent = datasetJson;
+            
+            detailContent.appendChild(pre);
+            
+            // Mostrar assets del dataset
+            showPhase6Assets(dataset);
+        }
+        
+        // Mostrar assets de un dataset en el panel "Assets in Catalog"
+        function showPhase6Assets(dataset) {
+            const assetsList = document.getElementById('phase6-assets-list');
+            assetsList.innerHTML = '';
+            
+            // Obtener las políticas (offers) del dataset
+            // Normalizar: puede ser un objeto o un array
+            let offersRaw = dataset['odrl:hasPolicy'] || [];
+            const offers = Array.isArray(offersRaw) ? offersRaw : [offersRaw];
+            
+            if (offers.length === 0 || !offers[0]) {
+                assetsList.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">No hay assets en este dataset</p>';
+                return;
+            }
+            
+            // Extraer información del dataset
+            const datasetName = dataset['name'] || dataset['dct:title'] || dataset['@id'];
+            const datasetDescription = dataset['description'] || dataset['dct:description'] || 'PDF de prueba para demostración de políticas EDC basadas en BPN';
+            const datasetId = dataset['id'] || dataset['@id'];
+            const contentType = dataset['contenttype'] || 'application/pdf';
+            
+            // Crear una card por cada asset/offer
+            offers.forEach((offer, index) => {
+                const offerId = offer['@id'] || `offer-${index}`;
+                
+                // Truncar el Contract ID si es muy largo
+                const contractIdDisplay = offerId.length > 60 ? offerId.substring(0, 60) + '...' : offerId;
+                
+                const card = document.createElement('div');
+                card.className = 'asset-card-enhanced';
+                card.innerHTML = `
+                    <div class="asset-card-content">
+                        <div class="asset-icon">📄</div>
+                        <div class="asset-info">
+                            <h3 class="asset-name">${datasetName}</h3>
+                            <p class="asset-description">${datasetDescription}</p>
+                            <div class="asset-metadata">
+                                <div class="asset-meta-item">
+                                    <span class="meta-label">ID:</span>
+                                    <span class="meta-value">${datasetId}</span>
+                                </div>
+                                <div class="asset-meta-item">
+                                    <span class="meta-label">Contract ID:</span>
+                                    <span class="meta-value" title="${offerId}">${contractIdDisplay}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="asset-card-footer">
+                        <button class="btn-negotiate-enhanced" onclick="phase6NegotiateAsset('${datasetId}', '${index}')">
+                            Negotiate
+                        </button>
+                    </div>
+                `;
+                
+                assetsList.appendChild(card);
+            });
+            
+            addLog(6, `\n📦 ${offers.length} asset(s) mostrados en "Assets in Catalog"`);
+            
+            // Asegurar que el panel de assets esté visible y abierto
+            const assetsPanel = document.getElementById('phase6-assets-panel');
+            assetsPanel.style.display = 'block';
+            const assetsPanelContent = assetsPanel.querySelector('.panel-content');
+            if (!assetsPanelContent.classList.contains('open')) {
+                assetsPanelContent.classList.add('open');
+            }
+        }
+        
+        // Negociar un asset específico
+        async function phase6NegotiateAsset(assetId, offerIndex) {
+            if (!phase6CurrentDataset) {
+                addLog(6, '❌ No hay dataset seleccionado');
+                return;
+            }
+            
+            addLog(6, `\n🤝 Iniciando negociación para asset: ${assetId}`);
+            
+            // Obtener la política del dataset
+            const offers = phase6CurrentDataset['odrl:hasPolicy'] || [];
+            const policy = offers[parseInt(offerIndex)];
+            
+            if (!policy) {
+                addLog(6, '❌ No se encontró la política para este asset');
+                return;
+            }
+            
+            const result = await callAPI('/phase6/negotiate-asset', 'POST', {
+                assetId: assetId,
+                policy: policy
+            });
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(6, log));
+            }
+            
+            // Agregar la negociación a la lista (exitosa o fallida)
+            if (result.negotiation) {
+                phase6Negotiations.push(result.negotiation);
+                updatePhase6NegotiationsList();
+                
+                // Mostrar panel de negociaciones
+                document.getElementById('phase6-negotiations-panel').style.display = 'block';
+                
+                if (result.success) {
+                    addLog(6, `✅ Negociación agregada a "Negotiated Contracts"`);
+                    
+                    // Auto-refresh después de 3 segundos
+                    setTimeout(() => {
+                        phase6RefreshNegotiations();
+                    }, 3000);
+                } else {
+                    addLog(6, `❌ Negociación fallida agregada a "Negotiated Contracts"`);
+                }
+            }
+        }
+        
+        // Refrescar lista de negociaciones desde el servidor
+        async function phase6RefreshNegotiations() {
+            const result = await callAPI('/phase6/list-negotiations', 'GET');
+            
+            if (result.success && result.negotiations) {
+                // Combinar con negociaciones locales (en caso de fallos que no están en el servidor)
+                const serverNegotiationIds = result.negotiations.map(n => n.id);
+                const localFailedNegotiations = phase6Negotiations.filter(
+                    n => n.state === 'FAILED' && !serverNegotiationIds.includes(n.id)
+                );
+                
+                phase6Negotiations = [...result.negotiations, ...localFailedNegotiations];
+                updatePhase6NegotiationsList();
+            }
+        }
+        
+        // Actualizar lista visual de negociaciones
+        function updatePhase6NegotiationsList() {
+            const negotiationsList = document.getElementById('phase6-negotiations-list');
+            
+            // Aplicar filtro
+            const showFailed = document.getElementById('phase6-show-failed-negotiations')?.checked || false;
+            const filteredNegotiations = phase6Negotiations.filter(n => {
+                if (!showFailed && n.state === 'FAILED') return false;
+                return true;
+            });
+            
+            if (filteredNegotiations.length === 0) {
+                negotiationsList.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">No hay negociaciones</p>';
+                return;
+            }
+            
+            negotiationsList.innerHTML = '';
+            
+            filteredNegotiations.forEach(negotiation => {
+                const card = document.createElement('div');
+                const isSuccess = negotiation.state === 'FINALIZED';
+                const isFailed = negotiation.state === 'FAILED';
+                
+                card.className = 'negotiation-card';
+                if (isSuccess) card.classList.add('success');
+                if (isFailed) card.classList.add('failed');
+                
+                let statusClass = 'in-progress';
+                if (isSuccess) statusClass = 'finalized';
+                if (isFailed) statusClass = 'failed';
+                
+                let actionsHtml = '';
+                if (isSuccess && negotiation.contractAgreementId) {
+                    actionsHtml = `
+                        <button class="btn-transfer" onclick="phase6InitiateTransfer('${negotiation.contractAgreementId}', '${negotiation.assetId}')">
+                            📥 Transfer
+                        </button>
+                    `;
+                }
+                
+                let errorHtml = '';
+                if (isFailed && negotiation.errorDetail) {
+                    errorHtml = `
+                        <div class="negotiation-error">
+                            <strong>Error:</strong> ${negotiation.errorDetail.substring(0, 200)}
+                        </div>
+                    `;
+                }
+                
+                card.innerHTML = `
+                    <div class="negotiation-card-header">
+                        <div>
+                            <span class="negotiation-status ${statusClass}">${negotiation.state}</span>
+                        </div>
+                        <div>
+                            ${actionsHtml}
+                        </div>
+                    </div>
+                    <div class="negotiation-details">
+                        <p><strong>Negotiation ID:</strong> ${negotiation.id}</p>
+                        <p><strong>Asset ID:</strong> ${negotiation.assetId}</p>
+                        ${negotiation.contractAgreementId ? `<p><strong>Agreement ID:</strong> ${negotiation.contractAgreementId}</p>` : ''}
+                        <p><strong>Counter Party:</strong> ${negotiation.counterPartyId || 'N/A'}</p>
+                    </div>
+                    ${errorHtml}
+                `;
+                
+                negotiationsList.appendChild(card);
+            });
+        }
+        
+        // Filtrar negociaciones
+        function phase6FilterNegotiations() {
+            updatePhase6NegotiationsList();
+        }
+        
+        // Iniciar transferencia para un contrato
+        async function phase6InitiateTransfer(contractAgreementId, assetId) {
+            addLog(6, `\n📥 Iniciando transferencia para contrato: ${contractAgreementId}`);
+            
+            const result = await callAPI('/phase6/initiate-transfer-for-contract', 'POST', {
+                contractAgreementId: contractAgreementId,
+                assetId: assetId
+            });
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(6, log));
+            }
+            
+            // Agregar la transferencia a la lista
+            if (result.transfer) {
+                phase6Transfers.push(result.transfer);
+                updatePhase6TransfersList();
+                
+                // Mostrar panel de transferencias
+                document.getElementById('phase6-transfers-panel').style.display = 'block';
+                
+                if (result.success) {
+                    addLog(6, `✅ Transferencia agregada a "Initiated Transfers"`);
+                    
+                    // Auto-refresh después de 3 segundos
+                    setTimeout(() => {
+                        phase6RefreshTransfers();
+                    }, 3000);
+                }
+            }
+        }
+        
+        // Refrescar lista de transferencias desde el servidor
+        async function phase6RefreshTransfers() {
+            const result = await callAPI('/phase6/list-transfers', 'GET');
+            
+            if (result.success && result.transfers) {
+                phase6Transfers = result.transfers;
+                updatePhase6TransfersList();
+            }
+        }
+        
+        // Actualizar lista visual de transferencias
+        function updatePhase6TransfersList() {
+            const transfersList = document.getElementById('phase6-transfers-list');
+            
+            if (phase6Transfers.length === 0) {
+                transfersList.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">No hay transferencias todavía</p>';
+                return;
+            }
+            
+            transfersList.innerHTML = '';
+            
+            phase6Transfers.forEach(transfer => {
+                const card = document.createElement('div');
+                const isCompleted = transfer.state === 'COMPLETED' || transfer.state === 'STARTED';
+                const isInProgress = transfer.state === 'REQUESTED' || transfer.state === 'STARTING';
+                
+                card.className = 'transfer-card';
+                if (isCompleted) card.classList.add('completed');
+                if (isInProgress) card.classList.add('in-progress');
+                
+                let statusClass = 'in-progress';
+                if (isCompleted) statusClass = 'completed';
+                if (transfer.state === 'FAILED') statusClass = 'failed';
+                
+                card.innerHTML = `
+                    <div class="negotiation-card-header">
+                        <div>
+                            <span class="transfer-status ${statusClass}">${transfer.state}</span>
+                        </div>
+                    </div>
+                    <div class="negotiation-details">
+                        <p><strong>Transfer ID:</strong> ${transfer.id}</p>
+                        <p><strong>Asset ID:</strong> ${transfer.assetId}</p>
+                        <p><strong>Contract ID:</strong> ${transfer.contractId}</p>
+                        <p><strong>Counter Party:</strong> ${transfer.counterPartyId || 'N/A'}</p>
+                    </div>
+                `;
+                
+                transfersList.appendChild(card);
+            });
+        }
+
+        // Mantener funciones antiguas por compatibilidad
         async function negotiateContract() {
             clearLogs(6);
             addLog(6, '🤝 Iniciando negociación de contrato...');

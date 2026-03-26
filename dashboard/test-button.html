@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Button</title>
+    <script>
+        async function testPhase6() {
+            console.log('Test button clicked');
+            alert('Test function works!');
+            
+            // Try calling the API
+            try {
+                const response = await fetch('http://localhost:5000/api/phase6/catalog-request', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                console.log('API response:', data);
+                alert('API call successful! Check console for details.');
+            } catch (error) {
+                console.error('API error:', error);
+                alert('API call failed: ' + error.message);
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Test Phase 6 Catalog Button</h1>
+    <button onclick="testPhase6()">Test Consultar Catálogo</button>
+    <hr>
+    <p>Si este botón funciona, el problema es con el archivo dashboard.js o con el caché del navegador.</p>
+    <p>Instrucciones:</p>
+    <ol>
+        <li>Haz clic en el botón de arriba</li>
+        <li>Deberías ver un alert que dice "Test function works!"</li>
+        <li>Luego deberías ver otro alert con el resultado de la API</li>
+        <li>Abre la consola del navegador (F12) para ver los logs</li>
+    </ol>
+</body>
+</html>

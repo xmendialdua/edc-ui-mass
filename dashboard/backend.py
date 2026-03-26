@@ -1640,9 +1640,359 @@ def catalog_request():
 
 
 # ============================================================================
-# FASE 6: Negociación y Acceso (Opcional)
+# FASE 6: Descubrimiento, Negociación y Transferencia
 # ============================================================================
 
+@app.route('/api/phase6/catalog-request', methods=['POST'])
+def phase6_catalog_request():
+    """IKLN consulta el catálogo de MASS (mismo que FASE 5)"""
+    results = []
+    
+    results.append(log_message("=" * 60, "info"))
+    results.append(log_message("🔍 IKLN consultando catálogo de MASS", "info"))
+    results.append(log_message("=" * 60, "info"))
+    
+    ikln_url = f"{IKLN_API}/v3/catalog/request"
+    
+    catalog_request_payload = {
+        "@context": {
+            "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
+        },
+        "counterPartyAddress": MASS_DSP,
+        "counterPartyId": MASS_BPN,
+        "protocol": "dataspace-protocol-http",
+        "querySpec": {
+            "offset": 0,
+            "limit": 100
+        }
+    }
+    
+    results.append(log_message("📄 Catalog Request Payload:", "info"))
+    results.append(json.dumps(catalog_request_payload, indent=2))
+    results.append("")
+    
+    try:
+        response = requests.post(
+            ikln_url,
+            headers={
+                "X-Api-Key": IKLN_API_KEY,
+                "Content-Type": "application/json"
+            },
+            json=catalog_request_payload,
+            verify=False,
+            timeout=30
+        )
+        
+        results.append(log_message(f"📡 HTTP {response.status_code}", "info"))
+        
+        if response.status_code == 200:
+            catalog = response.json()
+            
+            # Normalizar datasets
+            datasets_raw = catalog.get("dcat:dataset", catalog.get("datasets", []))
+            if isinstance(datasets_raw, dict):
+                datasets = [datasets_raw]
+            elif isinstance(datasets_raw, list):
+                datasets = datasets_raw
+            else:
+                datasets = []
+            
+            if len(datasets) > 0:
+                results.append(log_message(f"✅ Catálogo recibido con {len(datasets)} dataset(s)", "success"))
+                results.append("")
+                results.append(log_message("📦 Datasets en el catálogo:", "info"))
+                
+                for idx, dataset in enumerate(datasets, 1):
+                    dataset_id = dataset.get("@id", "Unknown")
+                    dataset_name = dataset.get("dcat:distribution", [{}])[0].get("dcat:accessService", {}).get("dct:title", dataset_id)
+                    results.append(f"  {idx}. {dataset_id}")
+                    
+                    # Contar assets en el dataset
+                    offers = dataset.get("odrl:hasPolicy", [])
+                    results.append(f"     Assets: {len(offers)} offer(s)")
+                
+                return jsonify({
+                    "success": True,
+                    "logs": results,
+                    "datasets": datasets
+                })
+            else:
+                results.append(log_message("⚠️ Catálogo vacío", "warning"))
+                return jsonify({"success": True, "logs": results, "datasets": []})
+        else:
+            results.append(log_message(f"❌ Error HTTP {response.status_code}", "error"))
+            results.append(response.text[:500])
+            return jsonify({"success": False, "logs": results})
+            
+    except Exception as e:
+        results.append(log_message(f"❌ Error: {str(e)}", "error"))
+        return jsonify({"success": False, "logs": results})
+
+
+@app.route('/api/phase6/negotiate-asset', methods=['POST'])
+def phase6_negotiate_asset():
+    """Negocia un contrato para un asset específico"""
+    data = request.get_json()
+    asset_id = data.get("assetId")
+    policy = data.get("policy")
+    
+    results = []
+    
+    results.append(log_message(f"🤝 Iniciando negociación para asset: {asset_id}", "info"))
+    
+    try:
+        negotiation_payload = {
+            "@context": {
+                "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
+            },
+            "counterPartyAddress": MASS_DSP,
+            "protocol": "dataspace-protocol-http",
+            "providerId": MASS_BPN,
+            "offer": {
+                "offerId": policy.get("@id"),
+                "assetId": asset_id,
+                "policy": policy
+            }
+        }
+        
+        results.append(log_message("📄 Negotiation Payload:", "info"))
+        results.append(json.dumps(negotiation_payload, indent=2))
+        
+        negotiation_response = requests.post(
+            f"{IKLN_API}/v3/contractnegotiations",
+            headers={
+                "X-Api-Key": IKLN_API_KEY,
+                "Content-Type": "application/json"
+            },
+            json=negotiation_payload,
+            verify=False,
+            timeout=30
+        )
+        
+        results.append(log_message(f"📡 HTTP {negotiation_response.status_code}", "info"))
+        
+        if negotiation_response.status_code in [200, 201]:
+            negotiation = negotiation_response.json()
+            negotiation_id = negotiation.get("@id")
+            
+            results.append(log_message(f"✅ Negociación iniciada: {negotiation_id}", "success"))
+            
+            return jsonify({
+                "success": True,
+                "logs": results,
+                "negotiation": {
+                    "id": negotiation_id,
+                    "assetId": asset_id,
+                    "state": negotiation.get("state", "UNKNOWN"),
+                    "createdAt": datetime.now().isoformat()
+                }
+            })
+        else:
+            error_detail = negotiation_response.text
+            results.append(log_message(f"❌ Error HTTP {negotiation_response.status_code}", "error"))
+            results.append(error_detail[:500])
+            
+            return jsonify({
+                "success": False,
+                "logs": results,
+                "negotiation": {
+                    "id": f"failed-{datetime.now().timestamp()}",
+                    "assetId": asset_id,
+                    "state": "FAILED",
+                    "errorDetail": error_detail,
+                    "createdAt": datetime.now().isoformat()
+                }
+            })
+            
+    except Exception as e:
+        results.append(log_message(f"❌ Error: {str(e)}", "error"))
+        return jsonify({
+            "success": False,
+            "logs": results,
+            "negotiation": {
+                "id": f"failed-{datetime.now().timestamp()}",
+                "assetId": asset_id,
+                "state": "FAILED",
+                "errorDetail": str(e),
+                "createdAt": datetime.now().isoformat()
+            }
+        })
+
+
+@app.route('/api/phase6/list-negotiations', methods=['GET'])
+def phase6_list_negotiations():
+    """Lista todas las negociaciones de contratos"""
+    results = []
+    
+    try:
+        query_payload = {
+            "@context": {
+                "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
+            },
+            "@type": "QuerySpec",
+            "offset": 0,
+            "limit": 100
+        }
+        
+        response = requests.post(
+            f"{IKLN_API}/v3/contractnegotiations/request",
+            headers={
+                "X-Api-Key": IKLN_API_KEY,
+                "Content-Type": "application/json"
+            },
+            json=query_payload,
+            verify=False,
+            timeout=15
+        )
+        
+        if response.status_code == 200:
+            negotiations = response.json()
+            
+            # Enriquecer las negociaciones con información adicional
+            enriched_negotiations = []
+            for negotiation in negotiations:
+                enriched = {
+                    "id": negotiation.get("@id"),
+                    "state": negotiation.get("state"),
+                    "contractAgreementId": negotiation.get("contractAgreementId"),
+                    "assetId": negotiation.get("assetId", "unknown"),
+                    "counterPartyId": negotiation.get("counterPartyId"),
+                    "counterPartyAddress": negotiation.get("counterPartyAddress"),
+                    "errorDetail": negotiation.get("errorDetail"),
+                    "createdAt": negotiation.get("createdAt", datetime.now().isoformat())
+                }
+                enriched_negotiations.append(enriched)
+            
+            return jsonify({
+                "success": True,
+                "negotiations": enriched_negotiations
+            })
+        else:
+            return jsonify({"success": False, "negotiations": []})
+            
+    except Exception as e:
+        return jsonify({"success": False, "negotiations": [], "error": str(e)})
+
+
+@app.route('/api/phase6/initiate-transfer-for-contract', methods=['POST'])
+def phase6_initiate_transfer_for_contract():
+    """Inicia la transferencia para un contrato específico"""
+    data = request.get_json()
+    contract_agreement_id = data.get("contractAgreementId")
+    asset_id = data.get("assetId")
+    
+    results = []
+    
+    results.append(log_message(f"📥 Iniciando transferencia...", "info"))
+    results.append(log_message(f"Contract Agreement: {contract_agreement_id}", "info"))
+    results.append(log_message(f"Asset ID: {asset_id}", "info"))
+    
+    transfer_payload = {
+        "@context": {
+            "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
+        },
+        "assetId": asset_id,
+        "contractId": contract_agreement_id,
+        "counterPartyAddress": MASS_DSP,
+        "protocol": "dataspace-protocol-http",
+        "transferType": "HttpData-PULL"
+    }
+    
+    try:
+        response = requests.post(
+            f"{IKLN_API}/v3/transferprocesses",
+            headers={
+                "X-Api-Key": IKLN_API_KEY,
+                "Content-Type": "application/json"
+            },
+            json=transfer_payload,
+            verify=False,
+            timeout=30
+        )
+        
+        results.append(log_message(f"📡 HTTP {response.status_code}", "info"))
+        
+        if response.status_code in [200, 201]:
+            transfer = response.json()
+            transfer_id = transfer.get("@id")
+            
+            results.append(log_message(f"✅ Transferencia iniciada: {transfer_id}", "success"))
+            
+            return jsonify({
+                "success": True,
+                "logs": results,
+                "transfer": {
+                    "id": transfer_id,
+                    "assetId": asset_id,
+                    "contractId": contract_agreement_id,
+                    "state": transfer.get("state", "UNKNOWN"),
+                    "createdAt": datetime.now().isoformat()
+                }
+            })
+        else:
+            results.append(log_message(f"❌ Error HTTP {response.status_code}", "error"))
+            results.append(response.text[:500])
+            return jsonify({"success": False, "logs": results})
+            
+    except Exception as e:
+        results.append(log_message(f"❌ Error: {str(e)}", "error"))
+        return jsonify({"success": False, "logs": results})
+
+
+@app.route('/api/phase6/list-transfers', methods=['GET'])
+def phase6_list_transfers():
+    """Lista todos los procesos de transferencia"""
+    try:
+        query_payload = {
+            "@context": {
+                "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
+            },
+            "@type": "QuerySpec",
+            "offset": 0,
+            "limit": 100
+        }
+        
+        response = requests.post(
+            f"{IKLN_API}/v3/transferprocesses/request",
+            headers={
+                "X-Api-Key": IKLN_API_KEY,
+                "Content-Type": "application/json"
+            },
+            json=query_payload,
+            verify=False,
+            timeout=15
+        )
+        
+        if response.status_code == 200:
+            transfers = response.json()
+            
+            # Enriquecer las transferencias con información adicional
+            enriched_transfers = []
+            for transfer in transfers:
+                enriched = {
+                    "id": transfer.get("@id"),
+                    "state": transfer.get("state"),
+                    "assetId": transfer.get("assetId", "unknown"),
+                    "contractId": transfer.get("contractId"),
+                    "counterPartyId": transfer.get("counterPartyId"),
+                    "counterPartyAddress": transfer.get("counterPartyAddress"),
+                    "errorDetail": transfer.get("errorDetail"),
+                    "createdAt": transfer.get("createdAt", datetime.now().isoformat())
+                }
+                enriched_transfers.append(enriched)
+            
+            return jsonify({
+                "success": True,
+                "transfers": enriched_transfers
+            })
+        else:
+            return jsonify({"success": False, "transfers": []})
+            
+    except Exception as e:
+        return jsonify({"success": False, "transfers": [], "error": str(e)})
+
+
+# Endpoints antiguos de FASE 6 (mantener por compatibilidad)
 @app.route('/api/phase6/negotiate-contract', methods=['POST'])
 def negotiate_contract():
     """IKLN negocia un contrato con MASS para el asset"""
