@@ -45,7 +45,10 @@
         }
 
         // Cargar config al cargar la página
-        document.addEventListener('DOMContentLoaded', loadConfig);
+        document.addEventListener('DOMContentLoaded', () => {
+            loadConfig();
+            initializeNegotiationsFilters();
+        });
 
         // Toggle phase accordion
         function togglePhase(phaseNum) {
@@ -852,6 +855,24 @@
         let phase6Negotiations = [];
         let phase6Transfers = [];
         
+        // Función para calcular tiempo relativo
+        function getRelativeTime(timestamp) {
+            if (!timestamp) return 'Unknown';
+            
+            const now = new Date();
+            const then = new Date(timestamp);
+            const diffMs = now - then;
+            const diffSecs = Math.floor(diffMs / 1000);
+            const diffMins = Math.floor(diffSecs / 60);
+            const diffHours = Math.floor(diffMins / 60);
+            const diffDays = Math.floor(diffHours / 24);
+            
+            if (diffSecs < 60) return `${diffSecs} second${diffSecs !== 1 ? 's' : ''} ago`;
+            if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+            if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+            return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+        }
+        
         // Función para toggle de paneles desplegables
         function togglePanel(panelId) {
             const panel = document.getElementById(panelId);
@@ -882,6 +903,9 @@
             }
             
             if (result.success && result.datasets) {
+                // Mostrar el panel padre de Catalogs
+                document.getElementById('phase6-catalogs-panel').style.display = 'block';
+                
                 // Mostrar el contenedor de datasets
                 const catalogViewer = document.getElementById('phase6-catalog-viewer');
                 catalogViewer.style.display = 'block';
@@ -915,6 +939,7 @@
                 document.getElementById('phase6-assets-panel').style.display = 'block';
             } else if (result.success && result.datasets) {
                 addLog(6, '\nℹ️  No hay datasets en el catálogo de MASS');
+                document.getElementById('phase6-catalogs-panel').style.display = 'none';
                 document.getElementById('phase6-catalog-viewer').style.display = 'none';
             }
         }
@@ -1088,16 +1113,86 @@
             }
         }
         
+        // Consultar contratos negociados existentes
+        async function phase6ConsultarContratos() {
+            console.log('📜 phase6ConsultarContratos() called');
+            clearLogs(6);
+            addLog(6, '📜 Consultando contratos negociados del conector IKLN...');
+            addLog(6, '⌛ Por favor espera, recuperando negociaciones del servidor...');
+            
+            const result = await callAPI('/phase6/list-negotiations', 'GET');
+            
+            if (result.success && result.negotiations) {
+                // Combinar con negociaciones locales (en caso de fallos que no están en el servidor)
+                const serverNegotiationIds = result.negotiations.map(n => n.id);
+                const localFailedNegotiations = phase6Negotiations.filter(
+                    n => n.state === 'FAILED' && !serverNegotiationIds.includes(n.id)
+                );
+                
+                phase6Negotiations = [...result.negotiations, ...localFailedNegotiations];
+                updatePhase6NegotiationsList();
+                
+                // Mostrar el panel de negociaciones
+                document.getElementById('phase6-negotiations-panel').style.display = 'block';
+                
+                // Logs informativos
+                addLog(6, '');
+                addLog(6, `✅ Recuperadas ${result.negotiations.length} negociaciones del servidor`);
+                
+                // Contar por estado
+                const stateCount = {};
+                result.negotiations.forEach(n => {
+                    stateCount[n.state] = (stateCount[n.state] || 0) + 1;
+                });
+                
+                addLog(6, '');
+                addLog(6, '📊 Resumen por estado:');
+                Object.keys(stateCount).forEach(state => {
+                    const emoji = state === 'FINALIZED' || state === 'TERMINATED' ? '✅' : 
+                                 state === 'FAILED' ? '❌' : '🔄';
+                    addLog(6, `   ${emoji} ${state}: ${stateCount[state]}`);
+                });
+                
+                // Contar exitosas con contrato
+                const withContract = result.negotiations.filter(n => 
+                    (n.state === 'FINALIZED' || n.state === 'TERMINATED') && n.contractAgreementId
+                ).length;
+                
+                if (withContract > 0) {
+                    addLog(6, '');
+                    addLog(6, `🎉 ${withContract} negociación(es) exitosa(s) con Contract Agreement ID`);
+                    addLog(6, '   Estas negociaciones pueden usarse para iniciar transferencias');
+                }
+                
+                addLog(6, '');
+                addLog(6, 'ℹ️  Usa los filtros para ordenar y filtrar las negociaciones');
+                addLog(6, 'ℹ️  Haz clic en el icono 🔽 para abrir el menú de filtros');
+                
+            } else {
+                addLog(6, '');
+                addLog(6, '⚠️  No se pudieron recuperar las negociaciones');
+                if (result.error) {
+                    addLog(6, `   Error: ${result.error}`);
+                }
+            }
+        }
+        
         // Actualizar lista visual de negociaciones
         function updatePhase6NegotiationsList() {
             const negotiationsList = document.getElementById('phase6-negotiations-list');
             
             // Aplicar filtro
             const showFailed = document.getElementById('phase6-show-failed-negotiations')?.checked || false;
-            const filteredNegotiations = phase6Negotiations.filter(n => {
+            let filteredNegotiations = phase6Negotiations.filter(n => {
                 if (!showFailed && n.state === 'FAILED') return false;
                 return true;
             });
+            
+            // Aplicar filtro de rango temporal
+            filteredNegotiations = filterByTimeRange(filteredNegotiations, negotiationsFilters.timeRange);
+            
+            // Aplicar ordenación
+            filteredNegotiations = sortNegotiations(filteredNegotiations, negotiationsFilters.sortBy, negotiationsFilters.sortDirection);
             
             if (filteredNegotiations.length === 0) {
                 negotiationsList.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">No hay negociaciones</p>';
@@ -1108,7 +1203,8 @@
             
             filteredNegotiations.forEach(negotiation => {
                 const card = document.createElement('div');
-                const isSuccess = negotiation.state === 'FINALIZED';
+                // FINALIZED y TERMINATED son estados exitosos
+                const isSuccess = negotiation.state === 'FINALIZED' || negotiation.state === 'TERMINATED';
                 const isFailed = negotiation.state === 'FAILED';
                 
                 card.className = 'negotiation-card';
@@ -1116,8 +1212,12 @@
                 if (isFailed) card.classList.add('failed');
                 
                 let statusClass = 'in-progress';
-                if (isSuccess) statusClass = 'finalized';
+                if (negotiation.state === 'FINALIZED') statusClass = 'finalized';
+                if (negotiation.state === 'TERMINATED') statusClass = 'finalized';
                 if (isFailed) statusClass = 'failed';
+                
+                // Calcular tiempo relativo
+                const timeAgo = getRelativeTime(negotiation.createdAt);
                 
                 let actionsHtml = '';
                 if (isSuccess && negotiation.contractAgreementId) {
@@ -1140,23 +1240,144 @@
                 card.innerHTML = `
                     <div class="negotiation-card-header">
                         <div>
+                            <h3 style="margin: 0 0 4px 0; font-size: 14px; color: #333;">${negotiation.assetId}</h3>
+                            <div style="font-size: 12px; color: #999; margin-bottom: 8px;">${timeAgo}</div>
                             <span class="negotiation-status ${statusClass}">${negotiation.state}</span>
-                        </div>
-                        <div>
-                            ${actionsHtml}
                         </div>
                     </div>
                     <div class="negotiation-details">
-                        <p><strong>Negotiation ID:</strong> ${negotiation.id}</p>
-                        <p><strong>Asset ID:</strong> ${negotiation.assetId}</p>
-                        ${negotiation.contractAgreementId ? `<p><strong>Agreement ID:</strong> ${negotiation.contractAgreementId}</p>` : ''}
-                        <p><strong>Counter Party:</strong> ${negotiation.counterPartyId || 'N/A'}</p>
+                        <div class="negotiation-info-item">
+                            <span class="negotiation-info-label">Negotiation ID</span>
+                            <span class="negotiation-info-value">${negotiation.id}</span>
+                        </div>
+                        ${negotiation.contractAgreementId ? `
+                        <div class="negotiation-info-item">
+                            <span class="negotiation-info-label">Agreement ID</span>
+                            <span class="negotiation-info-value">${negotiation.contractAgreementId}</span>
+                        </div>
+                        ` : ''}
+                        ${negotiation.counterPartyAddress ? `
+                        <div class="negotiation-info-item">
+                            <span class="negotiation-info-label">Counter Party Address</span>
+                            <span class="negotiation-info-value">${negotiation.counterPartyAddress}</span>
+                        </div>
+                        ` : ''}
+                        ${negotiation.counterPartyId ? `
+                        <div class="negotiation-info-item">
+                            <span class="negotiation-info-label">Counter Party ID</span>
+                            <span class="negotiation-info-value">${negotiation.counterPartyId}</span>
+                        </div>
+                        ` : ''}
                     </div>
                     ${errorHtml}
+                    ${actionsHtml ? `<div style="margin-top: 12px;">${actionsHtml}</div>` : ''}
                 `;
                 
                 negotiationsList.appendChild(card);
             });
+        }
+        
+        // Estado de filtros
+        const negotiationsFilters = {
+            timeRange: 'all',
+            sortBy: 'time',
+            sortDirection: 'newest'
+        };
+        
+        // Toggle del panel de filtros
+        function toggleNegotiationsFilter() {
+            const dropdown = document.getElementById('negotiations-filter-dropdown');
+            dropdown.classList.toggle('show');
+        }
+        
+        // Cerrar dropdown al hacer clic fuera
+        document.addEventListener('click', function(event) {
+            const dropdown = document.getElementById('negotiations-filter-dropdown');
+            const filterIcon = document.querySelector('.filter-toggle-icon');
+            
+            if (dropdown && !dropdown.contains(event.target) && event.target !== filterIcon) {
+                dropdown.classList.remove('show');
+            }
+        });
+        
+        // Seleccionar una opción de filtro
+        function selectFilter(filterType, value, element) {
+            // Actualizar estado del filtro
+            if (filterType === 'time-range') {
+                negotiationsFilters.timeRange = value;
+            } else if (filterType === 'sort-by') {
+                negotiationsFilters.sortBy = value;
+            } else if (filterType === 'sort-direction') {
+                negotiationsFilters.sortDirection = value;
+            }
+            
+            // Actualizar UI - remover active de hermanos
+            const siblings = element.parentElement.querySelectorAll('.filter-option');
+            siblings.forEach(sib => sib.classList.remove('active'));
+            element.classList.add('active');
+            
+            // Aplicar filtros
+            phase6FilterNegotiations();
+        }
+        
+        // Filtrar por rango de tiempo
+        function filterByTimeRange(negotiations, range) {
+            if (range === 'all') return negotiations;
+            
+            const now = new Date();
+            const ranges = {
+                '30min': 30 * 60 * 1000,
+                '2hours': 2 * 60 * 60 * 1000,
+                '1day': 24 * 60 * 60 * 1000,
+                '2days': 2 * 24 * 60 * 60 * 1000
+            };
+            
+            const threshold = now - ranges[range];
+            
+            return negotiations.filter(n => {
+                const createdAt = new Date(n.createdAt);
+                return createdAt >= threshold;
+            });
+        }
+        
+        // Ordenar negociaciones
+        function sortNegotiations(negotiations, sortBy, direction) {
+            const sorted = [...negotiations];
+            
+            if (sortBy === 'time') {
+                sorted.sort((a, b) => {
+                    const timeA = new Date(a.createdAt).getTime();
+                    const timeB = new Date(b.createdAt).getTime();
+                    return direction === 'newest' ? timeB - timeA : timeA - timeB;
+                });
+            } else if (sortBy === 'name') {
+                sorted.sort((a, b) => {
+                    const nameA = (a.assetId || '').toLowerCase();
+                    const nameB = (b.assetId || '').toLowerCase();
+                    const comparison = nameA.localeCompare(nameB);
+                    return direction === 'newest' ? -comparison : comparison;
+                });
+            }
+            
+            return sorted;
+        }
+        
+        // Inicializar filtros con valores por defecto
+        function initializeNegotiationsFilters() {
+            // Marcar como activos los filtros por defecto
+            setTimeout(() => {
+                // Time range: All Time
+                const timeRangeAll = document.querySelector('[data-filter="time-range"][data-value="all"]');
+                if (timeRangeAll) timeRangeAll.classList.add('active');
+                
+                // Sort by: Time
+                const sortByTime = document.querySelector('[data-filter="sort-by"][data-value="time"]');
+                if (sortByTime) sortByTime.classList.add('active');
+                
+                // Sort direction: Newest First
+                const sortNewest = document.querySelector('[data-filter="sort-direction"][data-value="newest"]');
+                if (sortNewest) sortNewest.classList.add('active');
+            }, 100);
         }
         
         // Filtrar negociaciones

@@ -897,7 +897,7 @@
         }
 
         .panel-content.open {
-            max-height: 1000px;
+            max-height: 3000px;
             padding: 20px;
         }
 
@@ -1066,10 +1066,94 @@
 
         /* Negotiations List */
         .negotiations-filters {
+            position: relative;
             margin-bottom: 15px;
-            padding: 10px;
+        }
+
+        .filter-toggle-icon {
+            background: none;
+            border: none;
+            padding: 8px;
+            cursor: pointer;
+            font-size: 18px;
+            color: white;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: background 0.2s;
+            margin-left: 8px;
+        }
+
+        .filter-toggle-icon:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .filter-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 8px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            min-width: 220px;
+            display: none;
+        }
+
+        .filter-dropdown.show {
+            display: block;
+        }
+
+        .filter-group {
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .filter-group:last-child {
+            border-bottom: none;
+        }
+
+        .filter-group-title {
+            padding: 0 16px 8px 16px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-option {
+            padding: 10px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .filter-option:hover {
             background: #f5f7fa;
-            border-radius: 6px;
+        }
+
+        .filter-option.active {
+            background: #e8eeff;
+            color: #667eea;
+            font-weight: 500;
+        }
+
+        .filter-option .checkmark {
+            display: none;
+            color: #667eea;
+            font-size: 16px;
+        }
+
+        .filter-option.active .checkmark {
+            display: inline;
         }
 
         .filter-checkbox {
@@ -1093,9 +1177,21 @@
         }
 
         .negotiations-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        @media (max-width: 1400px) {
+            .negotiations-list {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 968px) {
+            .negotiations-list {
+                grid-template-columns: 1fr;
+            }
         }
 
         .negotiation-card {
@@ -1104,6 +1200,8 @@
             border-radius: 8px;
             padding: 15px;
             transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
         }
 
         .negotiation-card.success {
@@ -1148,12 +1246,40 @@
         }
 
         .negotiation-details {
-            font-size: 13px;
+            font-size: 12px;
             color: #666;
+            flex: 1;
         }
 
         .negotiation-details p {
-            margin: 4px 0;
+            margin: 6px 0;
+            line-height: 1.4;
+        }
+
+        .negotiation-details strong {
+            color: #333;
+            font-weight: 600;
+        }
+
+        .negotiation-info-item {
+            margin-bottom: 8px;
+            word-break: break-word;
+        }
+
+        .negotiation-info-label {
+            font-weight: 600;
+            color: #555;
+            display: block;
+            margin-bottom: 2px;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .negotiation-info-value {
+            color: #333;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            word-break: break-all;
         }
 
         .negotiation-error {
@@ -1185,9 +1311,21 @@
 
         /* Transfers List */
         .transfers-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        @media (max-width: 1400px) {
+            .transfers-list {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 968px) {
+            .transfers-list {
+                grid-template-columns: 1fr;
+            }
         }
 
         .transfer-card {
@@ -1787,37 +1925,49 @@
                         <button class="btn btn-primary" onclick="phase6CatalogRequest()">
                             <span>🔍</span> Consultar Catálogo
                         </button>
+                        <button class="btn btn-info" onclick="phase6ConsultarContratos()" style="margin-left: 10px;">
+                            <span>📜</span> Consultar Contratos
+                        </button>
                     </div>
 
-                    <!-- Contenedor para mostrar datasets del catálogo -->
-                    <div id="phase6-catalog-viewer" class="policies-viewer" style="display: none;">
-                        <div class="policies-layout">
-                            <div class="policies-list">
-                                <h4>📖 Datasets Disponibles en el Catálogo</h4>
-                                <div id="phase6-catalog-buttons"></div>
-                            </div>
-                            <div class="policy-detail">
-                                <h4>📄 Detalle del Dataset</h4>
-                                <div id="phase6-catalog-detail-content" class="policy-detail-content">
-                                    <p style="color: #999; text-align: center; margin-top: 50px;">
-                                        Selecciona un dataset de la lista para ver su detalle
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Panel desplegable: Assets in Catalog -->
-                    <div id="phase6-assets-panel" class="collapsible-panel" style="display: none;">
-                        <div class="panel-header" onclick="togglePanel('phase6-assets-panel')">
-                            <span class="panel-title">📦 Assets in Catalog</span>
+                    <!-- Panel desplegable: Catalogs -->
+                    <div id="phase6-catalogs-panel" class="collapsible-panel" style="display: none;">
+                        <div class="panel-header" onclick="togglePanel('phase6-catalogs-panel')">
+                            <span class="panel-title">📚 Catalogs</span>
                             <span class="panel-toggle">▼</span>
                         </div>
                         <div class="panel-content open">
-                            <div id="phase6-assets-list" class="assets-list">
-                                <p style="color: #999; text-align: center; padding: 20px;">
-                                    Selecciona un dataset para ver sus assets
-                                </p>
+                            <!-- Contenedor para mostrar datasets del catálogo -->
+                            <div id="phase6-catalog-viewer" class="policies-viewer">
+                                <div class="policies-layout">
+                                    <div class="policies-list">
+                                        <h4>📖 Datasets Disponibles en el Catálogo</h4>
+                                        <div id="phase6-catalog-buttons"></div>
+                                    </div>
+                                    <div class="policy-detail">
+                                        <h4>📄 Detalle del Dataset</h4>
+                                        <div id="phase6-catalog-detail-content" class="policy-detail-content">
+                                            <p style="color: #999; text-align: center; margin-top: 50px;">
+                                                Selecciona un dataset de la lista para ver su detalle
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Sub-panel: Assets in Catalog -->
+                            <div id="phase6-assets-panel" class="collapsible-panel" style="margin-top: 15px;">
+                                <div class="panel-header" onclick="togglePanel('phase6-assets-panel')">
+                                    <span class="panel-title">📦 Assets in Catalog</span>
+                                    <span class="panel-toggle">▼</span>
+                                </div>
+                                <div class="panel-content open">
+                                    <div id="phase6-assets-list" class="assets-list">
+                                        <p style="color: #999; text-align: center; padding: 20px;">
+                                            Selecciona un dataset para ver sus assets
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1825,13 +1975,70 @@
                     <!-- Panel desplegable: Negotiated Contracts -->
                     <div id="phase6-negotiations-panel" class="collapsible-panel" style="display: none;">
                         <div class="panel-header" onclick="togglePanel('phase6-negotiations-panel')">
-                            <span class="panel-title">🤝 Negotiated Contracts</span>
+                            <div style="display: flex; align-items: center; flex: 1;">
+                                <span class="panel-title">🤝 Negotiated Contracts</span>
+                                <button class="filter-toggle-icon" onclick="event.stopPropagation(); toggleNegotiationsFilter()" title="Filters">
+                                    🔽
+                                </button>
+                            </div>
                             <span class="panel-toggle">▼</span>
                         </div>
                         <div class="panel-content open">
                             <!-- Filtros -->
                             <div class="negotiations-filters">
-                                <label class="filter-checkbox">
+                                <!-- Dropdown de filtros avanzados -->
+                                <div id="negotiations-filter-dropdown" class="filter-dropdown">
+                                    <!-- Grupo 1: Time Range -->
+                                    <div class="filter-group">
+                                        <div class="filter-option" data-filter="time-range" data-value="all" onclick="selectFilter('time-range', 'all', this)">
+                                            <span>All Time</span>
+                                            <span class="checkmark">✓</span>
+                                        </div>
+                                        <div class="filter-option" data-filter="time-range" data-value="30min" onclick="selectFilter('time-range', '30min', this)">
+                                            <span>Last 30 Min</span>
+                                            <span class="checkmark">✓</span>
+                                        </div>
+                                        <div class="filter-option" data-filter="time-range" data-value="2hours" onclick="selectFilter('time-range', '2hours', this)">
+                                            <span>Last 2 Hours</span>
+                                            <span class="checkmark">✓</span>
+                                        </div>
+                                        <div class="filter-option" data-filter="time-range" data-value="1day" onclick="selectFilter('time-range', '1day', this)">
+                                            <span>Last day</span>
+                                            <span class="checkmark">✓</span>
+                                        </div>
+                                        <div class="filter-option" data-filter="time-range" data-value="2days" onclick="selectFilter('time-range', '2days', this)">
+                                            <span>Last 2 days</span>
+                                            <span class="checkmark">✓</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Grupo 2: Sort By -->
+                                    <div class="filter-group">
+                                        <div class="filter-option" data-filter="sort-by" data-value="time" onclick="selectFilter('sort-by', 'time', this)">
+                                            <span>Sort by Time</span>
+                                            <span class="checkmark">✓</span>
+                                        </div>
+                                        <div class="filter-option" data-filter="sort-by" data-value="name" onclick="selectFilter('sort-by', 'name', this)">
+                                            <span>Sort by Name</span>
+                                            <span class="checkmark">✓</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Grupo 3: Sort Direction -->
+                                    <div class="filter-group">
+                                        <div class="filter-option" data-filter="sort-direction" data-value="oldest" onclick="selectFilter('sort-direction', 'oldest', this)">
+                                            <span>Oldest First</span>
+                                            <span class="checkmark">✓</span>
+                                        </div>
+                                        <div class="filter-option" data-filter="sort-direction" data-value="newest" onclick="selectFilter('sort-direction', 'newest', this)">
+                                            <span>Newest First</span>
+                                            <span class="checkmark">✓</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Checkbox para mostrar fallidas -->
+                                <label class="filter-checkbox" style="padding: 10px; background: #f5f7fa; border-radius: 6px;">
                                     <input type="checkbox" id="phase6-show-failed-negotiations" onchange="phase6FilterNegotiations()">
                                     <span>Show failed negotiations</span>
                                 </label>
@@ -1938,6 +2145,6 @@
         </div>
     </div>
 
-    <script src="dashboard.js?v=2.6"></script>
+    <script src="dashboard.js?v=3.2"></script>
 </body>
 </html>

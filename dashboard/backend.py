@@ -1813,6 +1813,9 @@ def phase6_negotiate_asset():
                     "id": negotiation_id,
                     "assetId": asset_id,
                     "state": negotiation.get("state", "UNKNOWN"),
+                    "counterPartyAddress": MASS_DSP,
+                    "counterPartyId": MASS_BPN,
+                    "contractAgreementId": negotiation.get("contractAgreementId"),
                     "createdAt": datetime.now().isoformat()
                 }
             })
@@ -1828,6 +1831,8 @@ def phase6_negotiate_asset():
                     "id": f"failed-{datetime.now().timestamp()}",
                     "assetId": asset_id,
                     "state": "FAILED",
+                    "counterPartyAddress": MASS_DSP,
+                    "counterPartyId": MASS_BPN,
                     "errorDetail": error_detail,
                     "createdAt": datetime.now().isoformat()
                 }
@@ -1842,6 +1847,8 @@ def phase6_negotiate_asset():
                 "id": f"failed-{datetime.now().timestamp()}",
                 "assetId": asset_id,
                 "state": "FAILED",
+                "counterPartyAddress": MASS_DSP,
+                "counterPartyId": MASS_BPN,
                 "errorDetail": str(e),
                 "createdAt": datetime.now().isoformat()
             }
@@ -1880,6 +1887,12 @@ def phase6_list_negotiations():
             # Enriquecer las negociaciones con información adicional
             enriched_negotiations = []
             for negotiation in negotiations:
+                # Intentar capturar timestamp del EDC (puede tener varios nombres)
+                created_at = negotiation.get("createdAt") or negotiation.get("createdTimestamp") or negotiation.get("updatedAt") or negotiation.get("stateTimestamp")
+                if not created_at:
+                    # Si no hay timestamp, usar ahora
+                    created_at = datetime.now().isoformat()
+                
                 enriched = {
                     "id": negotiation.get("@id"),
                     "state": negotiation.get("state"),
@@ -1888,7 +1901,7 @@ def phase6_list_negotiations():
                     "counterPartyId": negotiation.get("counterPartyId"),
                     "counterPartyAddress": negotiation.get("counterPartyAddress"),
                     "errorDetail": negotiation.get("errorDetail"),
-                    "createdAt": negotiation.get("createdAt", datetime.now().isoformat())
+                    "createdAt": created_at
                 }
                 enriched_negotiations.append(enriched)
             
