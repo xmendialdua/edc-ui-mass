@@ -1741,22 +1741,51 @@ def phase6_negotiate_asset():
     results.append(log_message(f"🤝 Iniciando negociación para asset: {asset_id}", "info"))
     
     try:
+        # IMPORTANTE: Agregar target y assigner a la política si no existen
+        # Esto es requerido por la especificación ODRL (como en ui/components/negotiation-dialog.tsx)
+        # Usar nombres SIN prefijo "odrl:" para compatibilidad con el contexto JSON-LD
+        if "odrl:target" not in policy and "target" not in policy:
+            policy["target"] = asset_id
+            results.append(log_message("➕ Agregado target a la política", "info"))
+        
+        if "odrl:assigner" not in policy and "assigner" not in policy:
+            policy["assigner"] = MASS_BPN
+            results.append(log_message("➕ Agregado assigner a la política", "info"))
+        
+        # Formato idéntico al de ui/lib/api.ts - initiateNegotiation()
+        # Usar "@type": "ContractRequest" y policy directamente (no dentro de "offer")
         negotiation_payload = {
-            "@context": {
-                "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
-            },
+            "@context": ["https://w3id.org/edc/connector/management/v0.0.1"],
+            "@type": "ContractRequest",
             "counterPartyAddress": MASS_DSP,
+            "counterPartyId": MASS_BPN,
             "protocol": "dataspace-protocol-http",
-            "providerId": MASS_BPN,
-            "offer": {
-                "offerId": policy.get("@id"),
-                "assetId": asset_id,
-                "policy": policy
-            }
+            "policy": policy,
+            "callbackAddresses": []
         }
         
         results.append(log_message("📄 Negotiation Payload:", "info"))
         results.append(json.dumps(negotiation_payload, indent=2))
+        results.append("")
+        
+        # Mostrar comando CURL equivalente (igual que en FASE 5)
+        results.append(log_message("=" * 60, "info"))
+        results.append(log_message("💻 Comando CURL equivalente:", "info"))
+        results.append(log_message("=" * 60, "info"))
+        
+        # Formatear el payload para CURL (compacto en una línea)
+        payload_compact = json.dumps(negotiation_payload, separators=(',', ':'))
+        
+        curl_command = f"""curl -X POST "{IKLN_API}/v3/contractnegotiations" \\
+  -H "X-Api-Key: {IKLN_API_KEY}" \\
+  -H "Content-Type: application/json" \\
+  -d '{payload_compact}'"""
+        
+        results.append(curl_command)
+        results.append("")
+        results.append(log_message("=" * 60, "info"))
+        results.append(log_message("📡 Enviando petición HTTP...", "info"))
+        results.append("")
         
         negotiation_response = requests.post(
             f"{IKLN_API}/v3/contractnegotiations",

@@ -1027,14 +1027,20 @@
             
             addLog(6, `\n🤝 Iniciando negociación para asset: ${assetId}`);
             
-            // Obtener la política del dataset
-            const offers = phase6CurrentDataset['odrl:hasPolicy'] || [];
+            // Obtener la política del dataset (normalizar: puede ser un objeto o un array)
+            let offersRaw = phase6CurrentDataset['odrl:hasPolicy'] || [];
+            const offers = Array.isArray(offersRaw) ? offersRaw : [offersRaw];
             const policy = offers[parseInt(offerIndex)];
             
             if (!policy) {
                 addLog(6, '❌ No se encontró la política para este asset');
+                addLog(6, `Debug: offerIndex=${offerIndex}, offers.length=${offers.length}`);
+                console.error('Dataset:', phase6CurrentDataset);
+                console.error('Offers:', offers);
                 return;
             }
+            
+            addLog(6, `📄 Política encontrada: ${policy['@id']}`);
             
             const result = await callAPI('/phase6/negotiate-asset', 'POST', {
                 assetId: assetId,
