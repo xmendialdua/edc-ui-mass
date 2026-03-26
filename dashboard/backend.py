@@ -1526,7 +1526,6 @@ def catalog_request():
     curl_command = f"""curl -X POST "{IKLN_API}/v3/catalog/request" \\
   -H "X-Api-Key: {IKLN_API_KEY}" \\
   -H "Content-Type: application/json" \\
-  -k \\
   -d '{payload_compact}'"""
     
     results.append(curl_command)
@@ -1656,9 +1655,7 @@ def negotiate_contract():
     results.append(log_message("Paso 1: Obteniendo información del catálogo...", "info"))
     
     try:
-        # Catalog request para obtener la oferta
-        dsp_endpoint = "https://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp"
-        
+        # Usar la variable MASS_DSP configurada (no hardcodear)
         catalog_response = requests.post(
             f"{IKLN_API}/v3/catalog/request",
             headers={
@@ -1667,7 +1664,8 @@ def negotiate_contract():
             },
             json={
                 "@context": {"@vocab": "https://w3id.org/edc/v0.0.1/ns/"},
-                "counterPartyAddress": dsp_endpoint,
+                "counterPartyAddress": MASS_DSP,
+                "counterPartyId": "BPNL00000000MASS",
                 "protocol": "dataspace-protocol-http"
             },
             verify=False,
@@ -1679,7 +1677,15 @@ def negotiate_contract():
             return jsonify({"success": False, "logs": results})
         
         catalog = catalog_response.json()
-        datasets = catalog.get("dcat:dataset", catalog.get("datasets", []))
+        
+        # Normalizar datasets (puede ser dict o list)
+        datasets_raw = catalog.get("dcat:dataset", catalog.get("datasets", []))
+        if isinstance(datasets_raw, dict):
+            datasets = [datasets_raw]
+        elif isinstance(datasets_raw, list):
+            datasets = datasets_raw
+        else:
+            datasets = []
         
         # Buscar nuestro asset y su oferta
         offer = None
@@ -1704,7 +1710,7 @@ def negotiate_contract():
             "@context": {
                 "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
             },
-            "counterPartyAddress": dsp_endpoint,
+            "counterPartyAddress": MASS_DSP,
             "protocol": "dataspace-protocol-http",
             "providerId": MASS_BPN,
             "offer": {
@@ -1817,7 +1823,7 @@ def initiate_transfer():
         },
         "assetId": ASSET_ID,
         "contractId": contract_agreement_id,
-        "counterPartyAddress": "https://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp",
+        "counterPartyAddress": MASS_DSP,
         "protocol": "dataspace-protocol-http",
         "transferType": "HttpData-PULL"
     }
