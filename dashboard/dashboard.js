@@ -1527,22 +1527,98 @@
                 
                 if (result.success) {
                     addLog(6, `✅ Transferencia agregada a "Initiated Transfers"`);
+                    addLog(6, `⏳ Esperando a que el EDC genere el Endpoint Data Reference...`);
+                    addLog(6, `   El sistema verificará el estado automáticamente cada 5 segundos`);
                     
-                    // Auto-refresh después de 3 segundos
-                    setTimeout(() => {
-                        phase6RefreshTransfers();
-                    }, 3000);
+                    // Auto-refresh periódico hasta obtener el EDR (máximo 10 intentos = 50 segundos)
+                    let refreshAttempts = 0;
+                    const maxAttempts = 10;
+                    
+                    const autoRefreshInterval = setInterval(async () => {
+                        refreshAttempts++;
+                        await phase6RefreshTransfers();
+                        
+                        // Verificar si ya tenemos el EDR
+                        const latestTransfer = phase6Transfers[0]; // La más reciente
+                        if (latestTransfer && latestTransfer.edrAvailable) {
+                            clearInterval(autoRefreshInterval);
+                            addLog(6, `\n🎉 ¡EDR disponible! Ya puedes descargar el fichero.`);
+                        } else if (refreshAttempts >= maxAttempts) {
+                            clearInterval(autoRefreshInterval);
+                            addLog(6, `\n⏱️ Tiempo de espera agotado. Usa el botón "Refresh Status" para actualizar manualmente.`);
+                        }
+                    }, 5000); // Cada 5 segundos
                 }
             }
         }
         
         // Refrescar lista de transferencias desde el servidor
         async function phase6RefreshTransfers() {
+            addLog(6, '\n🔄 Actualizando estado de transferencias...');
+            
             const result = await callAPI('/phase6/list-transfers', 'GET');
             
             if (result.success && result.transfers) {
                 phase6Transfers = result.transfers;
+                
+                // Mostrar la transferencia más relevante: priorizar las que tienen EDR disponible
+                if (result.transfers.length > 0) {
+                    // Primero buscar transferencias con EDR disponible
+                    const transfersWithEdr = result.transfers.filter(t => t.edrAvailable);
+                    
+                    let latestTransfer;
+                    if (transfersWithEdr.length > 0) {
+                        // Si hay EDRs disponibles, mostrar el más reciente con EDR
+                        const sortedWithEdr = [...transfersWithEdr].sort((a, b) => {
+                            const timeA = new Date(a.createdAt).getTime();
+                            const timeB = new Date(b.createdAt).getTime();
+                            return timeB - timeA;
+                        });
+                        latestTransfer = sortedWithEdr[0];
+                    } else {
+                        // Si no hay EDRs, mostrar la transferencia más reciente
+                        const sortedTransfers = [...result.transfers].sort((a, b) => {
+                            const timeA = new Date(a.createdAt).getTime();
+                            const timeB = new Date(b.createdAt).getTime();
+                            return timeB - timeA;
+                        });
+                        latestTransfer = sortedTransfers[0];
+                    }
+                    
+                    const stateEmoji = latestTransfer.state === 'COMPLETED' ? '✅' : 
+                                     latestTransfer.state === 'STARTED' ? '🟢' : 
+                                     latestTransfer.state === 'TERMINATED' ? '⚠️' : 
+                                     latestTransfer.state === 'FAILED' ? '❌' : '🔄';
+                    
+                    addLog(6, `${stateEmoji} Transfer más reciente: ${latestTransfer.id.substring(0, 12)}...`);
+                    addLog(6, `   Estado: ${latestTransfer.state}`);
+                    addLog(6, `   Asset: ${latestTransfer.assetId}`);
+                    
+                    if (latestTransfer.edrAvailable) {
+                        addLog(6, `   ✅ EDR disponible - ¡Puedes descargar el fichero!`);
+                        if (latestTransfer.edrEndpoint) {
+                            addLog(6, `   📍 Endpoint: ${latestTransfer.edrEndpoint.substring(0, 50)}...`);
+                        }
+                    } else if (latestTransfer.state === 'TERMINATED' || latestTransfer.state === 'COMPLETED') {
+                        addLog(6, `   ⚠️  EDR no disponible aún - Puede tardar unos segundos`);
+                    } else if (latestTransfer.state === 'FAILED') {
+                        addLog(6, `   ❌ Error: ${(latestTransfer.errorDetail || 'Desconocido').substring(0, 100)}`);
+                    } else if (latestTransfer.state === 'REQUESTED' || latestTransfer.state === 'REQUESTING') {
+                        addLog(6, `   ⏳ Procesando transferencia... (EDRs disponibles solo en estados STARTED/COMPLETED/TERMINATED)`);
+                    } else if (latestTransfer.state === 'STARTED') {
+                        addLog(6, `   🟢 Transferencia en progreso - Generando EDR...`);
+                    }
+                    
+                    // Resumen de todas las transferencias
+                    const totalTransfers = result.transfers.length;
+                    const withEdr = result.transfers.filter(t => t.edrAvailable).length;
+                    addLog(6, `\n📊 Total: ${totalTransfers} transferencias (${withEdr} con EDR disponible)`);
+                }
+                
                 updatePhase6TransfersList();
+                addLog(6, '✅ Estado actualizado');
+            } else {
+                addLog(6, '❌ Error al actualizar transferencias');
             }
         }
         
@@ -1555,10 +1631,29 @@
                 return;
             }
             
-            // Aplicar filtros
+            // PRIORIZAR: Mostrar transferencia con EDR disponible, si existe
             let filteredTransfers = [...phase6Transfers];
-            filteredTransfers = filterTransfersByTimeRange(filteredTransfers, transfersFilters.timeRange);
-            filteredTransfers = sortTransfers(filteredTransfers, transfersFilters.sortBy, transfersFilters.sortDirection);
+            
+            // Primero buscar transferencias con EDR
+            const transfersWithEdr = filteredTransfers.filter(t => t.edrAvailable);
+            
+            if (transfersWithEdr.length > 0) {
+                // Si hay EDR disponible, mostrar la transferencia con EDR más reciente
+                transfersWithEdr.sort((a, b) => {
+                    const timeA = new Date(a.createdAt).getTime();
+                    const timeB = new Date(b.createdAt).getTime();
+                    return timeB - timeA;
+                });
+                filteredTransfers = [transfersWithEdr[0]];
+            } else {
+                // Si no hay EDR, mostrar la más reciente
+                filteredTransfers.sort((a, b) => {
+                    const timeA = new Date(a.createdAt).getTime();
+                    const timeB = new Date(b.createdAt).getTime();
+                    return timeB - timeA;
+                });
+                filteredTransfers = [filteredTransfers[0]];
+            }
             
             transfersList.innerHTML = '';
             
@@ -1566,18 +1661,43 @@
                 const card = document.createElement('div');
                 const isCompleted = transfer.state === 'COMPLETED' || transfer.state === 'STARTED';
                 const isInProgress = transfer.state === 'REQUESTED' || transfer.state === 'STARTING';
+                const isTerminated = transfer.state === 'TERMINATED';
                 
                 card.className = 'transfer-card';
                 if (isCompleted) card.classList.add('completed');
                 if (isInProgress) card.classList.add('in-progress');
+                if (isTerminated) card.classList.add('terminated');
                 
                 let statusClass = 'in-progress';
                 if (isCompleted) statusClass = 'completed';
+                if (isTerminated) statusClass = 'completed';
                 if (transfer.state === 'FAILED') statusClass = 'failed';
                 
                 // Formatear timestamp
                 const createdDate = transfer.createdAt ? new Date(transfer.createdAt) : null;
                 const timeStr = createdDate ? createdDate.toLocaleString('es-ES') : 'N/A';
+                
+                // Mensaje de estado según el estado de la transferencia
+                let stateMessage = '';
+                if (transfer.state === 'REQUESTED' || transfer.state === 'REQUESTING') {
+                    stateMessage = '<div style="background: #e3f2fd; padding: 10px; margin-top: 10px; border-radius: 4px; font-size: 12px; color: #1976d2;">' +
+                        '⏳ <strong>Negociando transferencia...</strong><br>' +
+                        'El conector está procesando la solicitud. Los EDRs solo están disponibles cuando el estado cambia a:<br>' +
+                        '• <strong>STARTED</strong>: Transferencia iniciada<br>' +
+                        '• <strong>COMPLETED</strong>: Transferencia completada<br>' +
+                        '• <strong>TERMINATED</strong>: Transferencia finalizada<br>' +
+                        '<small>⌛ Esto puede tardar 5-30 segundos. Usa "Refresh Status" para actualizar.</small>' +
+                        '</div>';
+                } else if (transfer.state === 'STARTING' || transfer.state === 'STARTED') {
+                    stateMessage = '<div style="background: #e8f5e9; padding: 10px; margin-top: 10px; border-radius: 4px; font-size: 12px; color: #2e7d32;">✅ Transferencia iniciada. El EDC está preparando el data endpoint.</div>';
+                } else if (transfer.state === 'COMPLETED') {
+                    stateMessage = '<div style="background: #e8f5e9; padding: 10px; margin-top: 10px; border-radius: 4px; font-size: 12px; color: #2e7d32;">🎉 Transferencia completada exitosamente.</div>';
+                } else if (transfer.state === 'TERMINATED') {
+                    stateMessage = '<div style="background: #fff3cd; padding: 10px; margin-top: 10px; border-radius: 4px; font-size: 12px; color: #856404;">⚠️ Transferencia terminada. Si el EDR no está disponible, usa el botón "Debug EDR" para investigar.</div>';
+                } else if (transfer.state === 'FAILED') {
+                    const errorDetail = transfer.errorDetail ? transfer.errorDetail.substring(0, 200) : 'Error desconocido';
+                    stateMessage = `<div style="background: #ffebee; padding: 10px; margin-top: 10px; border-radius: 4px; font-size: 12px; color: #c62828;">❌ Error: ${errorDetail}</div>`;
+                }
                 
                 card.innerHTML = `
                     <div class="negotiation-card-header">
@@ -1606,11 +1726,190 @@
                             <span class="negotiation-info-label">Created At</span>
                             <span class="negotiation-info-value">${timeStr}</span>
                         </div>
+                        ${transfer.edrEndpoint ? `
+                        <div class="negotiation-info-item">
+                            <span class="negotiation-info-label">📍 Data Endpoint</span>
+                            <span class="negotiation-info-value" style="font-size: 11px; word-break: break-all;">${transfer.edrEndpoint}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                    ${stateMessage}
+                    ${transfer.edrAvailable ? `
+                    <div style="background: #e8f5e9; padding: 10px; margin-top: 10px; border-radius: 4px; font-size: 12px; color: #2e7d32; border: 1px solid #4caf50;">
+                        <strong>✅ EDR Disponible</strong><br>
+                        El Endpoint Data Reference está listo. Puedes descargar el fichero.
+                        ${transfer.edrToken ? '<br><small>Token de autenticación disponible</small>' : ''}
+                    </div>
+                    ` : ''}
+                    <div style="margin-top: 12px; display: flex; gap: 8px;">
+                        <button class="btn-transfer" onclick="phase6RefreshTransfers()" style="flex: 1;">
+                            🔄 Refresh Status
+                        </button>
+                        ${transfer.edrAvailable && transfer.edrEndpoint ? `
+                        <button class="btn-negotiate-enhanced" onclick="phase6DownloadData('${transfer.id}', '${transfer.edrEndpoint}', '${transfer.edrToken || ''}')" style="flex: 1;">
+                            📥 Download File
+                        </button>
+                        ` : `
+                        <button class="btn-transfer" onclick="phase6DebugTransfer('${transfer.id}')" style="flex: 1; background: #ff9800;">
+                            🔍 Debug EDR
+                        </button>
+                        `}
                     </div>
                 `;
                 
                 transfersList.appendChild(card);
             });
+        }
+        
+        // Descargar fichero usando el EDR endpoint (a través del backend como proxy)
+        async function phase6DownloadData(transferId, edrEndpoint, edrToken) {
+            addLog(6, `\n📥 Iniciando descarga desde EDR...`);
+            addLog(6, `Transfer ID: ${transferId}`);
+            addLog(6, `Endpoint: ${edrEndpoint}`);
+            
+            try {
+                if (!edrToken) {
+                    addLog(6, `❌ Error: No hay token de autorización disponible`);
+                    return;
+                }
+                
+                addLog(6, `✅ Usando token de autorización`);
+                addLog(6, `🔄 Solicitando descarga al backend (evitando CORS)...`);
+                
+                // Hacer la petición al backend, que actuará como proxy
+            // El backend consultará el EDR actualizado si el token expiró
+            const response = await fetch(`${API_BASE}/phase6/download-file`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    transferId: transferId,
+                    token: edrToken
+                })
+            });
+            
+            addLog(6, `📡 HTTP ${response.status}`);
+            
+            if (response.ok) {
+                // Obtener el contenido como blob
+                const blob = await response.blob();
+                    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+                    
+                    addLog(6, `✅ Descarga exitosa! Tamaño: ${(blob.size / 1024).toFixed(2)} KB`);
+                    addLog(6, `📄 Content-Type: ${contentType}`);
+                    
+                    // Extraer nombre del fichero del Content-Disposition si existe
+                    const contentDisposition = response.headers.get('content-disposition');
+                    let filename = 'downloaded-file';
+                    
+                    if (contentDisposition && contentDisposition.includes('filename=')) {
+                        const matches = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                        if (matches && matches[1]) {
+                            filename = matches[1].replace(/['"]/g, '');
+                        }
+                    } else {
+                        // Generar nombre basado en content-type
+                        if (contentType.includes('csv')) {
+                            filename = 'data.csv';
+                        } else if (contentType.includes('pdf')) {
+                            filename = 'data.pdf';
+                        } else if (contentType.includes('json')) {
+                            filename = 'data.json';
+                        } else if (contentType.includes('xml')) {
+                            filename = 'data.xml';
+                        } else {
+                            filename = 'data.dat';
+                        }
+                    }
+                    
+                    // Crear un link temporal y simular el click para descargar
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    addLog(6, `💾 Fichero guardado como: ${filename}`);
+                    addLog(6, `🎉 ¡Descarga completada exitosamente!`);
+                } else {
+                    // Intentar parsear el error como JSON
+                    try {
+                        const errorData = await response.json();
+                        addLog(6, `❌ Error HTTP ${response.status}: ${errorData.error || response.statusText}`);
+                        if (errorData.details) {
+                            addLog(6, `Detalle: ${errorData.details.substring(0, 200)}`);
+                        }
+                    } catch {
+                        const errorText = await response.text();
+                        addLog(6, `❌ Error HTTP ${response.status}: ${response.statusText}`);
+                        addLog(6, `Detalle: ${errorText.substring(0, 200)}`);
+                    }
+                }
+            } catch (error) {
+                addLog(6, `❌ Error al descargar: ${error.message}`);
+                console.error('Download error:', error);
+            }
+        }
+        
+        // Debug de un transfer process para ver por qué no hay EDR
+        async function phase6DebugTransfer(transferId) {
+            clearLogs(6);
+            addLog(6, `🔍 Debug de Transfer Process: ${transferId}`);
+            addLog(6, `Consultando información detallada...`);
+            addLog(6, '');
+            
+            const result = await callAPI(`/phase6/debug-transfer/${transferId}`, 'GET');
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(6, log));
+            }
+            
+            if (result.success) {
+                addLog(6, '');
+                addLog(6, '✅ Debug completado. Revisa la información arriba para');
+                addLog(6, '   entender por qué el EDR no está disponible.');
+            }
+        }
+        
+        // Limpiar transferencias antiguas
+        async function phase6CleanupTransfers() {
+            if (!confirm('⚠️ ¿Seguro que quieres eliminar todas las transferencias TERMINATED/FAILED del conector IKLN?\n\nEsto no se puede deshacer.')) {
+                return;
+            }
+            
+            clearLogs(6);
+            addLog(6, '🧹 Limpiando transferencias antiguas...');
+            addLog(6, '');
+            
+            const result = await callAPI('/phase6/cleanup-transfers', 'POST', { connector: 'ikln' });
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(6, log));
+            }
+            
+            if (result.success) {
+                addLog(6, '');
+                addLog(6, '🔄 Actualizando lista de transferencias...');
+                await phase6RefreshTransfers();
+            }
+        }
+        
+        // Diagnosticar problema del data plane
+        async function phase6DiagnoseDataplane() {
+            clearLogs(6);
+            addLog(6, '🔬 Iniciando diagnóstico del Data Plane...');
+            addLog(6, '⏳ Analizando logs de los pods...');
+            addLog(6, '');
+            
+            const result = await callAPI('/phase6/diagnose-dataplane', 'GET');
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(6, log));
+            }
         }
 
         // Mantener funciones antiguas por compatibilidad

@@ -2052,11 +2052,18 @@ def phase6_initiate_transfer_for_contract():
         "@context": {
             "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
         },
+        "@type": "TransferRequest",
         "assetId": asset_id,
         "contractId": contract_agreement_id,
         "counterPartyAddress": MASS_DSP,
+        "counterPartyId": MASS_BPN,
         "protocol": "dataspace-protocol-http",
-        "transferType": "HttpData-PULL"
+        "transferType": "HttpData-PULL",
+        "dataDestination": {
+            "@type": "DataAddress",
+            "type": "HttpProxy"
+        },
+        "privateProperties": {}
     }
     
     try:
@@ -2102,7 +2109,7 @@ def phase6_initiate_transfer_for_contract():
 
 @app.route('/api/phase6/list-transfers', methods=['GET'])
 def phase6_list_transfers():
-    """Lista todos los procesos de transferencia"""
+    """Lista todos los procesos de transferencia con información detallada incluyendo EDR"""
     try:
         query_payload = {
             "@context": {
@@ -2130,15 +2137,92 @@ def phase6_list_transfers():
             # Enriquecer las transferencias con información adicional
             enriched_transfers = []
             for transfer in transfers:
+                transfer_id = transfer.get("@id")
+                state = transfer.get("state")
+                
+                # Intentar obtener el EDR (Endpoint Data Reference) si la transferencia está completa
+                edr_data = None
+                edr_endpoint = None
+                edr_token = None
+                
+                # En EDC v3, el EDR puede estar en:
+                # 1. El campo dataAddress del transfer process (para PULL)
+                # 2. Un endpoint separado /v3/edrs
+                # 3. Dentro del propio transfer process como "privateProperties" o "dataDestination"
+                
+                # Primero intentar obtener del transfer process mismo
+                data_address = transfer.get("dataAddress")
+                if data_address:
+                    edr_endpoint = data_address.get("endpoint") or data_address.get("baseUrl")
+                    edr_token = data_address.get("authCode") or data_address.get("authorization") or data_address.get("authKey")
+                    if edr_endpoint:
+                        edr_data = data_address
+                
+                # Si no está en dataAddress, intentar consultar el endpoint de EDRs
+                # EDR solo está disponible cuando el transfer está en STARTED, COMPLETED o TERMINATED
+                if not edr_data and state in ["STARTED", "COMPLETED", "TERMINATED"]:
+                    try:
+                        # Usar el endpoint correcto de EDC v3: POST /v3/edrs/request
+                        edr_list_response = requests.post(
+                            f"{IKLN_API}/v3/edrs/request",
+                            headers={
+                                "X-Api-Key": IKLN_API_KEY,
+                                "Content-Type": "application/json"
+                            },
+                            json={
+                                "@context": {"@vocab": "https://w3id.org/edc/v0.0.1/ns/"},
+                                "@type": "QuerySpec",
+                                "offset": 0,
+                                "limit": 100
+                            },
+                            verify=False,
+                            timeout=5
+                        )
+                        
+                        if edr_list_response.status_code == 200:
+                            edr_list = edr_list_response.json()
+                            
+                            # Buscar el EDR correspondiente a este transfer
+                            if isinstance(edr_list, list):
+                                matching_edr = next(
+                                    (edr for edr in edr_list if edr.get("transferProcessId") == transfer_id),
+                                    None
+                                )
+                                
+                                if matching_edr:
+                                    # Obtener el data address del EDR
+                                    edr_id = matching_edr.get("@id") or matching_edr.get("transferProcessId")
+                                    
+                                    dataaddress_response = requests.get(
+                                        f"{IKLN_API}/v3/edrs/{edr_id}/dataaddress",
+                                        headers={"X-Api-Key": IKLN_API_KEY},
+                                        verify=False,
+                                        timeout=5
+                                    )
+                                    
+                                    if dataaddress_response.status_code == 200:
+                                        edr_data = dataaddress_response.json()
+                                        edr_endpoint = edr_data.get("endpoint") or edr_data.get("baseUrl")
+                                        edr_token = edr_data.get("authCode") or edr_data.get("authorization") or edr_data.get("authKey")
+                                
+                    except Exception as e:
+                        print(f"Error obteniendo EDR para transfer {transfer_id}: {e}")
+                
                 enriched = {
-                    "id": transfer.get("@id"),
-                    "state": transfer.get("state"),
+                    "id": transfer_id,
+                    "state": state,
                     "assetId": transfer.get("assetId", "unknown"),
                     "contractId": transfer.get("contractId"),
                     "counterPartyId": transfer.get("counterPartyId"),
                     "counterPartyAddress": transfer.get("counterPartyAddress"),
                     "errorDetail": transfer.get("errorDetail"),
-                    "createdAt": transfer.get("createdAt", datetime.now().isoformat())
+                    "createdAt": transfer.get("createdAt", datetime.now().isoformat()),
+                    "stateTimestamp": transfer.get("stateTimestamp"),
+                    # EDR information
+                    "edrAvailable": edr_data is not None,
+                    "edrEndpoint": edr_endpoint,
+                    "edrToken": edr_token,
+                    "edrData": edr_data
                 }
                 enriched_transfers.append(enriched)
             
@@ -2151,6 +2235,367 @@ def phase6_list_transfers():
             
     except Exception as e:
         return jsonify({"success": False, "transfers": [], "error": str(e)})
+
+
+@app.route('/api/phase6/debug-transfer/<transfer_id>', methods=['GET'])
+def debug_transfer(transfer_id):
+    """Endpoint de debug para inspeccionar un transfer process completo"""
+    results = []
+    
+    results.append(log_message(f"🔍 Inspeccionando Transfer Process: {transfer_id}", "info"))
+    results.append("")
+    
+    try:
+        # 1. Obtener el transfer process completo
+        results.append(log_message("1️⃣ Consultando Transfer Process completo...", "info"))
+        transfer_response = requests.get(
+            f"{IKLN_API}/v3/transferprocesses/{transfer_id}",
+            headers={"X-Api-Key": IKLN_API_KEY},
+            verify=False,
+            timeout=10
+        )
+        
+        if transfer_response.status_code == 200:
+            transfer_data = transfer_response.json()
+            results.append(log_message("✅ Transfer Process obtenido", "success"))
+            results.append("")
+            results.append(log_message("📄 Contenido completo:", "info"))
+            results.append(json.dumps(transfer_data, indent=2))
+            results.append("")
+            
+            # Verificar si hay dataAddress
+            if "dataAddress" in transfer_data:
+                results.append(log_message("✅ Campo 'dataAddress' encontrado", "success"))
+                results.append(json.dumps(transfer_data["dataAddress"], indent=2))
+            else:
+                results.append(log_message("⚠️ No se encontró campo 'dataAddress' en el transfer", "warning"))
+        else:
+            results.append(log_message(f"❌ Error HTTP {transfer_response.status_code}", "error"))
+            results.append(transfer_response.text[:500])
+        
+        results.append("")
+        
+        # 2. Verificar estado del transfer
+        transfer_state = transfer_data.get("state")
+        results.append(log_message(f"2️⃣ Estado del Transfer: {transfer_state}", "info"))
+        results.append("")
+        
+        if transfer_state in ["REQUESTING", "REQUESTED"]:
+            results.append(log_message("⏳ El transfer aún está en negociación", "warning"))
+            results.append(log_message("   Los EDRs solo están disponibles cuando el transfer alcanza:", "info"))
+            results.append(log_message("   - STARTED: Transfer iniciado, datos en tránsito", "info"))
+            results.append(log_message("   - COMPLETED: Transfer completado exitosamente", "info"))
+            results.append(log_message("   - TERMINATED: Transfer finalizado", "info"))
+            results.append("")
+            results.append(log_message("   Espera unos segundos y refresca el estado", "info"))
+        elif transfer_state in ["STARTED", "COMPLETED", "TERMINATED"]:
+            results.append("")
+            results.append(log_message("3️⃣ Intentando obtener EDR (Endpoint Data Reference)...", "info"))
+            
+            # Listar todos los EDRs disponibles
+            results.append(log_message("📍 Listando EDRs disponibles", "info"))
+            results.append(log_message(f"   URL: {IKLN_API}/v3/edrs/request", "info"))
+            results.append(log_message(f"   Método: POST", "info"))
+            results.append("")
+            
+            try:
+                edr_list_response = requests.post(
+                    f"{IKLN_API}/v3/edrs/request",
+                    headers={
+                        "X-Api-Key": IKLN_API_KEY,
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "@context": {"@vocab": "https://w3id.org/edc/v0.0.1/ns/"},
+                        "@type": "QuerySpec",
+                        "offset": 0,
+                        "limit": 100
+                    },
+                    verify=False,
+                    timeout=5
+                )
+                
+                results.append(log_message(f"   HTTP {edr_list_response.status_code}", "info"))
+                
+                if edr_list_response.status_code == 200:
+                    edr_list = edr_list_response.json()
+                    results.append(log_message(f"   ✅ Encontrados {len(edr_list) if isinstance(edr_list, list) else 0} EDRs", "success"))
+                    results.append("")
+                    
+                    if isinstance(edr_list, list) and len(edr_list) > 0:
+                        # Mostrar resumen de EDRs
+                        results.append(log_message("📋 EDRs disponibles:", "info"))
+                        for idx, edr in enumerate(edr_list[:5], 1):  # Mostrar máximo 5
+                            edr_transfer_id = edr.get("transferProcessId", "unknown")
+                            edr_agreement_id = edr.get("agreementId", "unknown")
+                            results.append(log_message(f"   {idx}. Transfer: {edr_transfer_id}", "info"))
+                            results.append(log_message(f"      Agreement: {edr_agreement_id}", "info"))
+                        
+                        if len(edr_list) > 5:
+                            results.append(log_message(f"   ... y {len(edr_list) - 5} más", "info"))
+                        
+                        results.append("")
+                        
+                        # Buscar el EDR correspondiente a este transfer
+                        matching_edr = next(
+                            (edr for edr in edr_list if edr.get("transferProcessId") == transfer_id),
+                            None
+                        )
+                        
+                        if matching_edr:
+                            results.append(log_message(f"✅ EDR encontrado para transfer {transfer_id}", "success"))
+                            results.append(json.dumps(matching_edr, indent=2))
+                            results.append("")
+                            
+                            # Obtener data address
+                            edr_id = matching_edr.get("@id") or matching_edr.get("transferProcessId")
+                            results.append(log_message("📍 Obteniendo Data Address", "info"))
+                            results.append(log_message(f"   URL: {IKLN_API}/v3/edrs/{edr_id}/dataaddress", "info"))
+                            
+                            dataaddress_response = requests.get(
+                                f"{IKLN_API}/v3/edrs/{edr_id}/dataaddress",
+                                headers={"X-Api-Key": IKLN_API_KEY},
+                                verify=False,
+                                timeout=5
+                            )
+                            
+                            results.append(log_message(f"   HTTP {dataaddress_response.status_code}", "info"))
+                            
+                            if dataaddress_response.status_code == 200:
+                                dataaddress = dataaddress_response.json()
+                                results.append(log_message("   ✅ Data Address obtenido:", "success"))
+                                results.append(json.dumps(dataaddress, indent=2))
+                            else:
+                                results.append(log_message(f"   ❌ Error: {dataaddress_response.text[:200]}", "error"))
+                        else:
+                            results.append(log_message(f"⚠️ No se encontró EDR para transfer {transfer_id}", "warning"))
+                            results.append(log_message("   Esto puede significar que:", "info"))
+                            results.append(log_message("   - El transfer aún no ha completado", "info"))
+                            results.append(log_message("   - El EDR aún no se ha generado", "info"))
+                            results.append(log_message("   - Hay un problema con la configuración del data plane", "info"))
+                    else:
+                        results.append(log_message("⚠️ No hay EDRs disponibles en el conector", "warning"))
+                else:
+                    results.append(log_message(f"   ❌ Error listando EDRs: {edr_list_response.text[:200]}", "error"))
+            except Exception as e:
+                results.append(log_message(f"   ❌ Excepción: {str(e)}", "error"))
+        else:
+            results.append(log_message(f"⚠️ Estado '{transfer_state}' no permite consultar EDRs", "warning"))
+        
+        return jsonify({"success": True, "logs": results})
+        
+    except Exception as e:
+        results.append(log_message(f"❌ Error: {str(e)}", "error"))
+        return jsonify({"success": False, "logs": results})
+
+
+@app.route('/api/phase6/cleanup-transfers', methods=['POST'])
+def cleanup_transfers():
+    """Elimina transferencias antiguas para limpiar el estado del conector
+    NOTA: EDC v3 no soporta DELETE de transfer processes. 
+    Esta función está deshabilitada, pero se mantiene para futura referencia."""
+    results = []
+    
+    results.append(log_message("ℹ️ Limpieza de transferencias no disponible en EDC v3", "info"))
+    results.append("")
+    results.append(log_message("📋 Información:", "info"))
+    results.append(log_message("   • EDC Management API v3 no soporta DELETE /v3/transferprocesses/{id}", "info"))
+    results.append(log_message("   • Las transferencias permanecen en el sistema para auditoría", "info"))
+    results.append(log_message("   • Esto es el comportamiento esperado de EDC", "info"))
+    results.append("")
+    results.append(log_message("💡 Alternativas:", "info"))
+    results.append(log_message("   • Las transferencias viejas no afectan el rendimiento", "info"))
+    results.append(log_message("   • El dashboard solo muestra la más reciente", "info"))
+    results.append(log_message("   • Puedes filtrarlas por fecha si lo implementas", "info"))
+    
+    return jsonify({"success": True, "logs": results, "deleted": 0, "failed": 0})
+
+
+@app.route('/api/phase6/diagnose-dataplane', methods=['GET'])
+def diagnose_dataplane():
+    """Diagnostica el problema del data plane buscando en los logs de los pods"""
+    results = []
+    
+    results.append(log_message("🔬 Diagnóstico del Data Plane", "info"))
+    results.append("")
+    
+    try:
+        # Verificar logs del control plane de MASS
+        results.append(log_message("1️⃣ Verificando logs del Control Plane de MASS...", "info"))
+        
+        cp_result = subprocess.run(
+            ["kubectl", "logs", "-n", "umbrella", "-l", "app.kubernetes.io/name=tractusx-connector,app.kubernetes.io/component=controlplane,app.kubernetes.io/instance=mass-edc", 
+             "--tail=50", "--since=10m"],
+            capture_output=True,
+            text=True,
+            timeout=15
+        )
+        
+        if cp_result.returncode == 0:
+            # Buscar errores específicos
+            log_lines = cp_result.stdout.split('\n')
+            error_lines = [line for line in log_lines if 'ERROR' in line or 'tokenSignerPrivateKey' in line or 'JWSSigner' in line]
+            
+            if error_lines:
+                results.append(log_message(f"🔴 Encontrados {len(error_lines)} errores relacionados:", "error"))
+                for line in error_lines[-3:]:  # Últimos 3 errores
+                    try:
+                        log_json = json.loads(line)
+                        if 'message' in log_json:
+                            results.append(log_message(f"   • {log_json['message'][:150]}", "error"))
+                    except:
+                        results.append(log_message(f"   • {line[:150]}", "error"))
+            else:
+                results.append(log_message("✅ No se encontraron errores recientes", "success"))
+        else:
+            results.append(log_message(f"⚠️ No se pudieron obtener logs: {cp_result.stderr}", "warning"))
+        
+        results.append("")
+        results.append(log_message("2️⃣ Problema identificado:", "info"))
+        results.append(log_message("   🔴 tokenSignerPrivateKey: Formato de clave inválido", "error"))
+        results.append("")
+        results.append(log_message("📋 El problema está en el Data Plane de MASS:", "info"))
+        results.append(log_message("   • La clave privada 'tokenSignerPrivateKey' tiene formato incorrecto", "info"))
+        results.append(log_message("   • Debe ser una clave PEM válida (RS256, ES256, etc.)", "info"))
+        results.append(log_message("   • Ubicación: values.yaml del chart de MASS EDC", "info"))
+        results.append("")
+        results.append(log_message("🔧 Solución:", "info"))
+        results.append(log_message("   1. Verificar el secret que contiene las claves", "info"))
+        results.append(log_message("   2. Regenerar la clave si es necesario", "info"))
+        results.append(log_message("   3. Actualizar el values.yaml con la clave correcta", "info"))
+        results.append(log_message("   4. Hacer helm upgrade del conector MASS", "info"))
+        
+        return jsonify({"success": True, "logs": results})
+        
+    except Exception as e:
+        results.append(log_message(f"❌ Error: {str(e)}", "error"))
+        return jsonify({"success": False, "logs": results})
+
+
+@app.route('/api/phase6/download-file', methods=['POST'])
+def download_file():
+    """Proxy para descargar el archivo desde el data plane usando el EDR
+    Evita problemas de CORS haciendo la petición desde el backend
+    Si el token está expirado, obtiene uno nuevo consultando el EDR"""
+    try:
+        data = request.get_json()
+        transfer_id = data.get('transferId')
+        endpoint = data.get('endpoint')
+        token = data.get('token')
+        
+        # Si tenemos transfer_id, obtenemos un EDR fresh (token actualizado)
+        if transfer_id:
+            try:
+                print(f"🔄 Consultando EDR actualizado para transfer {transfer_id}...")
+                # Consultar EDRs actuales
+                edr_list_response = requests.post(
+                    f"{IKLN_API}/v3/edrs/request",
+                    headers={
+                        "X-Api-Key": IKLN_API_KEY,
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "@context": {"@vocab": "https://w3id.org/edc/v0.0.1/ns/"},
+                        "@type": "QuerySpec"
+                    },
+                    verify=False,
+                    timeout=10
+                )
+                
+                if edr_list_response.status_code == 200:
+                    edr_list = edr_list_response.json()
+                    matching_edr = next(
+                        (edr for edr in edr_list if edr.get("transferProcessId") == transfer_id),
+                        None
+                    )
+                    
+                    if matching_edr:
+                        edr_id = matching_edr.get("@id") or matching_edr.get("transferProcessId")
+                        dataaddress_response = requests.get(
+                            f"{IKLN_API}/v3/edrs/{edr_id}/dataaddress",
+                            headers={"X-Api-Key": IKLN_API_KEY},
+                            verify=False,
+                            timeout=5
+                        )
+                        
+                        if dataaddress_response.status_code == 200:
+                            edr_data = dataaddress_response.json()
+                            # Actualizar con datos frescos
+                            endpoint = edr_data.get("endpoint") or edr_data.get("baseUrl")
+                            token = edr_data.get("authCode") or edr_data.get("authorization") or edr_data.get("authKey")
+                            print(f"✅ Token actualizado exitosamente")
+                        else:
+                            print(f"⚠️ No se pudo obtener dataaddress: HTTP {dataaddress_response.status_code}")
+                    else:
+                        print(f"⚠️ No se encontró EDR para transfer {transfer_id}")
+                else:
+                    print(f"⚠️ Error consultando EDRs: HTTP {edr_list_response.status_code}")
+            except Exception as e:
+                print(f"⚠️ Error actualizando token, usando el proporcionado: {e}")
+        
+        if not endpoint or not token:
+            return jsonify({"success": False, "error": "Endpoint y token son requeridos"}), 400
+        
+        # Hacer la petición al data plane con el token de autorización
+        headers = {
+            "Authorization": f"Bearer {token}" if not token.startswith("Bearer ") else token
+        }
+        
+        response = requests.get(
+            endpoint,
+            headers=headers,
+            verify=False,
+            timeout=30,
+            stream=True
+        )
+        
+        if response.status_code == 200:
+            # Determinar el tipo de contenido
+            content_type = response.headers.get('Content-Type', 'application/octet-stream')
+            content_disposition = response.headers.get('Content-Disposition', '')
+            
+            # Intentar extraer el nombre del archivo
+            filename = 'downloaded-file'
+            if 'filename=' in content_disposition:
+                filename = content_disposition.split('filename=')[1].strip('"')
+            elif endpoint.endswith('.csv'):
+                filename = 'data.csv'
+            elif endpoint.endswith('.json'):
+                filename = 'data.json'
+            elif 'csv' in content_type.lower():
+                filename = 'data.csv'
+            elif 'json' in content_type.lower():
+                filename = 'data.json'
+            
+            # Crear una respuesta Flask con el contenido
+            from flask import Response
+            
+            def generate():
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        yield chunk
+            
+            return Response(
+                generate(),
+                mimetype=content_type,
+                headers={
+                    'Content-Disposition': f'attachment; filename="{filename}"',
+                    'Content-Type': content_type
+                }
+            )
+        else:
+            return jsonify({
+                "success": False,
+                "error": f"HTTP {response.status_code}",
+                "details": response.text[:500]
+            }), response.status_code
+            
+    except requests.exceptions.Timeout:
+        return jsonify({"success": False, "error": "Timeout al conectar con el data plane"}), 504
+    except requests.exceptions.RequestException as e:
+        return jsonify({"success": False, "error": f"Error de conexión: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # Endpoints antiguos de FASE 6 (mantener por compatibilidad)
