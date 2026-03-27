@@ -2176,7 +2176,7 @@ def phase6_list_transfers():
                                 "limit": 100
                             },
                             verify=False,
-                            timeout=5
+                            timeout=20
                         )
                         
                         if edr_list_response.status_code == 200:
@@ -2197,7 +2197,7 @@ def phase6_list_transfers():
                                         f"{IKLN_API}/v3/edrs/{edr_id}/dataaddress",
                                         headers={"X-Api-Key": IKLN_API_KEY},
                                         verify=False,
-                                        timeout=5
+                                        timeout=20
                                     )
                                     
                                     if dataaddress_response.status_code == 200:
@@ -2515,7 +2515,7 @@ def download_file():
                             f"{IKLN_API}/v3/edrs/{edr_id}/dataaddress",
                             headers={"X-Api-Key": IKLN_API_KEY},
                             verify=False,
-                            timeout=5
+                            timeout=20
                         )
                         
                         if dataaddress_response.status_code == 200:
@@ -2524,6 +2524,8 @@ def download_file():
                             endpoint = edr_data.get("endpoint") or edr_data.get("baseUrl")
                             token = edr_data.get("authCode") or edr_data.get("authorization") or edr_data.get("authKey")
                             print(f"✅ Token actualizado exitosamente")
+                            print(f"📋 EDR Data keys: {list(edr_data.keys())}")
+                            print(f"🔑 Token format: {'Bearer presente' if token and token.startswith('Bearer ') else 'Bearer ausente'}")
                         else:
                             print(f"⚠️ No se pudo obtener dataaddress: HTTP {dataaddress_response.status_code}")
                     else:
@@ -2536,9 +2538,22 @@ def download_file():
         if not endpoint or not token:
             return jsonify({"success": False, "error": "Endpoint y token son requeridos"}), 400
         
-        # Hacer la petición al data plane con el token de autorización
+        # IMPORTANTE: El data plane EDC espera el token SIN el prefijo "Bearer "
+        # (verificado en UI edc-consumer que funciona correctamente)
+        # Si el token tiene "Bearer ", quitarlo; si no, usarlo tal cual
+        if token.startsWith("Bearer "):
+            auth_header = token[7:]  # Eliminar "Bearer " (7 caracteres)
+            print(f"🔧 Eliminado prefijo 'Bearer ' del token")
+        else:
+            auth_header = token
+            print(f"✅ Token sin prefijo 'Bearer ', usando tal cual")
+        
+        print(f"📡 Enviando request a data plane: {endpoint}")
+        print(f"🔑 Authorization header (primeros 50 chars): {auth_header[:50]}...")
+        
+        # Hacer la petición al data plane sin el prefijo "Bearer "
         headers = {
-            "Authorization": f"Bearer {token}" if not token.startswith("Bearer ") else token
+            "Authorization": auth_header
         }
         
         response = requests.get(
@@ -2596,6 +2611,128 @@ def download_file():
         return jsonify({"success": False, "error": f"Error de conexión: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/phase6/get-fresh-token/<transfer_id>', methods=['GET'])
+def get_fresh_token(transfer_id):
+    """
+    Obtiene un token fresco consultando el EDR actual para un transfer dado
+    Similar al 'Get Token' de la UI edc-consumer
+    """
+    try:
+        print(f"🔑 Getting fresh token for transfer: {transfer_id}")
+        
+        # Consultar EDRs actuales
+        edr_list_response = requests.post(
+            f"{IKLN_API}/v3/edrs/request",
+            headers={
+                "X-Api-Key": IKLN_API_KEY,
+                "Content-Type": "application/json"
+            },
+            json={
+                "@context": {"@vocab": "https://w3id.org/edc/v0.0.1/ns/"},
+                "@type": "QuerySpec"
+            },
+            verify=False,
+            timeout=20
+        )
+        
+        if edr_list_response.status_code != 200:
+            error_msg = f"Failed to fetch EDRs: HTTP {edr_list_response.status_code}"
+            print(f"❌ {error_msg}")
+            return jsonify({
+                "success": False,
+                "error": error_msg,
+                "details": edr_list_response.text[:200]
+            }), edr_list_response.status_code
+        
+        edr_list = edr_list_response.json()
+        
+        if not isinstance(edr_list, list) or len(edr_list) == 0:
+            print("❌ No EDRs found")
+            return jsonify({
+                "success": False,
+                "error": "No endpoint data references found",
+                "tip": "The transfer may not have reached STARTED state yet"
+            }), 404
+        
+        # Buscar el EDR correspondiente a este transfer
+        matching_edr = next(
+            (edr for edr in edr_list if edr.get("transferProcessId") == transfer_id),
+            None
+        )
+        
+        if not matching_edr:
+            print(f"❌ No matching EDR found for transfer {transfer_id}")
+            print(f"Available transfers: {[edr.get('transferProcessId') for edr in edr_list]}")
+            return jsonify({
+                "success": False,
+                "error": f"No EDR found for transfer {transfer_id}",
+                "available_transfers": [edr.get("transferProcessId") for edr in edr_list][:5]
+            }), 404
+        
+        print(f"✅ Found matching EDR: {matching_edr.get('@id')}")
+        
+        # Obtener el data address del EDR
+        edr_id = matching_edr.get("@id") or matching_edr.get("transferProcessId")
+        
+        dataaddress_response = requests.get(
+            f"{IKLN_API}/v3/edrs/{edr_id}/dataaddress",
+            headers={"X-Api-Key": IKLN_API_KEY},
+            verify=False,
+            timeout=20
+        )
+        
+        if dataaddress_response.status_code != 200:
+            error_msg = f"Failed to fetch data address: HTTP {dataaddress_response.status_code}"
+            print(f"❌ {error_msg}")
+            return jsonify({
+                "success": False,
+                "error": error_msg,
+                "details": dataaddress_response.text[:200]
+            }), dataaddress_response.status_code
+        
+        edr_data = dataaddress_response.json()
+        endpoint = edr_data.get("endpoint") or edr_data.get("baseUrl")
+        token = edr_data.get("authCode") or edr_data.get("authorization") or edr_data.get("authKey")
+        
+        if not token:
+            print("❌ No authorization token found in data address")
+            print(f"EDR data keys: {list(edr_data.keys())}")
+            return jsonify({
+                "success": False,
+                "error": "No authorization token found in EDR data address",
+                "edr_keys": list(edr_data.keys())
+            }), 500
+        
+        print(f"✅ Token obtained successfully (length: {len(token)} chars)")
+        
+        return jsonify({
+            "success": True,
+            "token": token,
+            "endpoint": endpoint,
+            "transfer_id": transfer_id,
+            "edr_id": edr_id
+        })
+        
+    except requests.exceptions.Timeout:
+        return jsonify({
+            "success": False,
+            "error": "Timeout connecting to EDC Management API"
+        }), 504
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            "success": False,
+            "error": f"Connection error: {str(e)}"
+        }), 500
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
 # Endpoints antiguos de FASE 6 (mantener por compatibilidad)

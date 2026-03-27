@@ -1741,19 +1741,58 @@
                         ${transfer.edrToken ? '<br><small>Token de autenticación disponible</small>' : ''}
                     </div>
                     ` : ''}
-                    <div style="margin-top: 12px; display: flex; gap: 8px;">
-                        <button class="btn-transfer" onclick="phase6RefreshTransfers()" style="flex: 1;">
+                    <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button class="btn-transfer" onclick="phase6RefreshTransfers()" style="flex: 1; min-width: 120px;">
                             🔄 Refresh Status
                         </button>
                         ${transfer.edrAvailable && transfer.edrEndpoint ? `
-                        <button class="btn-negotiate-enhanced" onclick="phase6DownloadData('${transfer.id}', '${transfer.edrEndpoint}', '${transfer.edrToken || ''}')" style="flex: 1;">
+                        <button class="btn-negotiate-enhanced" onclick="phase6ShowToken('${transfer.id}')" style="flex: 1; min-width: 120px; background: #2196F3;">
+                            🔑 Get Token
+                        </button>
+                        <button class="btn-negotiate-enhanced" onclick="phase6ShowCurl('${transfer.id}', '${transfer.edrEndpoint}', '${transfer.edrToken || ''}')" style="flex: 1; min-width: 120px; background: #673AB7;">
+                            📋 Show cURL
+                        </button>
+                        <button class="btn-negotiate-enhanced" onclick="phase6DownloadData('${transfer.id}', '${transfer.edrEndpoint}', '${transfer.edrToken || ''}')" style="flex: 1; min-width: 120px;">
                             📥 Download File
                         </button>
                         ` : `
-                        <button class="btn-transfer" onclick="phase6DebugTransfer('${transfer.id}')" style="flex: 1; background: #ff9800;">
+                        <button class="btn-transfer" onclick="phase6DebugTransfer('${transfer.id}')" style="flex: 1; min-width: 120px; background: #ff9800;">
                             🔍 Debug EDR
                         </button>
                         `}
+                    </div>
+                    <div id="token-display-${transfer.id}" style="display: none; margin-top: 12px; background: #f5f5f5; padding: 12px; border-radius: 4px; border: 1px solid #ddd;">
+                        <div style="margin-bottom: 8px; font-weight: bold; color: #2196F3;">🔑 Authorization Token</div>
+                        <textarea id="token-value-${transfer.id}" readonly style="width: 100%; min-height: 80px; padding: 8px; font-family: monospace; font-size: 11px; border: 1px solid #ccc; border-radius: 4px; background: white; resize: vertical;"></textarea>
+                        <div style="margin-top: 8px; display: flex; gap: 8px;">
+                            <button class="btn-transfer" onclick="phase6CopyToken('${transfer.id}')" style="flex: 1;">
+                                📋 Copy Token
+                            </button>
+                            <button class="btn-transfer" onclick="phase6RefreshToken('${transfer.id}')" style="flex: 1;">
+                                🔄 Refresh Token
+                            </button>
+                            <button class="btn-transfer" onclick="phase6HideToken('${transfer.id}')" style="flex: 1; background: #757575;">
+                                ✖️ Hide
+                            </button>
+                        </div>
+                        <div id="token-info-${transfer.id}" style="margin-top: 8px; font-size: 11px; color: #666;"></div>
+                    </div>
+                    <div id="curl-display-${transfer.id}" style="display: none; margin-top: 12px; background: #f5f5f5; padding: 12px; border-radius: 4px; border: 1px solid #673AB7;">
+                        <div style="margin-bottom: 8px; font-weight: bold; color: #673AB7;">📋 cURL Command</div>
+                        <div style="margin-bottom: 8px; font-size: 12px; color: #666;">Este es el comando exacto que se envía al Data Plane al pulsar "Download File":</div>
+                        <textarea id="curl-value-${transfer.id}" readonly style="width: 100%; min-height: 120px; padding: 8px; font-family: monospace; font-size: 11px; border: 1px solid #ccc; border-radius: 4px; background: #282c34; color: #61dafb; resize: vertical;"></textarea>
+                        <div style="margin-top: 8px; display: flex; gap: 8px;">
+                            <button class="btn-transfer" onclick="phase6CopyCurl('${transfer.id}')" style="flex: 1;">
+                                📋 Copy cURL
+                            </button>
+                            <button class="btn-transfer" onclick="phase6TestCurl('${transfer.id}')" style="flex: 1; background: #4CAF50;">
+                                ▶️ Test in Terminal
+                            </button>
+                            <button class="btn-transfer" onclick="phase6HideCurl('${transfer.id}')" style="flex: 1; background: #757575;">
+                                ✖️ Hide
+                            </button>
+                        </div>
+                        <div id="curl-info-${transfer.id}" style="margin-top: 8px; font-size: 11px; color: #666;"></div>
                     </div>
                 `;
                 
@@ -1777,23 +1816,24 @@
                 addLog(6, `🔄 Solicitando descarga al backend (evitando CORS)...`);
                 
                 // Hacer la petición al backend, que actuará como proxy
-            // El backend consultará el EDR actualizado si el token expiró
-            const response = await fetch(`${API_BASE}/phase6/download-file`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    transferId: transferId,
-                    token: edrToken
-                })
-            });
-            
-            addLog(6, `📡 HTTP ${response.status}`);
-            
-            if (response.ok) {
-                // Obtener el contenido como blob
-                const blob = await response.blob();
+                // El backend consultará el EDR actualizado si el token expiró
+                const response = await fetch(`${API_BASE}/phase6/download-file`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        transferId: transferId,
+                        endpoint: edrEndpoint,
+                        token: edrToken
+                    })
+                });
+                
+                addLog(6, `📡 HTTP ${response.status}`);
+                
+                if (response.ok) {
+                    // Obtener el contenido como blob
+                    const blob = await response.blob();
                     const contentType = response.headers.get('content-type') || 'application/octet-stream';
                     
                     addLog(6, `✅ Descarga exitosa! Tamaño: ${(blob.size / 1024).toFixed(2)} KB`);
@@ -1852,6 +1892,303 @@
             } catch (error) {
                 addLog(6, `❌ Error al descargar: ${error.message}`);
                 console.error('Download error:', error);
+            }
+        }
+        
+        // Mostrar el token de autorización del EDR
+        async function phase6ShowToken(transferId) {
+            addLog(6, `\n🔑 Obteniendo token de autorización...`);
+            addLog(6, `Transfer ID: ${transferId}`);
+            
+            try {
+                // Buscar el transfer en la lista actual
+                const transfer = phase6Transfers.find(t => t.id === transferId);
+                
+                if (!transfer) {
+                    addLog(6, `❌ Error: Transfer no encontrado`);
+                    return;
+                }
+                
+                // Mostrar el contenedor del token
+                const tokenDisplay = document.getElementById(`token-display-${transferId}`);
+                const tokenValue = document.getElementById(`token-value-${transferId}`);
+                const tokenInfo = document.getElementById(`token-info-${transferId}`);
+                
+                if (!tokenDisplay || !tokenValue || !tokenInfo) {
+                    addLog(6, `❌ Error: Elementos de UI no encontrados`);
+                    return;
+                }
+                
+                // Si ya tiene token en caché, usarlo
+                let token = transfer.edrToken;
+                let endpoint = transfer.edrEndpoint;
+                
+                // Si no hay token o queremos refrescarlo, consultar el EDR actual
+                if (!token) {
+                    addLog(6, `📡 Consultando EDR actualizado...`);
+                    
+                    const result = await callAPI(`/phase6/get-fresh-token/${transferId}`, 'GET');
+                    
+                    if (result.success && result.token) {
+                        token = result.token;
+                        endpoint = result.endpoint;
+                        addLog(6, `✅ Token obtenido exitosamente`);
+                    } else {
+                        addLog(6, `❌ Error al obtener token: ${result.error || 'Desconocido'}`);
+                        return;
+                    }
+                }
+                
+                // Actualizar la UI
+                tokenValue.value = token;
+                tokenDisplay.style.display = 'block';
+                
+                // Decodificar el JWT para obtener información
+                try {
+                    const parts = token.split('.');
+                    if (parts.length === 3) {
+                        const payload = JSON.parse(atob(parts[1]));
+                        const exp = payload.exp;
+                        
+                        if (exp) {
+                            const expiryDate = new Date(exp * 1000);
+                            const now = new Date();
+                            const minutesLeft = Math.floor((expiryDate - now) / 1000 / 60);
+                            
+                            if (minutesLeft > 0) {
+                                tokenInfo.innerHTML = `✅ Token válido por ${minutesLeft} minutos más (expira: ${expiryDate.toLocaleString('es-ES')})`;
+                                tokenInfo.style.color = '#2e7d32';
+                            } else {
+                                tokenInfo.innerHTML = `⚠️ Token expirado. Usa "Refresh Token" para obtener uno nuevo.`;
+                                tokenInfo.style.color = '#d32f2f';
+                            }
+                        }
+                    }
+                } catch (e) {
+                    tokenInfo.innerHTML = `📍 Endpoint: ${endpoint}`;
+                    tokenInfo.style.color = '#666';
+                }
+                
+                addLog(6, `✅ Token mostrado. Puedes copiarlo al portapapeles.`);
+                
+            } catch (error) {
+                addLog(6, `❌ Error: ${error.message}`);
+                console.error('Show token error:', error);
+            }
+        }
+        
+        // Copiar token al portapapeles
+        async function phase6CopyToken(transferId) {
+            const tokenValue = document.getElementById(`token-value-${transferId}`);
+            
+            if (!tokenValue || !tokenValue.value) {
+                addLog(6, `❌ Error: No hay token para copiar`);
+                return;
+            }
+            
+            try {
+                await navigator.clipboard.writeText(tokenValue.value);
+                addLog(6, `📋 Token copiado al portapapeles`);
+                
+                // Feedback visual temporal
+                const originalBg = tokenValue.style.background;
+                tokenValue.style.background = '#c8e6c9';
+                setTimeout(() => {
+                    tokenValue.style.background = originalBg;
+                }, 500);
+            } catch (error) {
+                addLog(6, `❌ Error al copiar: ${error.message}`);
+                // Fallback: seleccionar el texto
+                tokenValue.select();
+                addLog(6, `💡 Token seleccionado. Usa Ctrl+C para copiar.`);
+            }
+        }
+        
+        // Refrescar token (obtener uno nuevo)
+        async function phase6RefreshToken(transferId) {
+            addLog(6, `\n🔄 Refrescando token de autorización...`);
+            
+            try {
+                const result = await callAPI(`/phase6/get-fresh-token/${transferId}`, 'GET');
+                
+                if (result.success && result.token) {
+                    const tokenValue = document.getElementById(`token-value-${transferId}`);
+                    const tokenInfo = document.getElementById(`token-info-${transferId}`);
+                    
+                    if (tokenValue) {
+                        tokenValue.value = result.token;
+                        
+                        // Actualizar el transfer en la lista global
+                        const transfer = phase6Transfers.find(t => t.id === transferId);
+                        if (transfer) {
+                            transfer.edrToken = result.token;
+                            transfer.edrEndpoint = result.endpoint;
+                        }
+                        
+                        addLog(6, `✅ Token actualizado exitosamente`);
+                        
+                        // Actualizar info de expiración
+                        try {
+                            const parts = result.token.split('.');
+                            if (parts.length === 3) {
+                                const payload = JSON.parse(atob(parts[1]));
+                                const exp = payload.exp;
+                                
+                                if (exp) {
+                                    const expiryDate = new Date(exp * 1000);
+                                    const now = new Date();
+                                    const minutesLeft = Math.floor((expiryDate - now) / 1000 / 60);
+                                    
+                                    if (tokenInfo) {
+                                        tokenInfo.innerHTML = `✅ Token válido por ${minutesLeft} minutos (expira: ${expiryDate.toLocaleString('es-ES')})`;
+                                        tokenInfo.style.color = '#2e7d32';
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            if (tokenInfo) {
+                                tokenInfo.innerHTML = `✅ Token actualizado`;
+                                tokenInfo.style.color = '#2e7d32';
+                            }
+                        }
+                    }
+                } else {
+                    addLog(6, `❌ Error al refrescar token: ${result.error || 'Desconocido'}`);
+                }
+            } catch (error) {
+                addLog(6, `❌ Error: ${error.message}`);
+                console.error('Refresh token error:', error);
+            }
+        }
+        
+        // Ocultar la sección de token
+        function phase6HideToken(transferId) {
+            const tokenDisplay = document.getElementById(`token-display-${transferId}`);
+            if (tokenDisplay) {
+                tokenDisplay.style.display = 'none';
+            }
+        }
+        
+        // Mostrar el comando cURL equivalente
+        async function phase6ShowCurl(transferId, endpoint, token) {
+            addLog(6, `\n📋 Generando comando cURL...`);
+            addLog(6, `Transfer ID: ${transferId}`);
+            
+            try {
+                // Si no hay token, obtener uno fresco
+                if (!token) {
+                    addLog(6, `📡 Obteniendo token actualizado...`);
+                    const result = await callAPI(`/phase6/get-fresh-token/${transferId}`, 'GET');
+                    
+                    if (result.success && result.token) {
+                        token = result.token;
+                        endpoint = result.endpoint;
+                        addLog(6, `✅ Token obtenido`);
+                    } else {
+                        addLog(6, `❌ Error al obtener token: ${result.error || 'Desconocido'}`);
+                        return;
+                    }
+                }
+                
+                // EDC Data Plane espera el token SIN el prefijo "Bearer "
+                // (formato verificado en UI edc-consumer que funciona correctamente)
+                let authHeader = token;
+                if (token.startsWith('Bearer ')) {
+                    authHeader = token.substring(7);  // Eliminar "Bearer " (7 caracteres)
+                }
+                
+                // Generar el comando cURL sin "Bearer " en Authorization
+                const curlCommand = `curl -X GET '${endpoint}' \\
+  -H 'Authorization: ${authHeader}' \\
+  -H 'Accept: */*' \\
+  --insecure \\
+  --output downloaded-file.csv`;
+                
+                // Mostrar el panel y actualizar el contenido
+                const curlDisplay = document.getElementById(`curl-display-${transferId}`);
+                const curlValue = document.getElementById(`curl-value-${transferId}`);
+                const curlInfo = document.getElementById(`curl-info-${transferId}`);
+                
+                if (!curlDisplay || !curlValue || !curlInfo) {
+                    addLog(6, `❌ Error: Elementos de UI no encontrados`);
+                    return;
+                }
+                
+                curlValue.value = curlCommand;
+                curlDisplay.style.display = 'block';
+                
+                // Información adicional
+                curlInfo.innerHTML = `✅ Comando generado. <strong>Nota:</strong> El token expira en ~5 minutos. ` +
+                    `Endpoint: <code style="font-size: 10px;">${endpoint}</code>`;
+                curlInfo.style.color = '#666';
+                
+                addLog(6, `✅ Comando cURL generado y mostrado`);
+                addLog(6, `💡 Puedes copiarlo y ejecutarlo en tu terminal`);
+                
+            } catch (error) {
+                addLog(6, `❌ Error: ${error.message}`);
+                console.error('Show cURL error:', error);
+            }
+        }
+        
+        // Copiar comando cURL al portapapeles
+        async function phase6CopyCurl(transferId) {
+            const curlValue = document.getElementById(`curl-value-${transferId}`);
+            
+            if (!curlValue || !curlValue.value) {
+                addLog(6, `❌ Error: No hay comando cURL para copiar`);
+                return;
+            }
+            
+            try {
+                await navigator.clipboard.writeText(curlValue.value);
+                addLog(6, `📋 Comando cURL copiado al portapapeles`);
+                addLog(6, `💡 Puedes pegarlo en tu terminal y ejecutarlo`);
+                
+                // Feedback visual temporal
+                const originalBg = curlValue.style.background;
+                curlValue.style.background = '#1e3a1e';
+                setTimeout(() => {
+                    curlValue.style.background = originalBg;
+                }, 500);
+            } catch (error) {
+                addLog(6, `❌ Error al copiar: ${error.message}`);
+                // Fallback: seleccionar el texto
+                curlValue.select();
+                addLog(6, `💡 Comando seleccionado. Usa Ctrl+C para copiar.`);
+            }
+        }
+        
+        // Dar instrucciones para probar el comando cURL
+        function phase6TestCurl(transferId) {
+            const curlValue = document.getElementById(`curl-value-${transferId}`);
+            
+            if (!curlValue || !curlValue.value) {
+                addLog(6, `❌ Error: No hay comando cURL`);
+                return;
+            }
+            
+            addLog(6, `\n▶️ Para probar el comando cURL:`);
+            addLog(6, ``);
+            addLog(6, `1️⃣ Copia el comando pulsando "📋 Copy cURL"`);
+            addLog(6, `2️⃣ Abre una terminal en tu sistema`);
+            addLog(6, `3️⃣ Pega y ejecuta el comando`);
+            addLog(6, `4️⃣ El archivo se descargará como "downloaded-file.csv"`);
+            addLog(6, ``);
+            addLog(6, `⚠️ IMPORTANTE: El token expira en ~5 minutos.`);
+            addLog(6, `   Si obtienes HTTP 403, pulsa "🔄 Refresh Token" y genera el cURL de nuevo.`);
+            addLog(6, ``);
+            addLog(6, `✅ Ejemplo de salida esperada:`);
+            addLog(6, `   % Total    % Received  Time    Time     Current`);
+            addLog(6, `                            Total   Spent    Speed`);
+            addLog(6, `   100  1234  100  1234     0     0   5432     0 --:--:-- --:--:--`);
+        }
+        
+        // Ocultar la sección de cURL
+        function phase6HideCurl(transferId) {
+            const curlDisplay = document.getElementById(`curl-display-${transferId}`);
+            if (curlDisplay) {
+                curlDisplay.style.display = 'none';
             }
         }
         
