@@ -2391,22 +2391,34 @@ def debug_transfer(transfer_id):
 
 @app.route('/api/phase6/cleanup-transfers', methods=['POST'])
 def cleanup_transfers():
-    """Elimina transferencias antiguas para limpiar el estado del conector
-    NOTA: EDC v3 no soporta DELETE de transfer processes. 
-    Esta función está deshabilitada, pero se mantiene para futura referencia."""
+    """Documenta que EDC Management API v3 no soporta DELETE de transferencias
+    y proporciona alternativa para eliminarlas desde la base de datos"""
     results = []
     
-    results.append(log_message("ℹ️ Limpieza de transferencias no disponible en EDC v3", "info"))
+    results.append(log_message("ℹ️ Limpieza de transferencias vía API no disponible en EDC v3", "info"))
     results.append("")
     results.append(log_message("📋 Información:", "info"))
-    results.append(log_message("   • EDC Management API v3 no soporta DELETE /v3/transferprocesses/{id}", "info"))
-    results.append(log_message("   • Las transferencias permanecen en el sistema para auditoría", "info"))
-    results.append(log_message("   • Esto es el comportamiento esperado de EDC", "info"))
+    results.append(log_message("   • EDC Management API v3 NO soporta DELETE /v3/transferprocesses/{id}", "info"))
+    results.append(log_message("   • El endpoint devuelve HTTP 405 (Method Not Allowed)", "info"))
+    results.append(log_message("   • Las transferencias permanecen en base de datos para auditoría", "info"))
     results.append("")
-    results.append(log_message("💡 Alternativas:", "info"))
-    results.append(log_message("   • Las transferencias viejas no afectan el rendimiento", "info"))
-    results.append(log_message("   • El dashboard solo muestra la más reciente", "info"))
-    results.append(log_message("   • Puedes filtrarlas por fecha si lo implementas", "info"))
+    results.append(log_message("🔧 Alternativa - Eliminar desde Base de Datos PostgreSQL:", "info"))
+    results.append("")
+    results.append(log_message("   1️⃣ Conectar directamente a PostgreSQL:", "info"))
+    results.append(log_message("      kubectl -n umbrella exec -it deployment/ikln-edc-postgresql -- psql -U edc -d edc", "info"))
+    results.append("")
+    results.append(log_message("   2️⃣ Ver transferencias:", "info"))
+    results.append(log_message("      SELECT id, state, asset_id FROM edc_transfer_process WHERE state = 'TERMINATED';", "info"))
+    results.append("")
+    results.append(log_message("   3️⃣ Eliminar transferencias en estados finales:", "info"))
+    results.append(log_message("      DELETE FROM edc_transfer_process WHERE state IN ('TERMINATED', 'FAILED', 'COMPLETED');", "info"))
+    results.append("")
+    results.append(log_message("💡 O usa el script automatizado:", "info"))
+    results.append(log_message("   cd /home/xmendialdua/projects/assembly/iflex/dashboard", "info"))
+    results.append(log_message("   ./cleanup-transfers-db.sh terminated", "info"))
+    results.append("")
+    results.append(log_message("⚠️ IMPORTANTE: Eliminar de base de datos es irreversible", "info"))
+    results.append(log_message("   Solo elimina transferencias que ya no necesites", "info"))
     
     return jsonify({"success": True, "logs": results, "deleted": 0, "failed": 0})
 
@@ -2541,7 +2553,7 @@ def download_file():
         # IMPORTANTE: El data plane EDC espera el token SIN el prefijo "Bearer "
         # (verificado en UI edc-consumer que funciona correctamente)
         # Si el token tiene "Bearer ", quitarlo; si no, usarlo tal cual
-        if token.startsWith("Bearer "):
+        if token.startswith("Bearer "):
             auth_header = token[7:]  # Eliminar "Bearer " (7 caracteres)
             print(f"🔧 Eliminado prefijo 'Bearer ' del token")
         else:
