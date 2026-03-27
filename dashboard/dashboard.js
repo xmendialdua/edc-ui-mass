@@ -48,6 +48,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             loadConfig();
             initializeNegotiationsFilters();
+            initializeTransfersFilters();
         });
 
         // Toggle phase accordion
@@ -159,6 +160,20 @@
             }
             
             addLog(1, '\n✅ Verificación de trust completada');
+        }
+
+        async function checkDIDConfiguration() {
+            clearLogs(1);
+            addLog(1, '🆔 Verificando configuración DID de los conectores...');
+            addLog(1, '⏳ Esto puede tardar unos segundos...');
+            
+            const result = await callAPI('/phase1/check-did-configuration');
+            
+            if (result.logs) {
+                result.logs.forEach(log => addLog(1, log));
+            }
+            
+            addLog(1, '\n✅ Verificación de configuración DID completada');
         }
 
         async function seedPartners() {
@@ -855,6 +870,20 @@
         let phase6Negotiations = [];
         let phase6Transfers = [];
         
+        // Estado de filtros para negotiations
+        let negotiationsFilters = {
+            timeRange: 'all',      // all, 30min, 2hours, 1day, 2days
+            sortBy: 'time',        // time, name
+            sortDirection: 'newest' // newest, oldest
+        };
+        
+        // Estado de filtros para transfers
+        let transfersFilters = {
+            timeRange: 'all',      // all, 30min, 2hours, 1day, 2days
+            sortBy: 'time',        // time, name
+            sortDirection: 'newest' // newest, oldest
+        };
+        
         // Función para calcular tiempo relativo
         function getRelativeTime(timestamp) {
             if (!timestamp) return 'Unknown';
@@ -1277,13 +1306,6 @@
             });
         }
         
-        // Estado de filtros
-        const negotiationsFilters = {
-            timeRange: 'all',
-            sortBy: 'time',
-            sortDirection: 'newest'
-        };
-        
         // Toggle del panel de filtros
         function toggleNegotiationsFilter() {
             const dropdown = document.getElementById('negotiations-filter-dropdown');
@@ -1385,6 +1407,103 @@
             updatePhase6NegotiationsList();
         }
         
+        // === FUNCIONES DE FILTRADO PARA TRANSFERS ===
+        
+        // Toggle dropdown de filtros para transfers
+        function toggleTransfersFilter() {
+            const dropdown = document.getElementById('transfers-filter-dropdown');
+            if (dropdown) {
+                dropdown.classList.toggle('show');
+            }
+        }
+        
+        // Seleccionar filtro de transfer
+        function selectTransferFilter(filterType, value, element) {
+            // Actualizar estado
+            if (filterType === 'time-range') {
+                transfersFilters.timeRange = value;
+            } else if (filterType === 'sort-by') {
+                transfersFilters.sortBy = value;
+            } else if (filterType === 'sort-direction') {
+                transfersFilters.sortDirection = value;
+            }
+            
+            // Actualizar UI (marcar como activo)
+            const group = element.closest('.filter-group');
+            if (group) {
+                group.querySelectorAll('.filter-option').forEach(opt => opt.classList.remove('active'));
+                element.classList.add('active');
+            }
+            
+            // Aplicar filtros
+            updatePhase6TransfersList();
+            
+            // Cerrar dropdown
+            const dropdown = document.getElementById('transfers-filter-dropdown');
+            if (dropdown) {
+                dropdown.classList.remove('show');
+            }
+        }
+        
+        // Filtrar transfers por rango temporal
+        function filterTransfersByTimeRange(transfers, range) {
+            if (range === 'all') return transfers;
+            
+            const now = Date.now();
+            const ranges = {
+                '30min': 30 * 60 * 1000,
+                '2hours': 2 * 60 * 60 * 1000,
+                '1day': 24 * 60 * 60 * 1000,
+                '2days': 2 * 24 * 60 * 60 * 1000
+            };
+            
+            const threshold = now - ranges[range];
+            
+            return transfers.filter(t => {
+                const createdAt = new Date(t.createdAt);
+                return createdAt >= threshold;
+            });
+        }
+        
+        // Ordenar transfers
+        function sortTransfers(transfers, sortBy, direction) {
+            const sorted = [...transfers];
+            
+            if (sortBy === 'time') {
+                sorted.sort((a, b) => {
+                    const timeA = new Date(a.createdAt).getTime();
+                    const timeB = new Date(b.createdAt).getTime();
+                    return direction === 'newest' ? timeB - timeA : timeA - timeB;
+                });
+            } else if (sortBy === 'name') {
+                sorted.sort((a, b) => {
+                    const nameA = (a.assetId || '').toLowerCase();
+                    const nameB = (b.assetId || '').toLowerCase();
+                    const comparison = nameA.localeCompare(nameB);
+                    return direction === 'newest' ? -comparison : comparison;
+                });
+            }
+            
+            return sorted;
+        }
+        
+        // Inicializar filtros de transfers con valores por defecto
+        function initializeTransfersFilters() {
+            setTimeout(() => {
+                // Time range: All Time
+                const timeRangeAll = document.querySelector('#transfers-filter-dropdown [data-filter="time-range"][data-value="all"]');
+                if (timeRangeAll) timeRangeAll.classList.add('active');
+                
+                // Sort by: Time
+                const sortByTime = document.querySelector('#transfers-filter-dropdown [data-filter="sort-by"][data-value="time"]');
+                if (sortByTime) sortByTime.classList.add('active');
+                
+                // Sort direction: Newest First
+                const sortNewest = document.querySelector('#transfers-filter-dropdown [data-filter="sort-direction"][data-value="newest"]');
+                if (sortNewest) sortNewest.classList.add('active');
+            }, 100);
+        }
+        
         // Iniciar transferencia para un contrato
         async function phase6InitiateTransfer(contractAgreementId, assetId) {
             addLog(6, `\n📥 Iniciando transferencia para contrato: ${contractAgreementId}`);
@@ -1436,9 +1555,14 @@
                 return;
             }
             
+            // Aplicar filtros
+            let filteredTransfers = [...phase6Transfers];
+            filteredTransfers = filterTransfersByTimeRange(filteredTransfers, transfersFilters.timeRange);
+            filteredTransfers = sortTransfers(filteredTransfers, transfersFilters.sortBy, transfersFilters.sortDirection);
+            
             transfersList.innerHTML = '';
             
-            phase6Transfers.forEach(transfer => {
+            filteredTransfers.forEach(transfer => {
                 const card = document.createElement('div');
                 const isCompleted = transfer.state === 'COMPLETED' || transfer.state === 'STARTED';
                 const isInProgress = transfer.state === 'REQUESTED' || transfer.state === 'STARTING';
@@ -1451,6 +1575,10 @@
                 if (isCompleted) statusClass = 'completed';
                 if (transfer.state === 'FAILED') statusClass = 'failed';
                 
+                // Formatear timestamp
+                const createdDate = transfer.createdAt ? new Date(transfer.createdAt) : null;
+                const timeStr = createdDate ? createdDate.toLocaleString('es-ES') : 'N/A';
+                
                 card.innerHTML = `
                     <div class="negotiation-card-header">
                         <div>
@@ -1458,10 +1586,26 @@
                         </div>
                     </div>
                     <div class="negotiation-details">
-                        <p><strong>Transfer ID:</strong> ${transfer.id}</p>
-                        <p><strong>Asset ID:</strong> ${transfer.assetId}</p>
-                        <p><strong>Contract ID:</strong> ${transfer.contractId}</p>
-                        <p><strong>Counter Party:</strong> ${transfer.counterPartyId || 'N/A'}</p>
+                        <div class="negotiation-info-item">
+                            <span class="negotiation-info-label">Transfer ID</span>
+                            <span class="negotiation-info-value">${transfer.id}</span>
+                        </div>
+                        <div class="negotiation-info-item">
+                            <span class="negotiation-info-label">Asset ID</span>
+                            <span class="negotiation-info-value">${transfer.assetId}</span>
+                        </div>
+                        <div class="negotiation-info-item">
+                            <span class="negotiation-info-label">Contract ID</span>
+                            <span class="negotiation-info-value">${transfer.contractId}</span>
+                        </div>
+                        <div class="negotiation-info-item">
+                            <span class="negotiation-info-label">Counter Party</span>
+                            <span class="negotiation-info-value">${transfer.counterPartyId || 'N/A'}</span>
+                        </div>
+                        <div class="negotiation-info-item">
+                            <span class="negotiation-info-label">Created At</span>
+                            <span class="negotiation-info-value">${timeStr}</span>
+                        </div>
                     </div>
                 `;
                 

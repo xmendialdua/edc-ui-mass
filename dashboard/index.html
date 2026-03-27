@@ -1598,6 +1598,9 @@
                         <button class="btn btn-success" onclick="checkTrust()">
                             <span>🤝</span> Verificar Trust Partners
                         </button>
+                        <button class="btn btn-warning" onclick="checkDIDConfiguration()">
+                            <span>🆔</span> Verificar Configuración DID
+                        </button>
                         <button class="btn btn-warning" onclick="seedPartners()">
                             <span>🌱</span> Ejecutar Seeding (si necesario)
                         </button>
@@ -1890,35 +1893,44 @@
             </div>
             <div class="phase-content">
                 <div class="phase-body">
-                    <div class="description">
-                        <h3>🎯 Objetivo</h3>
-                        <p>Ejecutar el flujo completo de consumo de datos: descubrir assets en el catálogo de MASS, negociar contratos y realizar transferencias de datos.</p>
-                        
-                        <h3 style="margin-top: 15px;">📖 Flujo de Consumer Mode</h3>
-                        <p><strong>1. Descubrimiento (Catalog Discovery)</strong></p>
-                        <ul>
-                            <li>IKLN consulta el catálogo de MASS mediante el protocolo DSP</li>
-                            <li>Se muestran los datasets disponibles y sus assets asociados</li>
-                            <li>Cada asset incluye sus políticas y metadatos</li>
-                        </ul>
+                    <!-- Panel desplegable: Objetivo -->
+                    <div id="phase6-objective-panel" class="collapsible-panel">
+                        <div class="panel-header" onclick="togglePanel('phase6-objective-panel')">
+                            <span class="panel-title">🎯 Objetivo y Flujo de Consumer Mode</span>
+                            <span class="panel-toggle">▼</span>
+                        </div>
+                        <div class="panel-content open">
+                            <div class="description">
+                                <h3>🎯 Objetivo</h3>
+                                <p>Ejecutar el flujo completo de consumo de datos: descubrir assets en el catálogo de MASS, negociar contratos y realizar transferencias de datos.</p>
+                                
+                                <h3 style="margin-top: 15px;">📖 Flujo de Consumer Mode</h3>
+                                <p><strong>1. Descubrimiento (Catalog Discovery)</strong></p>
+                                <ul>
+                                    <li>IKLN consulta el catálogo de MASS mediante el protocolo DSP</li>
+                                    <li>Se muestran los datasets disponibles y sus assets asociados</li>
+                                    <li>Cada asset incluye sus políticas y metadatos</li>
+                                </ul>
 
-                        <p style="margin-top: 10px;"><strong>2. Negociación (Contract Negotiation)</strong></p>
-                        <ul>
-                            <li>Se selecciona un asset y se inicia la negociación de contrato</li>
-                            <li>MASS evalúa las políticas y responde con el estado de la negociación</li>
-                            <li>Estados posibles: REQUESTED → NEGOTIATING → AGREED → FINALIZED</li>
-                            <li>Si falla, se muestra el motivo del error</li>
-                        </ul>
+                                <p style="margin-top: 10px;"><strong>2. Negociación (Contract Negotiation)</strong></p>
+                                <ul>
+                                    <li>Se selecciona un asset y se inicia la negociación de contrato</li>
+                                    <li>MASS evalúa las políticas y responde con el estado de la negociación</li>
+                                    <li>Estados posibles: REQUESTED → NEGOTIATING → AGREED → FINALIZED</li>
+                                    <li>Si falla, se muestra el motivo del error</li>
+                                </ul>
 
-                        <p style="margin-top: 10px;"><strong>3. Transferencia (Data Transfer)</strong></p>
-                        <ul>
-                            <li>Con un contrato finalizado, se inicia la transferencia de datos</li>
-                            <li>MASS Data Plane proporciona acceso al recurso</li>
-                            <li>Se monitorea el progreso de la transferencia</li>
-                        </ul>
+                                <p style="margin-top: 10px;"><strong>3. Transferencia (Data Transfer)</strong></p>
+                                <ul>
+                                    <li>Con un contrato finalizado, se inicia la transferencia de datos</li>
+                                    <li>MASS Data Plane proporciona acceso al recurso</li>
+                                    <li>Se monitorea el progreso de la transferencia</li>
+                                </ul>
 
-                        <h3 style="margin-top: 15px;">⏱️ Nota</h3>
-                        <p>Los procesos de negociación y transferencia son asíncronos y pueden tardar varios segundos.</p>
+                                <h3 style="margin-top: 15px;">⏱️ Nota</h3>
+                                <p>Los procesos de negociación y transferencia son asíncronos y pueden tardar varios segundos.</p>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="actions">
@@ -2055,10 +2067,69 @@
                     <!-- Panel desplegable: Initiated Transfer -->
                     <div id="phase6-transfers-panel" class="collapsible-panel" style="display: none;">
                         <div class="panel-header" onclick="togglePanel('phase6-transfers-panel')">
-                            <span class="panel-title">📥 Initiated Transfers</span>
+                            <div style="display: flex; align-items: center; flex: 1;">
+                                <span class="panel-title">📥 Initiated Transfers</span>
+                                <button class="filter-toggle-icon" onclick="event.stopPropagation(); toggleTransfersFilter()" title="Filters">
+                                    🔽
+                                </button>
+                            </div>
                             <span class="panel-toggle">▼</span>
                         </div>
                         <div class="panel-content open">
+                            <!-- Filtros -->
+                            <div class="negotiations-filters">
+                                <!-- Dropdown de filtros avanzados -->
+                                <div id="transfers-filter-dropdown" class="filter-dropdown">
+                                    <!-- Grupo 1: Time Range -->
+                                    <div class="filter-group">
+                                        <div class="filter-option" data-filter="time-range" data-value="all" onclick="selectTransferFilter('time-range', 'all', this)">
+                                            <span>All Time</span>
+                                            <span class="checkmark">✓</span>
+                                        </div>
+                                        <div class="filter-option" data-filter="time-range" data-value="30min" onclick="selectTransferFilter('time-range', '30min', this)">
+                                            <span>Last 30 Min</span>
+                                            <span class="checkmark">✓</span>
+                                        </div>
+                                        <div class="filter-option" data-filter="time-range" data-value="2hours" onclick="selectTransferFilter('time-range', '2hours', this)">
+                                            <span>Last 2 Hours</span>
+                                            <span class="checkmark">✓</span>
+                                        </div>
+                                        <div class="filter-option" data-filter="time-range" data-value="1day" onclick="selectTransferFilter('time-range', '1day', this)">
+                                            <span>Last day</span>
+                                            <span class="checkmark">✓</span>
+                                        </div>
+                                        <div class="filter-option" data-filter="time-range" data-value="2days" onclick="selectTransferFilter('time-range', '2days', this)">
+                                            <span>Last 2 days</span>
+                                            <span class="checkmark">✓</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Grupo 2: Sort By -->
+                                    <div class="filter-group">
+                                        <div class="filter-option" data-filter="sort-by" data-value="time" onclick="selectTransferFilter('sort-by', 'time', this)">
+                                            <span>Sort by Time</span>
+                                            <span class="checkmark">✓</span>
+                                        </div>
+                                        <div class="filter-option" data-filter="sort-by" data-value="name" onclick="selectTransferFilter('sort-by', 'name', this)">
+                                            <span>Sort by Name</span>
+                                            <span class="checkmark">✓</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Grupo 3: Sort Direction -->
+                                    <div class="filter-group">
+                                        <div class="filter-option" data-filter="sort-direction" data-value="oldest" onclick="selectTransferFilter('sort-direction', 'oldest', this)">
+                                            <span>Oldest First</span>
+                                            <span class="checkmark">✓</span>
+                                        </div>
+                                        <div class="filter-option" data-filter="sort-direction" data-value="newest" onclick="selectTransferFilter('sort-direction', 'newest', this)">
+                                            <span>Newest First</span>
+                                            <span class="checkmark">✓</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Lista de transferencias -->
                             <div id="phase6-transfers-list" class="transfers-list">
                                 <p style="color: #999; text-align: center; padding: 20px;">
                                     No hay transferencias todavía
@@ -2145,6 +2216,6 @@
         </div>
     </div>
 
-    <script src="dashboard.js?v=3.2"></script>
+    <script src="dashboard.js?v=3.5"></script>
 </body>
 </html>

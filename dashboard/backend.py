@@ -755,6 +755,125 @@ def check_trust():
     })
 
 
+@app.route('/api/phase1/check-did-configuration', methods=['POST'])
+def check_did_configuration():
+    """Verifica la configuración DID de los conectores"""
+    results = []
+    
+    results.append(log_message("=" * 60, "info"))
+    results.append(log_message("🆔 VERIFICACIÓN DE CONFIGURACIÓN DID", "info"))
+    results.append(log_message("=" * 60, "info"))
+    results.append("")
+    
+    # Verificar MASS EDC
+    results.append(log_message("🟢 MASS EDC Connector:", "info"))
+    results.append("")
+    
+    # Obtener variables de entorno del pod de MASS control-plane
+    mass_env_cmd = "kubectl get pod -n umbrella -l app.kubernetes.io/name=mass-edc-controlplane -o json 2>/dev/null | jq -r '.items[0].spec.containers[0].env[] | select(.name | test(\"PARTICIPANT|IATP|DID\"; \"i\")) | \"  \" + .name + \": \" + (.value // \"<from valueFrom>\")' 2>&1 || echo 'No se encontraron variables'"
+    
+    results.append(log_message("  Variables de configuración:", "info"))
+    mass_env_result = run_kubectl_command(mass_env_cmd)
+    
+    if mass_env_result['success'] and mass_env_result['stdout'].strip():
+        for line in mass_env_result['stdout'].strip().split('\n'):
+            if line.strip() and 'No se encontraron' not in line:
+                results.append(log_message(line, "info"))
+    else:
+        results.append(log_message("    ⚠️ No se pudieron obtenerlas variables", "warning"))
+    
+    results.append("")
+    
+    # Verificar DID document de MASS
+    results.append(log_message("  Verificando DID document:", "info"))
+    mass_did_cmd = "curl -k -s https://edc-mass-control.51.178.94.25.nip.io/.well-known/did.json 2>&1 | head -20"
+    mass_did_result = run_kubectl_command(mass_did_cmd)
+    
+    if mass_did_result['success']:
+        did_output = mass_did_result['stdout'].strip()
+        if '<!DOCTYPE' in did_output or '<html' in did_output or '404' in did_output:
+            results.append(log_message("    ❌ DID document NO disponible (404 Not Found)", "error"))
+            results.append(log_message("    → El conector NO está exponiendo su DID document", "error"))
+        elif '"@context"' in did_output or '"id"' in did_output:
+            results.append(log_message("    ✅ DID document DISPONIBLE", "success"))
+            # Truncar output si es muy largo
+            if len(did_output) > 200:
+                results.append(log_message(f"    Contenido: {did_output[:200]}...", "info"))
+            else:
+                results.append(log_message(f"    Contenido: {did_output}", "info"))
+        else:
+            results.append(log_message(f"    ⚠️ Respuesta inesperada: {did_output[:100]}", "warning"))
+    else:
+        results.append(log_message(f"    ❌ Error verificando DID document: {mass_did_result['stderr']}", "error"))
+    
+    results.append("")
+    results.append(log_message("-" * 60, "info"))
+    results.append("")
+    
+    # Verificar IKLN EDC
+    results.append(log_message("🔷 IKLN EDC Connector:", "info"))
+    results.append("")
+    
+    # Obtener variables de entorno del pod de IKLN control-plane
+    ikln_env_cmd = "kubectl get pod -n umbrella -l app.kubernetes.io/name=ikln-edc-controlplane -o json 2>/dev/null | jq -r '.items[0].spec.containers[0].env[] | select(.name | test(\"PARTICIPANT|IATP|DID\"; \"i\")) | \"  \" + .name + \": \" + (.value // \"<from valueFrom>\")' 2>&1 || echo 'No se encontraron variables'"
+    
+    results.append(log_message("  Variables de configuración:", "info"))
+    ikln_env_result = run_kubectl_command(ikln_env_cmd)
+    
+    if ikln_env_result['success'] and ikln_env_result['stdout'].strip():
+        for line in ikln_env_result['stdout'].strip().split('\n'):
+            if line.strip() and 'No se encontraron' not in line:
+                results.append(log_message(line, "info"))
+    else:
+        results.append(log_message("    ⚠️ No se pudieron obtener las variables", "warning"))
+    
+    results.append("")
+    
+    # Verificar DID document de IKLN
+    results.append(log_message("  Verificando DID document:", "info"))
+    ikln_did_cmd = "curl -k -s https://edc-ikln-control.51.178.94.25.nip.io/.well-known/did.json 2>&1 | head -20"
+    ikln_did_result = run_kubectl_command(ikln_did_cmd)
+    
+    if ikln_did_result['success']:
+        did_output = ikln_did_result['stdout'].strip()
+        if '<!DOCTYPE' in did_output or '<html' in did_output or '404' in did_output:
+            results.append(log_message("    ❌ DID document NO disponible (404 Not Found)", "error"))
+            results.append(log_message("    → El conector NO está exponiendo su DID document", "error"))
+        elif '"@context"' in did_output or '"id"' in did_output:
+            results.append(log_message("    ✅ DID document DISPONIBLE", "success"))
+            if len(did_output) > 200:
+                results.append(log_message(f"    Contenido: {did_output[:200]}...", "info"))
+            else:
+                results.append(log_message(f"    Contenido: {did_output}", "info"))
+        else:
+            results.append(log_message(f"    ⚠️ Respuesta inesperada: {did_output[:100]}", "warning"))
+    else:
+        results.append(log_message(f"    ❌ Error verificando DID document: {ikln_did_result['stderr']}", "error"))
+    
+    results.append("")
+    results.append(log_message("=" * 60, "info"))
+    results.append(log_message("📋 DIAGNÓSTICO:", "info"))
+    results.append(log_message("=" * 60, "info"))
+    results.append("")
+    results.append(log_message("✅ DID esperado para MASS:", "info"))
+    results.append(log_message("   did:web:ssi-dim-wallet-stub.51.178.94.25.nip.io:BPNL00000000MASS", "info"))
+    results.append("")
+    results.append(log_message("✅ DID esperado para IKLN:", "info"))
+    results.append(log_message("   did:web:ssi-dim-wallet-stub.51.178.94.25.nip.io:BPNL00000002IKLN", "info"))
+    results.append("")
+    results.append(log_message("⚠️  Si los DIDs configurados NO coinciden con los esperados,", "warning"))
+    results.append(log_message("    necesitas redesplegar los conectores con los values corregidos.", "warning"))
+    results.append("")
+    results.append(log_message("📂 Para redesplegar:", "info"))
+    results.append(log_message("   cd /home/xmendialdua/projects/assembly/iflex/edc-redeploy", "info"))
+    results.append(log_message("   ./redeploy-connectors.sh", "info"))
+    
+    return jsonify({
+        "success": True,
+        "logs": results
+    })
+
+
 @app.route('/api/phase1/seed-partners', methods=['POST'])
 def seed_partners():
     """Ejecuta el script de seeding de business partners"""
