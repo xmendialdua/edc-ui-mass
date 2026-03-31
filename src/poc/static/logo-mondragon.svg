@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 80" width="400" height="80">
+  <!-- Red circle with white M -->
+  <circle cx="40" cy="40" r="35" fill="#E30613"/>
+  <text x="40" y="58" font-family="Arial, sans-serif" font-size="52" font-weight="bold" fill="white" text-anchor="middle">M</text>
+  
+  <!-- Text: MONDRAGON ASSEMBLY -->
+  <text x="95" y="35" font-family="Arial, sans-serif" font-size="20" font-weight="300" fill="#4A4A4A" letter-spacing="2">MONDRAGON</text>
+  <text x="95" y="58" font-family="Arial, sans-serif" font-size="20" font-weight="600" fill="#4A4A4A" letter-spacing="2">ASSEMBLY</text>
+</svg>

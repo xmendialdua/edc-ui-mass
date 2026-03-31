@@ -1,0 +1,42 @@
+{
+  "info": "Configuración para POC Dashboard EDC - FastAPI implementation",
+  "mass": {
+    "api": "https://edc-mass-control.51.178.94.25.nip.io/management",
+    "dsp": "https://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp",
+    "api_key": "mass-api-key-change-in-production",
+    "bpn": "BPNL00000000MASS"
+  },
+  "ikln": {
+    "api": "https://edc-ikln-control.51.178.94.25.nip.io/management",
+    "dsp": "https://edc-ikln-control.51.178.94.25.nip.io/api/v1/dsp",
+    "api_key": "ikln-api-key-change-in-production",
+    "bpn": "BPNL00000002IKLN"
+  },
+  "dataspace_partners": [
+    {
+      "bpn": "BPNL00000002IKLN",
+      "name": "IKERLAN",
+      "description": "IKERLAN Technology Centre"
+    },
+    {
+      "bpn": "BPNL00000000MASS",
+      "name": "MASS",
+      "description": "MASS Connector"
+    },
+    {
+      "bpn": "BPNL00000003EDLN",
+      "name": "EDERLAN",
+      "description": "Ederlan Group"
+    },
+    {
+      "bpn": "BPNL00000004GSTP",
+      "name": "GESTAMP",
+      "description": "Gestamp Automoción"
+    },
+    {
+      "bpn": "BPNL00000005BEXN",
+      "name": "BEXEN",
+      "description": "Bexen Medical"
+    }
+  ]
+}
