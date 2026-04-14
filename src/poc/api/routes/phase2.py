@@ -36,7 +36,7 @@ async def create_asset(request: CreateAssetRequest) -> Dict[str, Any]:
     # Build asset definition
     asset_data = {
         "@id": asset_id,
-        "@type": "edc:Asset",
+        "@type": "Asset",
         "properties": {
             "name": asset_id,
             "description": "PDF de prueba para demostración de políticas EDC basadas en BPN",
@@ -45,8 +45,10 @@ async def create_asset(request: CreateAssetRequest) -> Dict[str, Any]:
         },
         "privateProperties": {},
         "dataAddress": {
-            "@type": "edc:DataAddress",
+            "@type": "DataAddress",
             "type": "HttpData",
+            "proxyPath": "true", 
+            "proxyQueryParams": "true",
             "baseUrl": settings.pdf_url
         }
     }
