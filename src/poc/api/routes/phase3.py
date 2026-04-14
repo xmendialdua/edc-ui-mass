@@ -34,26 +34,43 @@ async def create_access_policy(request: CreateAccessPolicyRequest) -> Dict[str, 
     policy_id = f"access-policy-{bpn.lower()}"
     logs.append(log_message(f"🔐 Creando Access Policy para BPN: {bpn}"))
 
-    # Build access policy
+    # Build access policy with Catena-X context
+    # IMPORTANT: constraint MUST be an array with "and" grouping, not a direct object
     policy_data = {
+        "@context": [
+            "https://w3id.org/catenax/2025/9/policy/odrl.jsonld",
+            "https://w3id.org/catenax/2025/9/policy/context.jsonld",
+            {
+                "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
+            }
+        ],
         "@id": policy_id,
         "@type": "PolicyDefinition",
         "policy": {
             "@type": "Set",
             "permission": [{
                 "action": "access",
-                "constraint": {
-                    "leftOperand": "BusinessPartnerNumber",
-                    "operator": "eq",
-                    "rightOperand": bpn
-                }
+                "constraint": [{
+                    "and": [
+                        {
+                            "leftOperand": "Membership",
+                            "operator": "eq",
+                            "rightOperand": "active"
+                        },
+                        {
+                            "leftOperand": "BusinessPartnerNumber",
+                            "operator": "isAnyOf",
+                            "rightOperand": [bpn]
+                        }
+                    ]
+                }]
             }]
         }
     }
 
     mass_client = EdcManagementClient(settings.mass_management_url, settings.mass_api_key)
     try:
-        result = await mass_client.create_policy(policy_data)
+        result = await mass_client.create_policy_with_custom_context(policy_data)
 
         if result.get("already_exists"):
             logs.append(log_message(f"⚠️  La Access Policy ya existe: {policy_id}"))
@@ -91,8 +108,16 @@ async def create_contract_policy() -> Dict[str, Any]:
     policy_id = "contract-policy-ikln-only"
     logs.append(log_message(f"📜 Creando Contract Policy..."))
 
-    # Build contract policy
+    # Build contract policy with Catena-X context
+    # IMPORTANT: Contract policies require Membership, FrameworkAgreement, and UsagePurpose
     policy_data = {
+        "@context": [
+            "https://w3id.org/catenax/2025/9/policy/odrl.jsonld",
+            "https://w3id.org/catenax/2025/9/policy/context.jsonld",
+            {
+                "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
+            }
+        ],
         "@id": policy_id,
         "@type": "PolicyDefinition",
         "policy": {
@@ -100,17 +125,33 @@ async def create_contract_policy() -> Dict[str, Any]:
             "permission": [{
                 "action": "use",
                 "constraint": {
-                    "leftOperand": "BusinessPartnerNumber",
-                    "operator": "eq",
-                    "rightOperand": settings.ikln_bpn
+                    "and": [
+                        {
+                            "leftOperand": "Membership",
+                            "operator": "eq",
+                            "rightOperand": "active"
+                        },
+                        {
+                            "leftOperand": "FrameworkAgreement",
+                            "operator": "eq",
+                            "rightOperand": "DataExchangeGovernance:1.0"
+                        },
+                        {
+                            "leftOperand": "UsagePurpose",
+                            "operator": "isAnyOf",
+                            "rightOperand": ["cx.core.industrycore:1"]
+                        }
+                    ]
                 }
-            }]
+            }],
+            "prohibition": [],
+            "obligation": []
         }
     }
 
     mass_client = EdcManagementClient(settings.mass_management_url, settings.mass_api_key)
     try:
-        result = await mass_client.create_policy(policy_data)
+        result = await mass_client.create_policy_with_custom_context(policy_data)
 
         if result.get("already_exists"):
             logs.append(log_message(f"⚠️  La Contract Policy ya existe: {policy_id}"))

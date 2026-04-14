@@ -151,6 +151,30 @@ class EdcManagementClient:
         logger.info("EDC policy created: %s", policy_data.get("@id"))
         return resp.json()
 
+    async def create_policy_with_custom_context(self, policy_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a policy definition with custom @context (for Catena-X policies).
+
+        Use this method when the policy_data already contains a complete @context
+        (e.g., Catena-X policies with custom constraints like BusinessPartnerNumber).
+
+        Args:
+            policy_data: Complete policy definition including @context.
+
+        Returns:
+            EDC response body.
+        """
+        resp = await self._client.post(
+            f"{self.base_url}/v3/policydefinitions",
+            headers=self._headers(),
+            json=policy_data,
+        )
+        if resp.status_code == 409:
+            logger.info("EDC policy already exists (409): %s", policy_data.get("@id"))
+            return {"@id": policy_data.get("@id"), "already_exists": True}
+        resp.raise_for_status()
+        logger.info("EDC policy created: %s", policy_data.get("@id"))
+        return resp.json()
+
     async def list_policies(self) -> list[Dict[str, Any]]:
         """List all registered policy definitions.
 
