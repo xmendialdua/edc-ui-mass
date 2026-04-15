@@ -318,12 +318,36 @@
         }
 
         /* Asset Card */
+        /* Assets List Grid */
+        .assets-list {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        @media (max-width: 1600px) {
+            .assets-list {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 1200px) {
+            .assets-list {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .assets-list {
+                grid-template-columns: 1fr;
+            }
+        }
+
         .asset-card {
             background: #f8f9fa;
             border: 2px solid #ddd;
             border-radius: 8px;
             padding: 15px;
-            margin-bottom: 12px;
             transition: all 0.2s ease;
         }
 
@@ -370,12 +394,23 @@
         }
 
         /* Contract Card */
+        .contracts-list {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        @media (max-width: 900px) {
+            .contracts-list {
+                grid-template-columns: 1fr;
+            }
+        }
+
         .contract-card {
             background: #f0fff4;
             border: 2px solid #11998e;
             border-radius: 8px;
             padding: 15px;
-            margin-bottom: 12px;
             transition: all 0.2s ease;
         }
 
@@ -423,6 +458,7 @@
             text-align: center;
             padding: 40px 20px;
             color: #999;
+            grid-column: 1 / -1;  /* Span all columns in the grid */
         }
 
         .empty-state-icon {
@@ -699,6 +735,233 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        /* Policies Panel - Collapsible */
+        .policies-panel {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .policies-panel:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .policies-panel-header {
+            padding: 20px 25px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            user-select: none;
+        }
+
+        .policies-panel-header:hover {
+            opacity: 0.95;
+        }
+
+        .policies-panel-title {
+            font-size: 18px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .policies-panel-toggle {
+            font-size: 24px;
+            transition: transform 0.3s ease;
+        }
+
+        .policies-panel.active .policies-panel-toggle {
+            transform: rotate(180deg);
+        }
+
+        .policies-panel-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .policies-panel.active .policies-panel-content {
+            max-height: 800px;
+        }
+
+        .policies-panel-body {
+            padding: 25px;
+        }
+
+        /* Policies Viewer */
+        .policies-viewer {
+            margin-top: 10px;
+        }
+
+        .policies-layout {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+            min-height: 400px;
+        }
+
+        .policies-list {
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 15px;
+            overflow-y: auto;
+            max-height: 600px;
+        }
+
+        .policies-list h4 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 16px;
+        }
+
+        #policies-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .policy-btn {
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            padding: 12px;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .policy-btn-content {
+            flex: 1;
+        }
+
+        .policy-btn:hover {
+            border-color: #f5576c;
+            background: #fff5f7;
+            transform: translateX(4px);
+        }
+
+        .policy-btn.active {
+            border-color: #f5576c;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            transform: translateX(4px);
+        }
+
+        /* Different colors for policy types */
+        .policy-btn.access-policy {
+            border-color: #4facfe;
+            background: #f0f9ff;
+        }
+
+        .policy-btn.access-policy:hover {
+            border-color: #4facfe;
+            background: #e0f2ff;
+        }
+
+        .policy-btn.access-policy.active {
+            border-color: #4facfe;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .policy-btn.contract-policy {
+            border-color: #11998e;
+            background: #f0fff8;
+        }
+
+        .policy-btn.contract-policy:hover {
+            border-color: #11998e;
+            background: #e0fff4;
+        }
+
+        .policy-btn.contract-policy.active {
+            border-color: #11998e;
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .policy-type-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-left: 8px;
+        }
+
+        .policy-type-badge.access {
+            background: #4facfe;
+            color: white;
+        }
+
+        .policy-type-badge.contract {
+            background: #11998e;
+            color: white;
+        }
+
+        .policy-btn-title {
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .policy-btn-id {
+            font-size: 11px;
+            opacity: 0.8;
+            font-family: 'Courier New', monospace;
+        }
+
+        .policy-detail {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            overflow-y: auto;
+            max-height: 600px;
+        }
+
+        .policy-detail h4 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 16px;
+            border-bottom: 2px solid #f5576c;
+            padding-bottom: 10px;
+        }
+
+        .policy-detail-content {
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            color: #333;
+        }
+
+        @media (max-width: 968px) {
+            .policies-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .policies-list {
+                max-height: 300px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -798,6 +1061,43 @@
             </div>
         </div>
 
+        <!-- Policies Panel (Collapsible) -->
+        <div class="policies-panel" id="policies-panel">
+            <div class="policies-panel-header" onclick="togglePoliciesPanel()">
+                <div class="policies-panel-title">
+                    <span>🔐</span>
+                    <span>Políticas de Acceso y Contrato</span>
+                </div>
+                <span class="policies-panel-toggle">▼</span>
+            </div>
+            <div class="policies-panel-content">
+                <div class="policies-panel-body">
+                    <div class="actions-bar">
+                        <button class="btn btn-info" onclick="loadPoliciesPanel()">
+                            <span>🔄</span> Actualizar Políticas
+                        </button>
+                    </div>
+                    
+                    <div id="policies-viewer" class="policies-viewer">
+                        <div class="policies-layout">
+                            <div class="policies-list">
+                                <h4>📋 Políticas Disponibles</h4>
+                                <div id="policies-buttons"></div>
+                            </div>
+                            <div class="policy-detail">
+                                <h4>📄 Detalle de la Política</h4>
+                                <div id="policy-detail-content" class="policy-detail-content">
+                                    <p style="color: #999; text-align: center; margin-top: 50px;">
+                                        Selecciona una política de la lista para ver su detalle
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Logs Section -->
         <div class="logs-section">
             <div class="logs-header">
@@ -876,6 +1176,7 @@
         let allContracts = [];
         let allPolicies = [];
         let selectedAssetIds = [];
+        let contractPolicyGeneralCreated = false;  // Track if general contract policy exists
         
         // Partners list - hardcoded with function for future scalability
         function getAvailablePartners() {
@@ -915,6 +1216,7 @@
             loadAssets();
             loadContracts();
             loadPolicies();
+            loadPoliciesPanel();  // Also load policies for the panel
         });
 
         // Populate partner filter dropdowns
@@ -1323,8 +1625,75 @@
             
             if (result.success && result.policies) {
                 allPolicies = result.policies;
+                // Check if contract-policy-general exists
+                contractPolicyGeneralCreated = allPolicies.some(p => p['@id'] === 'contract-policy-general');
             } else {
                 allPolicies = [];
+                contractPolicyGeneralCreated = false;
+            }
+        }
+
+        // Helper: Get policy by ID
+        function findPolicyById(policyId) {
+            return allPolicies.find(p => p['@id'] === policyId);
+        }
+
+        // Helper: Determine if ID is access or contract policy
+        function getPolicyType(policyId) {
+            if (policyId.startsWith('access-policy-')) return 'access';
+            if (policyId.startsWith('contract-policy-')) return 'contract';
+            return 'unknown';
+        }
+
+        // Create or get contract-policy-general
+        async function ensureContractPolicyGeneral() {
+            // Check if already exists
+            if (findPolicyById('contract-policy-general')) {
+                addLog('ℹ️  Contract Policy General ya existe');
+                contractPolicyGeneralCreated = true;
+                return { success: true };
+            }
+
+            addLog('📜 Creando Contract Policy General...');
+            
+            const result = await callAPI('/phase3/create-contract-policy', 'POST');
+            
+            if (result.success || result.error === 'POLICY_EXISTS') {
+                contractPolicyGeneralCreated = true;
+                await loadPolicies();  // Reload to get the new policy
+                addLog('✅ Contract Policy General disponible: contract-policy-general');
+                return { success: true };
+            } else {
+                const errorMsg = result.error || result.message || 'Error desconocido';
+                addLog(`❌ Error creando Contract Policy General: ${errorMsg}`);
+                return { success: false, error: errorMsg };
+            }
+        }
+
+        // Create or get access policy for a partner
+        async function ensureAccessPolicy(partner) {
+            const accessPolicyId = `access-policy-${partner.bpn.toLowerCase()}`;
+            
+            // Check if already exists
+            if (findPolicyById(accessPolicyId)) {
+                addLog(`  ℹ️  Access Policy ya existe para ${partner.name}: ${accessPolicyId}`);
+                return { success: true, policyId: accessPolicyId };
+            }
+
+            addLog(`  📋 Creando Access Policy para ${partner.name}...`);
+            const result = await callAPI('/phase3/create-access-policy', 'POST', { bpn: partner.bpn });
+            
+            if (result.success || result.error === 'POLICY_EXISTS') {
+                await loadPolicies();  // Reload to get the new policy
+                addLog(`  ✅ Access Policy disponible: ${accessPolicyId}`);
+                return { success: true, policyId: accessPolicyId };
+            } else {
+                const errorMsg = result.error || result.message || 'Error desconocido';
+                addLog(`  ❌ Error con Access Policy: ${errorMsg}`);
+                if (result.logs) {
+                    result.logs.forEach(log => addLog(`     ${log}`));
+                }
+                return { success: false, error: errorMsg };
             }
         }
 
@@ -1456,18 +1825,45 @@
             
             addLog(`🚀 Publicando ${selectedAssetIds.length} asset(s) para ${selectedPartners.length} partner(s)...`);
             
+            // Ensure contract-policy-general exists before starting
+            const contractPolicyResult = await ensureContractPolicyGeneral();
+            if (!contractPolicyResult.success) {
+                addLog(`\n❌ No se pudo crear/obtener Contract Policy General. Proceso abortado.`);
+                return;
+            }
+            
+            // Track errors during publication
+            let hasErrors = false;
+            let successCount = 0;
+            let failureCount = 0;
+            
             // For each combination of asset-partner, create policies and contract definition
             for (const assetId of selectedAssetIds) {
                 for (const partner of selectedPartners) {
-                    await createPublicationForAssetPartner(assetId, partner);
+                    const result = await createPublicationForAssetPartner(assetId, partner);
+                    if (result.success) {
+                        successCount++;
+                    } else {
+                        hasErrors = true;
+                        failureCount++;
+                    }
                 }
             }
             
-            addLog(`✅ Proceso de publicación completado`);
+            // Show final summary
+            if (hasErrors) {
+                addLog(`\n❌ Proceso de publicación finalizado con errores`);
+                addLog(`   ✅ Exitosos: ${successCount}`);
+                addLog(`   ❌ Fallidos: ${failureCount}`);
+            } else {
+                addLog(`\n✅ Proceso de publicación completado exitosamente`);
+                addLog(`   Total: ${successCount} contrato(s) creado(s)`);
+            }
             
             // Reload data
             await loadContracts();
             await loadAssets();
+            await loadPolicies();
             
             // Uncheck all assets
             document.querySelectorAll('.asset-checkbox:checked').forEach(checkbox => {
@@ -1480,43 +1876,24 @@
         async function createPublicationForAssetPartner(assetId, partner) {
             addLog(`\n📝 Publicando '${assetId}' para ${partner.name} (${partner.bpn})...`);
             
-            // 1. Create or get Access Policy for this partner
-            const accessPolicyId = `access-policy-${partner.name.toLowerCase()}`;
-            let accessPolicyExists = allPolicies.find(p => p['@id'] === accessPolicyId);
-            
-            if (!accessPolicyExists) {
-                addLog(`  📋 Creando Access Policy para ${partner.name}...`);
-                const accessResult = await callAPI('/phase3/create-access-policy', 'POST', { bpn: partner.bpn });
-                
-                if (accessResult.success) {
-                    addLog(`  ✅ Access Policy creada: ${accessPolicyId}`);
-                    await loadPolicies();  // Reload policies
-                } else {
-                    addLog(`  ❌ Error creando Access Policy`);
-                    return;
+            // 1. Ensure contract-policy-general exists (only once globally)
+            if (!contractPolicyGeneralCreated) {
+                const contractPolicyResult = await ensureContractPolicyGeneral();
+                if (!contractPolicyResult.success) {
+                    addLog(`  ❌ No se pudo asegurar Contract Policy General`);
+                    return { success: false, error: 'Contract policy general missing' };
                 }
-            } else {
-                addLog(`  ℹ️  Access Policy ya existe: ${accessPolicyId}`);
             }
             
-            // 2. Create or get Contract Policy for this partner
-            const contractPolicyId = `contract-policy-${partner.name.toLowerCase()}`;
-            let contractPolicyExists = allPolicies.find(p => p['@id'] === contractPolicyId);
-            
-            if (!contractPolicyExists) {
-                addLog(`  📋 Creando Contract Policy para ${partner.name}...`);
-                const contractResult = await callAPI('/phase3/create-contract-policy', 'POST', { bpn: partner.bpn });
-                
-                if (contractResult.success) {
-                    addLog(`  ✅ Contract Policy creada: ${contractPolicyId}`);
-                    await loadPolicies();  // Reload policies
-                } else {
-                    addLog(`  ❌ Error creando Contract Policy`);
-                    return;
-                }
-            } else {
-                addLog(`  ℹ️  Contract Policy ya existe: ${contractPolicyId}`);
+            // 2. Ensure Access Policy for this partner exists
+            const accessPolicyResult = await ensureAccessPolicy(partner);
+            if (!accessPolicyResult.success) {
+                addLog(`  ❌ No se pudo asegurar Access Policy para ${partner.name}`);
+                return { success: false, error: 'Access policy missing' };
             }
+            
+            const accessPolicyId = accessPolicyResult.policyId || `access-policy-${partner.bpn.toLowerCase()}`;
+            const contractPolicyId = 'contract-policy-general';
             
             // 3. Create Contract Definition
             const contractName = `${assetId}-${partner.name.toLowerCase()}`;
@@ -1532,10 +1909,17 @@
             
             if (contractResult.success) {
                 addLog(`  ✅ Contract Definition creado exitosamente`);
+                return { success: true };
             } else if (contractResult.error === 'CONTRACT_EXISTS') {
                 addLog(`  ℹ️  Contract Definition ya existe`);
+                return { success: true };  // Consider this a success
             } else {
-                addLog(`  ❌ Error creando Contract Definition`);
+                const errorMsg = contractResult.error || contractResult.message || 'Error desconocido';
+                addLog(`  ❌ Error creando Contract Definition: ${errorMsg}`);
+                if (contractResult.logs) {
+                    contractResult.logs.forEach(log => addLog(`     ${log}`));
+                }
+                return { success: false, error: errorMsg };
             }
         }
 
@@ -1560,6 +1944,92 @@
             } else {
                 addLog(`❌ Error al eliminar contrato "${contractId}"`);
             }
+        }
+
+        // Toggle Policies Panel
+        function togglePoliciesPanel() {
+            const panel = document.getElementById('policies-panel');
+            panel.classList.toggle('active');
+        }
+
+        // Load and display policies in the panel
+        async function loadPoliciesPanel() {
+            addLog('📋 Cargando políticas...');
+            
+            const result = await callAPI('/phase3/list-policies', 'POST');
+            
+            if (result.success && result.policies) {
+                allPolicies = result.policies;
+                renderPolicies();
+                addLog(`✅ ${result.policies.length} política(s) cargada(s)`);
+            } else {
+                allPolicies = [];
+                renderPolicies();
+                addLog('ℹ️  No hay políticas disponibles');
+            }
+        }
+
+        // Render policies in the panel
+        function renderPolicies() {
+            const policiesButtons = document.getElementById('policies-buttons');
+            policiesButtons.innerHTML = '';
+            
+            if (allPolicies.length === 0) {
+                policiesButtons.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">No hay políticas disponibles</p>';
+                return;
+            }
+            
+            allPolicies.forEach((policy, index) => {
+                const policyId = policy['@id'] || `policy-${index}`;
+                const policyType = policy['@type'] || 'Policy';
+                const type = getPolicyType(policyId);
+                
+                const btn = document.createElement('button');
+                btn.className = `policy-btn ${type}-policy`;
+                
+                // Add type badge
+                let typeBadgeHtml = '';
+                if (type === 'access') {
+                    typeBadgeHtml = '<span class="policy-type-badge access">ACCESS</span>';
+                } else if (type === 'contract') {
+                    typeBadgeHtml = '<span class="policy-type-badge contract">CONTRACT</span>';
+                }
+                
+                btn.innerHTML = `
+                    <div class="policy-btn-content">
+                        <div class="policy-btn-title">${policyType}${typeBadgeHtml}</div>
+                        <div class="policy-btn-id">${policyId}</div>
+                    </div>
+                `;
+                
+                btn.onclick = () => showPolicyDetail(policy, btn);
+                
+                policiesButtons.appendChild(btn);
+            });
+        }
+
+        // Show policy detail
+        function showPolicyDetail(policy, button) {
+            // Remove active class from all buttons
+            document.querySelectorAll('#policies-buttons .policy-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Mark current button as active
+            button.classList.add('active');
+            
+            // Show policy detail
+            const detailContent = document.getElementById('policy-detail-content');
+            detailContent.innerHTML = '';
+            
+            const policyJson = JSON.stringify(policy, null, 2);
+            const pre = document.createElement('pre');
+            pre.style.margin = '0';
+            pre.style.whiteSpace = 'pre-wrap';
+            pre.style.wordWrap = 'break-word';
+            pre.textContent = policyJson;
+            
+            detailContent.appendChild(pre);
         }
     </script>
 </body>

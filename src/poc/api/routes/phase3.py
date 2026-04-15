@@ -102,11 +102,11 @@ async def create_access_policy(request: CreateAccessPolicyRequest) -> Dict[str, 
 
 @router.post("/create-contract-policy")
 async def create_contract_policy() -> Dict[str, Any]:
-    """Create a contract usage policy."""
+    """Create a general contract usage policy for all partners."""
     logs: List[str] = []
 
-    policy_id = "contract-policy-ikln-only"
-    logs.append(log_message(f"📜 Creando Contract Policy..."))
+    policy_id = "contract-policy-general"
+    logs.append(log_message(f"📜 Creando Contract Policy General..."))
 
     # Build contract policy with Catena-X context
     # IMPORTANT: Contract policies require Membership, FrameworkAgreement, and UsagePurpose
@@ -163,7 +163,7 @@ async def create_contract_policy() -> Dict[str, Any]:
 
         logs.append(log_message("✅ Contract Policy creada exitosamente"))
         logs.append(log_message(f"   ID: {policy_id}"))
-        logs.append(log_message(f"   BPN permitido: {settings.ikln_bpn}"))
+        logs.append(log_message(f"   Uso: General para todos los partners"))
 
         return {
             "success": True,
