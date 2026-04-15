@@ -349,6 +349,9 @@
             border-radius: 8px;
             padding: 15px;
             transition: all 0.2s ease;
+            min-height: 140px;
+            display: flex;
+            flex-direction: column;
         }
 
         .asset-card:hover {
@@ -359,26 +362,38 @@
         .asset-card-header {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 10px;
+            align-items: stretch;
+            flex: 1;
         }
 
         .asset-card-info {
             flex: 1;
+            margin-right: 8px;
         }
 
         .asset-card-title {
-            font-weight: bold;
+            font-weight: normal;
             font-size: 15px;
             color: #333;
             margin-bottom: 4px;
         }
 
         .asset-card-id {
-            font-size: 12px;
-            color: #666;
+            font-size: 15px;
+            font-weight: bold;
+            color: #333;
             font-family: 'Courier New', monospace;
+            margin-bottom: 6px;
         }
+
+        .asset-card-description {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 4px;
+            line-height: 1.4;
+        }
+
+        /* .asset-card-url removed - now shown as tooltip */
 
         .asset-card-partners {
             font-size: 13px;
@@ -389,8 +404,10 @@
 
         .asset-card-actions {
             display: flex;
-            gap: 8px;
-            align-items: flex-start;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            min-width: 40px;
         }
 
         /* Contract Card */
@@ -426,16 +443,18 @@
         }
 
         .contract-card-title {
-            font-weight: bold;
+            font-weight: normal;
             font-size: 14px;
             color: #333;
             margin-bottom: 4px;
         }
 
         .contract-card-id {
-            font-size: 11px;
-            color: #666;
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
             font-family: 'Courier New', monospace;
+            margin-bottom: 6px;
         }
 
         .contract-card-details {
@@ -914,6 +933,37 @@
             color: white;
         }
 
+        /* Partner badges for Contract Definitions */
+        .partner-badge-contract {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 8px;
+            color: white;
+        }
+
+        .partner-badge-contract.ikerlan {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .partner-badge-contract.mondragonassembly {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .partner-badge-contract.partner1 {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .partner-badge-contract.partner2 {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+
+        .partner-badge-contract.partner3 {
+            background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);
+        }
+
         .policy-btn-title {
             font-weight: bold;
             margin-bottom: 4px;
@@ -972,7 +1022,6 @@
                 <img src="logo-mondragon.svg" alt="Mondragon Assembly" class="header-logo">
                 <h1>Data Publication Dashboard</h1>
             </div>
-            <p>Publicación Simplificada de Datos - Conector MASS-EDC</p>
             
             <div class="info-box">
                 <div class="info-item">
@@ -1388,6 +1437,11 @@
             const assetId = asset['@id'];
             const partners = getPartnersForAsset(assetId);
             
+            // Extract asset details
+            const assetType = asset['@type'] || 'Asset';
+            const description = asset.properties?.description || 'Sin descripción';
+            const baseUrl = asset.dataAddress?.baseUrl || asset.dataAddress?.url || 'N/A';
+            
             const card = document.createElement('div');
             card.className = 'asset-card';
             card.id = `asset-${assetId}`;
@@ -1399,9 +1453,10 @@
             
             card.innerHTML = `
                 <div class="asset-card-header">
-                    <div class="asset-card-info">
-                        <div class="asset-card-title">${asset['@type'] || 'Asset'}</div>
+                    <div class="asset-card-info" title="URL: ${baseUrl}">
+                        <div class="asset-card-title">${assetType}</div>
                         <div class="asset-card-id">${assetId}</div>
+                        <div class="asset-card-description">${description}</div>
                         ${partnersHtml}
                     </div>
                     <div class="asset-card-actions">
@@ -1567,7 +1622,11 @@
         function createContractCard(contract) {
             const contractId = contract['@id'];
             const assetId = extractAssetIdFromContract(contract);
-            const partner = extractPartnerFromContract(contract);
+            const partnerInfo = extractPartnerFromContract(contract);
+            
+            // Create partner badge with color
+            const partnerBadgeClass = getPartnerBadgeClass(partnerInfo.name);
+            const partnerBadgeHtml = `<span class="partner-badge-contract ${partnerBadgeClass}">${partnerInfo.name}</span>`;
             
             const card = document.createElement('div');
             card.className = 'contract-card';
@@ -1575,14 +1634,14 @@
             card.innerHTML = `
                 <div class="contract-card-header">
                     <div>
-                        <div class="contract-card-title">Contract Definition</div>
+                        <div class="contract-card-title">Contract Definition${partnerBadgeHtml}</div>
                         <div class="contract-card-id">${contractId}</div>
                         <div class="contract-card-details">
                             <div class="contract-card-detail-item">
                                 <span class="contract-card-detail-label">Asset:</span> ${assetId}
                             </div>
                             <div class="contract-card-detail-item">
-                                <span class="contract-card-detail-label">Partner:</span> ${partner}
+                                <span class="contract-card-detail-label">Partner BPN:</span> ${partnerInfo.bpn || 'N/A'}
                             </div>
                             <div class="contract-card-detail-item">
                                 <span class="contract-card-detail-label">Access Policy:</span> ${contract.accessPolicyId || 'N/A'}
@@ -1622,11 +1681,24 @@
             for (const partner of availablePartners) {
                 if (contractJson.includes(partner.bpn) || 
                     contractJson.toLowerCase().includes(partner.name.toLowerCase())) {
-                    return `${partner.name} (${partner.bpn})`;
+                    return {
+                        name: partner.name,
+                        bpn: partner.bpn,
+                        displayText: `${partner.name} (${partner.bpn})`
+                    };
                 }
             }
             
-            return 'Unknown';
+            return {
+                name: 'Unknown',
+                bpn: '',
+                displayText: 'Unknown'
+            };
+        }
+
+        // Get partner badge class (for color coding)
+        function getPartnerBadgeClass(partnerName) {
+            return partnerName.toLowerCase().replace(/\s+/g, '');
         }
 
         // Apply contract filter
