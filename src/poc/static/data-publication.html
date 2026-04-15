@@ -1244,11 +1244,27 @@
             const indicator = document.getElementById('mass-status-indicator');
             const statusText = document.getElementById('mass-status-text');
             
+            // Set to checking state
+            indicator.className = 'status-indicator checking';
+            statusText.className = 'status-text checking';
+            statusText.textContent = 'Verificando conexión...';
+            
             try {
-                const response = await fetch(`${API_BASE}/check-mass-status`);
-                const result = await response.json();
+                const result = await callAPI('/phase1/check-connectivity', 'POST');
                 
-                if (result.success) {
+                // The endpoint checks both connectors, we only care about MASS
+                // Look for MASS in the logs
+                let massOk = false;
+                if (result.logs) {
+                    for (const log of result.logs) {
+                        if (log.includes('MASS Management API: OK')) {
+                            massOk = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (massOk) {
                     indicator.className = 'status-indicator connected';
                     statusText.className = 'status-text connected';
                     statusText.textContent = 'Conectado';
@@ -1258,6 +1274,7 @@
                     statusText.textContent = 'Desconectado';
                 }
             } catch (error) {
+                console.error('Error checking MASS connector status:', error);
                 indicator.className = 'status-indicator disconnected';
                 statusText.className = 'status-text disconnected';
                 statusText.textContent = 'Error de conexión';
