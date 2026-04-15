@@ -374,6 +374,117 @@
             color: #00b894;
         }
 
+        .global-logs-section {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .global-logs-section:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .global-logs-header {
+            background: #5a5a5a;
+            color: white;
+            padding: 15px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .global-logs-header:hover {
+            opacity: 0.95;
+        }
+
+        .global-logs-title {
+            font-size: 16px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .global-logs-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn-toggle-logs {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 24px;
+            transition: transform 0.3s ease;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .global-logs-section.collapsed .btn-toggle-logs {
+            transform: rotate(180deg);
+        }
+
+        .btn-clear-logs {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .btn-clear-logs:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        #global-logs {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 800px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            transition: max-height 0.3s ease;
+        }
+
+        .global-logs-section.collapsed #global-logs {
+            max-height: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        #global-logs::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #global-logs::-webkit-scrollbar-track {
+            background: #2d2d2d;
+        }
+
+        #global-logs::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+
+        #global-logs:empty::before {
+            content: 'No hay operaciones registradas todavía...';
+            color: #666;
+            font-style: italic;
+        }
+
         .footer {
             text-align: center;
             color: white;
@@ -1707,7 +1818,23 @@
             </div>
         </div>
 
-        <!-- FASE 5 -->
+        <!-- Global Logs Section -->
+        <div class="global-logs-section" id="global-logs-section">
+            <div class="global-logs-header" onclick="toggleGlobalLogs()">
+                <div class="global-logs-title">
+                    <span>📋</span>
+                    <span>Registro de Operaciones</span>
+                </div>
+                <div class="global-logs-actions">
+                    <button class="btn-clear-logs" onclick="event.stopPropagation(); clearGlobalLogs()">
+                        🗑️ Limpiar Logs
+                    </button>
+                    <button class="btn-toggle-logs">▼</button>
+                </div>
+            </div>
+            <div id="global-logs"></div>
+        </div>
+
     <!-- Modal para selección de BPN -->
     <div id="bpn-modal" class="modal-overlay">
         <div class="modal-content">

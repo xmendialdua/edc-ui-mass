@@ -346,8 +346,8 @@ async def download_file(request: DownloadFileRequest):
         if not token or not endpoint:
             raise HTTPException(status_code=400, detail="Token or endpoint not available")
 
-        # Make request to data plane (disable SSL verification for dev environments)
-        async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
+        # Make request to data plane
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.get(
                 endpoint,
                 headers={

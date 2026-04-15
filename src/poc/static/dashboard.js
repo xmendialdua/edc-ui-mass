@@ -69,17 +69,56 @@
         // Add log to container
         function addLog(phaseNum, message) {
             const logsContainer = document.getElementById(`logs-phase${phaseNum}`);
+            if (logsContainer) {
+                const logLine = document.createElement('div');
+                logLine.className = 'log-line';
+                logLine.textContent = message;
+                logsContainer.appendChild(logLine);
+                logsContainer.scrollTop = logsContainer.scrollHeight;
+            }
+            
+            // Also add to global logs if we're on data-management.html (phases 2, 3, 4)
+            if (window.location.pathname.includes('data-management.html') && [2, 3, 4].includes(phaseNum)) {
+                addGlobalLog(message, phaseNum);
+            }
+        }
+
+        // Add log to global logs container
+        function addGlobalLog(message, phaseNum) {
+            const globalLogs = document.getElementById('global-logs');
+            if (!globalLogs) return;
+            
+            const timestamp = new Date().toLocaleTimeString('es-ES');
+            const phaseName = phaseNum === 2 ? 'Assets' : phaseNum === 3 ? 'Policies' : 'Contracts';
             const logLine = document.createElement('div');
             logLine.className = 'log-line';
-            logLine.textContent = message;
-            logsContainer.appendChild(logLine);
-            logsContainer.scrollTop = logsContainer.scrollHeight;
+            logLine.textContent = `[${timestamp}] [${phaseName}] ${message}`;
+            globalLogs.appendChild(logLine);
+            globalLogs.scrollTop = globalLogs.scrollHeight;
+        }
+
+        // Clear global logs
+        function clearGlobalLogs() {
+            const globalLogs = document.getElementById('global-logs');
+            if (globalLogs) {
+                globalLogs.innerHTML = '';
+            }
+        }
+
+        // Toggle global logs panel
+        function toggleGlobalLogs() {
+            const section = document.getElementById('global-logs-section');
+            if (section) {
+                section.classList.toggle('collapsed');
+            }
         }
 
         // Clear logs
         function clearLogs(phaseNum) {
             const logsContainer = document.getElementById(`logs-phase${phaseNum}`);
-            logsContainer.innerHTML = '';
+            if (logsContainer) {
+                logsContainer.innerHTML = '';
+            }
         }
 
         // Update phase status
