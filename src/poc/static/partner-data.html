@@ -265,18 +265,12 @@
             color: #666;
         }
 
-        /* Assets Grid - 3 columns */
+        /* Assets Grid - 2 columns layout */
         .assets-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(2, 1fr);
             gap: 12px;
             margin-top: 15px;
-        }
-
-        @media (max-width: 1600px) {
-            .assets-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
         }
 
         @media (max-width: 900px) {
@@ -285,104 +279,102 @@
             }
         }
 
-        /* Enhanced Asset Card */
-        .asset-card-enhanced {
+        /* Asset Card - Simple style like edc-consumer */
+        .asset-card-simple {
             background: white;
-            border: 2px solid #e0e0e0;
-            border-radius: 12px;
-            padding: 0;
-            transition: all 0.3s ease;
-            overflow: hidden;
-        }
-
-        .asset-card-enhanced:hover {
-            border-color: #11998e;
-            box-shadow: 0 4px 12px rgba(17, 153, 142, 0.2);
-            transform: translateY(-2px);
-        }
-
-        .asset-card-content {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            transition: all 0.2s ease;
             display: flex;
-            gap: 16px;
-            padding: 20px;
+            align-items: stretch;
+            position: relative;
+            overflow: hidden;
+            min-height: 140px;
         }
 
-        .asset-icon {
-            font-size: 48px;
-            line-height: 1;
-            flex-shrink: 0;
+        .asset-card-simple:hover {
+            border-color: #11998e;
         }
 
-        .asset-info {
-            flex: 1;
-            min-width: 0;
+        /* Barra lateral de color */
+        .asset-left-bar {
+            width: 24px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
 
-        .asset-name {
+        /* Icono centrado sobre la barra */
+        .asset-icon-container {
+            width: 24px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
             font-size: 18px;
-            font-weight: 700;
-            color: #2c3e50;
-            margin: 0 0 8px 0;
         }
 
-        .asset-description {
-            font-size: 13px;
-            color: #7f8c8d;
-            margin: 0 0 12px 0;
-            line-height: 1.5;
-        }
-
-        .asset-metadata {
+        /* Contenido principal del asset */
+        .asset-content {
+            flex: 1;
+            padding: 12px 12px 12px 36px;
             display: flex;
             flex-direction: column;
-            gap: 6px;
         }
 
-        .asset-meta-item {
-            display: flex;
-            gap: 8px;
-            font-size: 12px;
-        }
-
-        .meta-label {
+        .asset-content h3 {
+            font-size: 16px;
             font-weight: 600;
-            color: #34495e;
-            min-width: 80px;
+            color: #333;
+            margin: 0 0 6px 0;
         }
 
-        .meta-value {
-            color: #7f8c8d;
-            font-family: 'Courier New', monospace;
+        .asset-content p {
+            font-size: 14px;
+            color: #666;
+            margin: 0 0 8px 0;
+            line-height: 1.4;
+        }
+
+        .asset-meta-line {
+            font-size: 12px;
+            color: #999;
+            margin: 2px 0;
             word-break: break-all;
         }
 
-        .asset-card-footer {
-            background: #f8f9fa;
-            padding: 12px 20px;
-            border-top: 1px solid #e0e0e0;
-            display: flex;
-            justify-content: flex-end;
+        .asset-meta-line .label {
+            font-weight: 600;
+            color: #666;
         }
 
-        .btn-negotiate-enhanced {
-            padding: 10px 24px;
+        /* Botón de negociar - estilo simple */
+        .btn-negotiate-simple {
+            margin-top: 12px;
+            padding: 8px 20px;
             background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             transition: all 0.2s ease;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            align-self: flex-start;
         }
 
-        .btn-negotiate-enhanced:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(17, 153, 142, 0.3);
+        .btn-negotiate-simple:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(17, 153, 142, 0.3);
         }
 
-        .btn-negotiate-enhanced:active {
+        .btn-negotiate-simple:active {
             transform: translateY(0);
         }
 
@@ -1047,46 +1039,34 @@
             }
             
             // Extract dataset information
-            const datasetName = dataset['name'] || dataset['dct:title'] || dataset['@id'];
+            const datasetName = dataset['name'] || dataset['dct:title'] || dataset['@id'] || 'Asset';
             const datasetDescription = dataset['description'] || dataset['dct:description'] || 'Asset disponible en el catálogo';
-            const datasetId = dataset['id'] || dataset['@id'];
-            const contentType = dataset['contenttype'] || 'application/octet-stream';
+            const datasetId = dataset['@id'] || dataset['id'] || 'unknown';
             
             // Create a card for each asset/offer
             offers.forEach((offer, index) => {
                 const offerId = offer['@id'] || `offer-${index}`;
                 const assetId = offer['odrl:target'] || datasetId;
                 
-                // Truncate Contract ID if too long
-                const contractIdDisplay = offerId.length > 60 ? offerId.substring(0, 60) + '...' : offerId;
-                
                 const card = document.createElement('div');
-                card.className = 'asset-card-enhanced';
+                card.className = 'asset-card-simple';
+                
                 card.innerHTML = `
-                    <div class="asset-card-content">
-                        <div class="asset-icon">📄</div>
-                        <div class="asset-info">
-                            <h3 class="asset-name">${datasetName}</h3>
-                            <p class="asset-description">${datasetDescription}</p>
-                            <div class="asset-metadata">
-                                <div class="asset-meta-item">
-                                    <span class="meta-label">Asset ID:</span>
-                                    <span class="meta-value">${assetId}</span>
-                                </div>
-                                <div class="asset-meta-item">
-                                    <span class="meta-label">Contract ID:</span>
-                                    <span class="meta-value" title="${offerId}">${contractIdDisplay}</span>
-                                </div>
-                                <div class="asset-meta-item">
-                                    <span class="meta-label">Content Type:</span>
-                                    <span class="meta-value">${contentType}</span>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="asset-left-bar"></div>
+                    <div class="asset-icon-container">
+                        📄
                     </div>
-                    <div class="asset-card-footer">
-                        <button class="btn-negotiate-enhanced" onclick="negotiateAsset('${assetId}', ${JSON.stringify(offer).replace(/"/g, '&quot;')})">
-                            🤝 Negociar
+                    <div class="asset-content">
+                        <h3>${datasetName}</h3>
+                        <p>${datasetDescription}</p>
+                        <div class="asset-meta-line">
+                            <span class="label">ID:</span> ${assetId}
+                        </div>
+                        <div class="asset-meta-line">
+                            <span class="label">Contract ID:</span> ${offerId}
+                        </div>
+                        <button class="btn-negotiate-simple" onclick="negotiateAsset('${assetId}', ${JSON.stringify(offer).replace(/"/g, '&quot;')})">
+                            Negociar
                         </button>
                     </div>
                 `;
