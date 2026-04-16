@@ -304,13 +304,26 @@ class EdcManagementClient:
         Returns:
             Negotiation response with negotiation ID.
         """
-        payload = _with_context(negotiation_data)
+        # Use the same context format that works in edc-consumer
+        payload = {
+            "@context": ["https://w3id.org/edc/connector/management/v0.0.1"],
+            **negotiation_data
+        }
+        
+        logger.debug(f"Initiating negotiation with payload: {payload}")
+        
         resp = await self._client.post(
             f"{self.base_url}/v3/contractnegotiations",
             headers=self._headers(),
             json=payload,
         )
-        resp.raise_for_status()
+        
+        if resp.status_code != 200:
+            error_text = resp.text
+            logger.error(f"Negotiation failed with status {resp.status_code}: {error_text}")
+            # Include the error response body in the exception
+            resp.raise_for_status()
+            
         return resp.json()
 
     async def get_negotiation(self, negotiation_id: str) -> Dict[str, Any]:

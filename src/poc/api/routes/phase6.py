@@ -91,23 +91,40 @@ async def negotiate_asset(request: NegotiateAssetRequest) -> Dict[str, Any]:
 
     logs.append(log_message(f"🤝 Iniciando negociación para asset: {request.assetId}"))
     logs.append(log_message(f"   Counter Party: {settings.mass_bpn}"))
+    
+    # Log the received policy for debugging
+    import json
+    logs.append(log_message(f"📄 Policy recibida:"))
+    logs.append(json.dumps(request.policy, indent=2))
 
-    # Build negotiation request
+    # Añadir campos obligatorios a la policy si no están presentes
+    # (siguiendo el mismo patrón que edc-consumer y dashboard)
+    # IMPORTANTE: Usar nombres SIN prefijo "odrl:" para compatibilidad con el contexto JSON-LD
+    policy_with_required_fields = dict(request.policy)
+    
+    # Añadir target (assetId) si no existe
+    if "odrl:target" not in policy_with_required_fields and "target" not in policy_with_required_fields:
+        policy_with_required_fields["target"] = request.assetId
+        logs.append(log_message(f"➕ Añadido target = {request.assetId}"))
+    
+    # Añadir assigner (counterPartyId) si no existe
+    if "odrl:assigner" not in policy_with_required_fields and "assigner" not in policy_with_required_fields:
+        policy_with_required_fields["assigner"] = settings.mass_bpn
+        logs.append(log_message(f"➕ Añadido assigner = {settings.mass_bpn}"))
+
+    # Build negotiation request - using the correct format that works in edc-consumer
+    # IMPORTANT: Pass the policy as-is, don't reconstruct it
     negotiation_data = {
-        "@type": "NegotiationInitiateRequestDto",
+        "@type": "ContractRequest",
         "counterPartyAddress": settings.mass_dsp,
         "counterPartyId": settings.mass_bpn,
         "protocol": "dataspace-protocol-http",
-        "policy": {
-            "@type": "Offer",
-            "@id": request.policy.get("@id"),
-            "target": request.assetId,
-            "assigner": settings.mass_bpn,
-            "permission": request.policy.get("permission", []),
-            "prohibition": request.policy.get("prohibition", []),
-            "obligation": request.policy.get("obligation", [])
-        }
+        "policy": policy_with_required_fields,
+        "callbackAddresses": []
     }
+    
+    logs.append(log_message(f"📤 Negotiation payload:"))
+    logs.append(json.dumps(negotiation_data, indent=2))
 
     ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
     try:
@@ -134,6 +151,15 @@ async def negotiate_asset(request: NegotiateAssetRequest) -> Dict[str, Any]:
 
     except Exception as e:
         logs.append(log_message(f"❌ Error: {str(e)}"))
+        
+        # Try to extract more details from HTTPStatusError if available
+        if hasattr(e, 'response'):
+            try:
+                error_body = e.response.text
+                logs.append(log_message(f"📋 Error details: {error_body}"))
+            except:
+                pass
+        
         return {
             "success": False,
             "logs": logs,
