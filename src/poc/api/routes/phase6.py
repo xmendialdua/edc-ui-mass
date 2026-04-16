@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 import httpx
+import json
 
 from poc.clients.edc import EdcManagementClient
 from poc.config import settings
@@ -93,7 +94,6 @@ async def negotiate_asset(request: NegotiateAssetRequest) -> Dict[str, Any]:
     logs.append(log_message(f"   Counter Party: {settings.mass_bpn}"))
     
     # Log the received policy for debugging
-    import json
     logs.append(log_message(f"📄 Policy recibida:"))
     logs.append(json.dumps(request.policy, indent=2))
 
@@ -219,21 +219,24 @@ async def initiate_transfer_for_contract(request: InitiateTransferRequest) -> Di
     logs.append(log_message(f"   Contract Agreement: {request.contractAgreementId}"))
     logs.append(log_message(f"   Asset: {request.assetId}"))
 
-    # Build transfer request
+    # Build transfer request - using the format that works in dashboard and edc-consumer
     transfer_data = {
-        "@type": "TransferRequestDto",
+        "@type": "TransferRequest",
+        "assetId": request.assetId,
+        "contractId": request.contractAgreementId,
         "counterPartyAddress": settings.mass_dsp,
         "counterPartyId": settings.mass_bpn,
-        "contractId": request.contractAgreementId,
-        "assetId": request.assetId,
+        "connectorId": settings.mass_bpn,
         "protocol": "dataspace-protocol-http",
+        "transferType": "HttpData-PULL",
         "dataDestination": {
-            "@type": "DataAddress",
             "type": "HttpProxy"
         },
-        "privateProperties": {},
-        "managedResources": False
+        "privateProperties": {}
     }
+    
+    logs.append(log_message(f"📤 Transfer payload:"))
+    logs.append(json.dumps(transfer_data, indent=2))
 
     ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
     try:
@@ -261,6 +264,15 @@ async def initiate_transfer_for_contract(request: InitiateTransferRequest) -> Di
 
     except Exception as e:
         logs.append(log_message(f"❌ Error: {str(e)}"))
+        
+        # Try to extract more details from HTTPStatusError if available
+        if hasattr(e, 'response'):
+            try:
+                error_body = e.response.text
+                logs.append(log_message(f"📋 Error details: {error_body}"))
+            except:
+                pass
+        
         return {
             "success": False,
             "logs": logs,

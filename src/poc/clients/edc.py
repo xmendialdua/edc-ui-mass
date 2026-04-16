@@ -374,13 +374,27 @@ class EdcManagementClient:
         Returns:
             Transfer response with transfer ID.
         """
-        payload = _with_context(transfer_data)
+        # Use the same context format as dashboard for transfers
+        payload = {
+            "@context": {
+                "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
+            },
+            **transfer_data
+        }
+        
+        logger.debug(f"Initiating transfer with payload: {payload}")
+        
         resp = await self._client.post(
             f"{self.base_url}/v3/transferprocesses",
             headers=self._headers(),
             json=payload,
         )
-        resp.raise_for_status()
+        
+        if resp.status_code not in [200, 201]:
+            error_text = resp.text
+            logger.error(f"Transfer failed with status {resp.status_code}: {error_text}")
+            resp.raise_for_status()
+            
         return resp.json()
 
     async def get_transfer(self, transfer_id: str) -> Dict[str, Any]:
