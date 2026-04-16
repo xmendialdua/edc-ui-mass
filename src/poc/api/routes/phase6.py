@@ -1,6 +1,7 @@
 """Phase 6 routes — Catalog, negotiations, and transfers."""
 
 import asyncio
+import logging
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
@@ -10,6 +11,9 @@ import json
 from poc.clients.edc import EdcManagementClient
 from poc.config import settings
 from poc.api.routes.phase6_edr_monitor import monitor_transfer_for_edr, get_cached_edr
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/phase6", tags=["Phase 6 - Discovery & Transfer"])
 
@@ -451,8 +455,14 @@ async def download_file(request: DownloadFileRequest):
         if not token or not endpoint:
             raise HTTPException(status_code=400, detail="Token or endpoint not available")
 
+        # Log request details for debugging
+        logger.info(f"🔍 Downloading from endpoint: {endpoint}")
+        logger.info(f"🔍 Using token: {token[:50]}..." if len(token) > 50 else f"🔍 Using token: {token}")
+        print(f"🔍 Download request - Endpoint: {endpoint}")
+        print(f"🔍 Download request - Token length: {len(token)} chars")
+
         # Make request to data plane
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
             response = await client.get(
                 endpoint,
                 headers={
@@ -472,11 +482,22 @@ async def download_file(request: DownloadFileRequest):
             )
 
     except httpx.HTTPStatusError as e:
+        error_detail = f"Data plane error: Status {e.response.status_code}, Body: {e.response.text}, URL: {endpoint}"
+        logger.error(f"❌ Download HTTPStatusError: {error_detail}")
+        print(f"❌ Download error details:")
+        print(f"   Status: {e.response.status_code}")
+        print(f"   URL: {endpoint}")
+        print(f"   Response body: {e.response.text}")
+        print(f"   Response headers: {dict(e.response.headers)}")
         raise HTTPException(
             status_code=e.response.status_code,
-            detail=f"Data plane error: {e.response.text}"
+            detail=error_detail
         )
     except Exception as e:
+        logger.error(f"❌ Download general exception: {str(e)}")
+        print(f"❌ Download exception: {type(e).__name__}: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 
