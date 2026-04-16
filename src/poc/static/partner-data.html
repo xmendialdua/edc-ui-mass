@@ -1169,6 +1169,24 @@
                 const canTransfer = (negotiation.state === 'FINALIZED' || negotiation.state === 'AGREED') 
                     && negotiation.contractAgreementId;
                 
+                const createdDate = negotiation.createdAt ? new Date(negotiation.createdAt).toLocaleString('es-ES', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                }) : 'N/A';
+                
+                const stateDate = negotiation.stateTimestamp ? new Date(negotiation.stateTimestamp).toLocaleString('es-ES', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                }) : null;
+                
                 card.innerHTML = `
                     <div class="negotiation-header">
                         <span style="font-size: 12px; font-weight: bold;">Negociación</span>
@@ -1176,6 +1194,8 @@
                     </div>
                     <div class="negotiation-info"><strong>ID:</strong> ${negotiation.id}</div>
                     <div class="negotiation-info"><strong>Asset:</strong> ${negotiation.assetId}</div>
+                    <div class="negotiation-info" style="font-size: 11px; color: #64748b;"><strong>Creada:</strong> ${createdDate}</div>
+                    ${stateDate ? `<div class="negotiation-info" style="font-size: 11px; color: #94a3b8;"><strong>Actualizada:</strong> ${stateDate}</div>` : ''}
                     ${negotiation.contractAgreementId ? 
                         `<div class="negotiation-info"><strong>Contrato:</strong> ${negotiation.contractAgreementId}</div>` 
                         : ''}
@@ -1269,6 +1289,24 @@
                 const card = document.createElement('div');
                 card.className = `transfer-card state-${transfer.state.toLowerCase()}`;
                 
+                const createdDate = transfer.createdAt ? new Date(transfer.createdAt).toLocaleString('es-ES', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                }) : 'N/A';
+                
+                const stateDate = transfer.stateTimestamp ? new Date(transfer.stateTimestamp).toLocaleString('es-ES', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                }) : null;
+                
                 card.innerHTML = `
                     <div class="transfer-header">
                         <span style="font-size: 12px; font-weight: bold;">Transferencia</span>
@@ -1276,6 +1314,8 @@
                     </div>
                     <div class="transfer-info"><strong>ID:</strong> ${transfer.id}</div>
                     <div class="transfer-info"><strong>Asset:</strong> ${transfer.assetId}</div>
+                    <div class="transfer-info" style="font-size: 11px; color: #64748b;"><strong>Creada:</strong> ${createdDate}</div>
+                    ${stateDate ? `<div class="transfer-info" style="font-size: 11px; color: #94a3b8;"><strong>Actualizada:</strong> ${stateDate}</div>` : ''}
                     <div class="transfer-info"><strong>EDR Disponible:</strong> ${transfer.edrAvailable ? '✅ Sí' : '❌ No'}</div>
                     ${transfer.edrAvailable ? 
                         `<button class="btn-download" onclick="downloadData('${transfer.id}', '${transfer.edrEndpoint}', '${transfer.edrToken}')">

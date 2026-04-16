@@ -446,17 +446,68 @@ class EdcManagementClient:
             EDR data with endpoint and authorization token, or None if not available.
         """
         try:
-            resp = await self._client.post(
-                f"{self.base_url}/v1/edrs/{transfer_id}/dataaddress",
+            # Step 1: List all EDRs
+            edr_list_resp = await self._client.post(
+                f"{self.base_url}/v3/edrs/request",
+                headers=self._headers(),
+                json={
+                    "@context": {"@vocab": "https://w3id.org/edc/v0.0.1/ns/"},
+                    "@type": "QuerySpec",
+                    "offset": 0,
+                    "limit": 100
+                },
+            )
+            
+            if edr_list_resp.status_code != 200:
+                logger.debug(f"Failed to list EDRs: {edr_list_resp.status_code}")
+                return None
+            
+            edr_list = edr_list_resp.json()
+            
+            if not isinstance(edr_list, list):
+                logger.debug(f"EDR list is not a list, got: {type(edr_list)}")
+                return None
+            
+            # Step 2: Find the EDR matching this transfer_id
+            matching_edr = next(
+                (edr for edr in edr_list if edr.get("transferProcessId") == transfer_id),
+                None
+            )
+            
+            if not matching_edr:
+                logger.debug(f"No EDR found for transfer {transfer_id}")
+                return None
+            
+            # Step 3: Get the data address for this EDR
+            edr_id = matching_edr.get("@id") or transfer_id
+            
+            dataaddress_resp = await self._client.get(
+                f"{self.base_url}/v3/edrs/{edr_id}/dataaddress",
                 headers=self._headers(),
             )
-            resp.raise_for_status()
-            return resp.json()
+            
+            if dataaddress_resp.status_code != 200:
+                logger.debug(f"Failed to get dataaddress for EDR {edr_id}: {dataaddress_resp.status_code}")
+                return None
+            
+            edr_data = dataaddress_resp.json()
+            
+            # Normalize field names (different EDC versions use different names)
+            return {
+                "endpoint": edr_data.get("endpoint") or edr_data.get("baseUrl"),
+                "authorization": edr_data.get("authCode") or edr_data.get("authorization") or edr_data.get("authKey"),
+                "raw": edr_data  # Include raw data for debugging
+            }
+            
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 logger.debug("No EDR available yet for transfer %s", transfer_id)
                 return None
-            raise
+            logger.error(f"Error getting EDR for transfer {transfer_id}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error getting EDR for transfer {transfer_id}: {e}")
+            return None
 
     # ==================== Health ====================
 

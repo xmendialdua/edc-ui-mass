@@ -135,6 +135,8 @@ async def negotiate_asset(request: NegotiateAssetRequest) -> Dict[str, Any]:
         logs.append(log_message(f"   Negotiation ID: {negotiation_id}"))
         logs.append(log_message(f"   Estado: Procesando..."))
 
+        from datetime import datetime
+        
         return {
             "success": True,
             "logs": logs,
@@ -145,7 +147,7 @@ async def negotiate_asset(request: NegotiateAssetRequest) -> Dict[str, Any]:
                 "contractAgreementId": None,
                 "counterPartyAddress": settings.mass_dsp,
                 "counterPartyId": settings.mass_bpn,
-                "createdAt": None
+                "createdAt": datetime.now().isoformat()
             }
         }
 
@@ -185,6 +187,10 @@ async def list_negotiations() -> Dict[str, Any]:
         # Transform to simplified format
         negotiations = []
         for nego in negotiations_raw:
+            # Try to get timestamp with fallback options
+            created_at = nego.get("createdAt") or nego.get("createdTimestamp")
+            state_timestamp = nego.get("stateTimestamp") or nego.get("updatedAt")
+            
             negotiations.append({
                 "id": nego.get("@id"),
                 "state": nego.get("state"),
@@ -192,7 +198,8 @@ async def list_negotiations() -> Dict[str, Any]:
                 "contractAgreementId": nego.get("contractAgreementId"),
                 "counterPartyAddress": nego.get("counterPartyAddress"),
                 "counterPartyId": nego.get("counterPartyId"),
-                "createdAt": nego.get("createdAt"),
+                "createdAt": created_at,
+                "stateTimestamp": state_timestamp,
             })
 
         return {
@@ -246,6 +253,8 @@ async def initiate_transfer_for_contract(request: InitiateTransferRequest) -> Di
         logs.append(log_message(f"✅ Transferencia iniciada"))
         logs.append(log_message(f"   Transfer ID: {transfer_id}"))
 
+        from datetime import datetime
+        
         return {
             "success": True,
             "logs": logs,
@@ -258,7 +267,7 @@ async def initiate_transfer_for_contract(request: InitiateTransferRequest) -> Di
                 "edrAvailable": False,
                 "edrEndpoint": None,
                 "edrToken": None,
-                "createdAt": None
+                "createdAt": datetime.now().isoformat()
             }
         }
 
@@ -308,6 +317,10 @@ async def list_transfers() -> Dict[str, Any]:
                     edr_endpoint = edr_data.get("endpoint")
                     edr_token = edr_data.get("authorization")
 
+            # Try to get timestamp with fallback options (different EDC versions use different field names)
+            created_at = transfer.get("createdAt") or transfer.get("createdTimestamp")
+            state_timestamp = transfer.get("stateTimestamp") or transfer.get("updatedAt")
+            
             transfers.append({
                 "id": transfer_id,
                 "state": state,
@@ -317,7 +330,8 @@ async def list_transfers() -> Dict[str, Any]:
                 "edrAvailable": edr_available,
                 "edrEndpoint": edr_endpoint,
                 "edrToken": edr_token,
-                "createdAt": transfer.get("createdAt"),
+                "createdAt": created_at,
+                "stateTimestamp": state_timestamp,
             })
 
         return {
