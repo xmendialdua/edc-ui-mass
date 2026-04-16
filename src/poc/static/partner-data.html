@@ -1321,9 +1321,14 @@
                         `<button class="btn-download" onclick="downloadData('${transfer.id}', '${transfer.edrEndpoint}', '${transfer.edrToken}')">
                             📥 Descargar Datos
                         </button>` 
-                        : `<button class="btn-download" onclick="refreshTransfer('${transfer.id}')" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                            🔄 Actualizar EDR
-                        </button>`}
+                        : `<div style="display: flex; gap: 8px;">
+                            <button class="btn-download" onclick="refreshTransfer('${transfer.id}')" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); flex: 1;">
+                                🔄 Actualizar
+                            </button>
+                            <button class="btn-download" onclick="debugTransfer('${transfer.id}')" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); flex: 1;">
+                                🔍 Debug
+                            </button>
+                        </div>`}
                 `;
                 
                 list.appendChild(card);
@@ -1333,6 +1338,29 @@
         async function refreshTransfer(transferId) {
             addLog(`🔄 Actualizando EDR para transferencia: ${transferId}`);
             await fetchTransfers();
+        }
+
+        async function debugTransfer(transferId) {
+            addLog(`🔍 Depurando transferencia: ${transferId}`);
+            
+            try {
+                const response = await fetch(`${API_BASE}/debug-transfer/${transferId}`);
+                const data = await response.json();
+                
+                if (data.logs) {
+                    data.logs.forEach(log => addLog(log));
+                }
+                
+                if (data.edr) {
+                    addLog(`📊 EDR Data:`);
+                    addLog(JSON.stringify(data.edr, null, 2));
+                }
+                
+                // Automatically refresh after debug
+                setTimeout(() => fetchTransfers(), 2000);
+            } catch (error) {
+                addLog(`❌ Error en debug: ${error.message}`);
+            }
         }
 
         async function downloadData(transferId, endpoint, token) {

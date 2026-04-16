@@ -1,6 +1,7 @@
 """Phase 6 routes — Catalog, negotiations, and transfers."""
 
-from fastapi import APIRouter, HTTPException
+import asyncio
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 import httpx
@@ -8,6 +9,7 @@ import json
 
 from poc.clients.edc import EdcManagementClient
 from poc.config import settings
+from poc.api.routes.phase6_edr_monitor import monitor_transfer_for_edr, get_cached_edr
 
 router = APIRouter(prefix="/api/phase6", tags=["Phase 6 - Discovery & Transfer"])
 
@@ -218,7 +220,10 @@ async def list_negotiations() -> Dict[str, Any]:
 
 
 @router.post("/initiate-transfer-for-contract")
-async def initiate_transfer_for_contract(request: InitiateTransferRequest) -> Dict[str, Any]:
+async def initiate_transfer_for_contract(
+    request: InitiateTransferRequest,
+    background_tasks: BackgroundTasks
+) -> Dict[str, Any]:
     """Initiate a data transfer for a negotiated contract."""
     logs: List[str] = []
 
@@ -237,9 +242,11 @@ async def initiate_transfer_for_contract(request: InitiateTransferRequest) -> Di
         "protocol": "dataspace-protocol-http",
         "transferType": "HttpData-PULL",
         "dataDestination": {
+            "@type": "DataAddress",  # Include @type as per dashboard
             "type": "HttpProxy"
         },
-        "privateProperties": {}
+        "privateProperties": {},
+        "callbackAddresses": []  # Add callback addresses
     }
     
     logs.append(log_message(f"📤 Transfer payload:"))
@@ -252,6 +259,10 @@ async def initiate_transfer_for_contract(request: InitiateTransferRequest) -> Di
         transfer_id = result.get("@id")
         logs.append(log_message(f"✅ Transferencia iniciada"))
         logs.append(log_message(f"   Transfer ID: {transfer_id}"))
+        logs.append(log_message(f"🔍 Monitoreando EDR en background..."))
+        
+        # Start monitoring for EDR in background
+        background_tasks.add_task(monitor_transfer_for_edr, transfer_id)
 
         from datetime import datetime
         
@@ -310,12 +321,35 @@ async def list_transfers() -> Dict[str, Any]:
             edr_endpoint = None
             edr_token = None
 
-            if state in ["STARTED", "COMPLETED", "TERMINATED"]:
-                edr_data = await ikln_client.get_edr_for_transfer(transfer_id)
-                if edr_data:
-                    edr_available = True
-                    edr_endpoint = edr_data.get("endpoint")
-                    edr_token = edr_data.get("authorization")
+            # First, check if we have a cached EDR from monitoring
+            cached_edr = get_cached_edr(transfer_id)
+            if cached_edr:
+                edr_available = True
+                edr_endpoint = cached_edr.get("endpoint")
+                edr_token = cached_edr.get("authorization")
+                print(f"✅ Using cached EDR for transfer {transfer_id}")
+            # Second, check if EDR is embedded in the transfer's dataAddress field
+            else:
+                data_address = transfer.get("dataAddress")
+                if data_address:
+                    edr_endpoint = data_address.get("endpoint") or data_address.get("baseUrl")
+                    edr_token = data_address.get("authCode") or data_address.get("authorization") or data_address.get("authKey")
+                    if edr_endpoint:
+                        edr_data = data_address
+                        edr_available = True
+                        print(f"✅ EDR found in dataAddress for transfer {transfer_id}")
+
+                # If not embedded, query the EDRs endpoint for completed transfers
+                if not edr_data and not edr_available and state in ["STARTED", "COMPLETED", "TERMINATED"]:
+                    print(f"🔍 Querying EDRs endpoint for transfer {transfer_id} in state {state}")
+                    edr_data = await ikln_client.get_edr_for_transfer(transfer_id)
+                    if edr_data:
+                        edr_available = True
+                        edr_endpoint = edr_data.get("endpoint")
+                        edr_token = edr_data.get("authorization")
+                        print(f"✅ EDR retrieved from EDRs endpoint for transfer {transfer_id}")
+                    else:
+                        print(f"⚠️ No EDR found for transfer {transfer_id} (state: {state})")
 
             # Try to get timestamp with fallback options (different EDC versions use different field names)
             created_at = transfer.get("createdAt") or transfer.get("createdTimestamp")
@@ -347,6 +381,25 @@ async def list_transfers() -> Dict[str, Any]:
         }
     finally:
         await ikln_client.close()
+
+
+@router.get("/transfer-edr/{transfer_id}")
+async def get_transfer_edr(transfer_id: str) -> Dict[str, Any]:
+    """Get the cached EDR for a specific transfer."""
+    edr = get_cached_edr(transfer_id)
+    
+    if edr:
+        return {
+            "success": True,
+            "edr": edr,
+            "cached": True
+        }
+    else:
+        return {
+            "success": False,
+            "message": "EDR not found in cache. It may not have been captured yet or the transfer may not have reached STARTED state.",
+            "cached": False
+        }
 
 
 @router.get("/get-fresh-token/{transfer_id}")
@@ -441,20 +494,42 @@ async def debug_transfer(transfer_id: str) -> Dict[str, Any]:
         
         logs.append(log_message(f"   Estado: {transfer.get('state')}"))
         logs.append(log_message(f"   Asset: {transfer.get('assetId')}"))
+        
+        # Check if dataAddress exists
+        data_address = transfer.get("dataAddress")
+        if data_address:
+            logs.append(log_message(f"✅ dataAddress field found in transfer"))
+            logs.append(log_message(f"   Fields: {list(data_address.keys())}"))
+            
+            endpoint = data_address.get("endpoint") or data_address.get("baseUrl")
+            auth = data_address.get("authCode") or data_address.get("authorization") or data_address.get("authKey")
+            
+            if endpoint:
+                logs.append(log_message(f"✅ Endpoint: {endpoint}"))
+            else:
+                logs.append(log_message(f"❌ No endpoint in dataAddress"))
+            
+            if auth:
+                logs.append(log_message(f"✅ Authorization token present"))
+            else:
+                logs.append(log_message(f"❌ No authorization token in dataAddress"))
+        else:
+            logs.append(log_message(f"❌ No dataAddress field in transfer"))
 
-        # Try to get EDR
+        # Try to get EDR from EDRs endpoint
+        logs.append(log_message(f""))
+        logs.append(log_message(f"🔍 Checking EDRs endpoint..."))
         edr_data = await ikln_client.get_edr_for_transfer(transfer_id)
 
         if edr_data:
-            logs.append(log_message("✅ EDR disponible"))
+            logs.append(log_message("✅ EDR disponible desde EDRs endpoint"))
             logs.append(log_message(f"   Endpoint: {edr_data.get('endpoint')}"))
             logs.append(log_message(f"   Token presente: {'Sí' if edr_data.get('authorization') else 'No'}"))
         else:
-            logs.append(log_message("❌ EDR no disponible"))
-            logs.append(log_message("   Posibles causas:"))
-            logs.append(log_message("   • El transfer aún no ha llegado al estado correcto"))
-            logs.append(log_message("   • Estados válidos: STARTED, COMPLETED, TERMINATED"))
-            logs.append(log_message("   • El EDC puede tardar unos segundos en generar el EDR"))
+            logs.append(log_message("❌ EDR no disponible desde EDRs endpoint"))
+            logs.append(log_message(""))
+            logs.append(log_message("📋 Transfer completo (raw):"))
+            logs.append(json.dumps(transfer, indent=2)[:2000])  # Limit to 2000 chars
 
         return {
             "success": True,

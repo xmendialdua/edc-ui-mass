@@ -7,6 +7,7 @@ IMPORTANT: EDC v0.7.3+ requires a JSON-LD ``@context`` in every request body.
 All API calls inject the standard EDC namespace automatically via ``_with_context``.
 """
 
+import json
 import logging
 import warnings
 from typing import Dict, Any, Optional
@@ -447,6 +448,7 @@ class EdcManagementClient:
         """
         try:
             # Step 1: List all EDRs
+            logger.info(f"Listing all EDRs to find transfer {transfer_id}")
             edr_list_resp = await self._client.post(
                 f"{self.base_url}/v3/edrs/request",
                 headers=self._headers(),
@@ -459,13 +461,19 @@ class EdcManagementClient:
             )
             
             if edr_list_resp.status_code != 200:
-                logger.debug(f"Failed to list EDRs: {edr_list_resp.status_code}")
+                logger.warning(f"Failed to list EDRs: HTTP {edr_list_resp.status_code} - {edr_list_resp.text[:200]}")
                 return None
             
             edr_list = edr_list_resp.json()
             
+            # Log the raw response for debugging
+            logger.info(f"Raw EDR response type: {type(edr_list)}")
+            logger.info(f"Raw EDR response: {json.dumps(edr_list, indent=2)[:500]}")
+            
+            logger.info(f"Retrieved {len(edr_list) if isinstance(edr_list, list) else 0} EDRs")
+            
             if not isinstance(edr_list, list):
-                logger.debug(f"EDR list is not a list, got: {type(edr_list)}")
+                logger.warning(f"EDR list is not a list, got: {type(edr_list)}")
                 return None
             
             # Step 2: Find the EDR matching this transfer_id
@@ -475,11 +483,14 @@ class EdcManagementClient:
             )
             
             if not matching_edr:
-                logger.debug(f"No EDR found for transfer {transfer_id}")
+                logger.warning(f"No EDR found for transfer {transfer_id}. Available transfers: {[edr.get('transferProcessId') for edr in edr_list[:5]]}")
                 return None
+            
+            logger.info(f"Found matching EDR for transfer {transfer_id}")
             
             # Step 3: Get the data address for this EDR
             edr_id = matching_edr.get("@id") or transfer_id
+            logger.info(f"Getting dataaddress for EDR {edr_id}")
             
             dataaddress_resp = await self._client.get(
                 f"{self.base_url}/v3/edrs/{edr_id}/dataaddress",
@@ -487,15 +498,22 @@ class EdcManagementClient:
             )
             
             if dataaddress_resp.status_code != 200:
-                logger.debug(f"Failed to get dataaddress for EDR {edr_id}: {dataaddress_resp.status_code}")
+                logger.warning(f"Failed to get dataaddress for EDR {edr_id}: HTTP {dataaddress_resp.status_code} - {dataaddress_resp.text[:200]}")
                 return None
             
             edr_data = dataaddress_resp.json()
+            logger.info(f"Successfully retrieved EDR data for transfer {transfer_id}")
             
             # Normalize field names (different EDC versions use different names)
+            endpoint = edr_data.get("endpoint") or edr_data.get("baseUrl")
+            authorization = edr_data.get("authCode") or edr_data.get("authorization") or edr_data.get("authKey")
+            
+            if not endpoint:
+                logger.warning(f"EDR data has no endpoint field. Available fields: {list(edr_data.keys())}")
+            
             return {
-                "endpoint": edr_data.get("endpoint") or edr_data.get("baseUrl"),
-                "authorization": edr_data.get("authCode") or edr_data.get("authorization") or edr_data.get("authKey"),
+                "endpoint": endpoint,
+                "authorization": authorization,
                 "raw": edr_data  # Include raw data for debugging
             }
             
@@ -503,7 +521,7 @@ class EdcManagementClient:
             if e.response.status_code == 404:
                 logger.debug("No EDR available yet for transfer %s", transfer_id)
                 return None
-            logger.error(f"Error getting EDR for transfer {transfer_id}: {e}")
+            logger.error(f"HTTP error getting EDR for transfer {transfer_id}: {e} - {e.response.text[:200]}")
             return None
         except Exception as e:
             logger.error(f"Unexpected error getting EDR for transfer {transfer_id}: {e}")
