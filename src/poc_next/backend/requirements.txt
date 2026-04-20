@@ -1,0 +1,19 @@
+# POC Next Backend - Python Dependencies
+#
+# FastAPI framework and server
+fastapi==0.115.0
+uvicorn[standard]==0.34.0
+python-multipart==0.0.22
+
+# HTTP client
+httpx==0.28.0
+
+# Configuration management
+pydantic==2.10.0
+pydantic-settings==2.7.0
+
+# CORS middleware (included in fastapi)
+
+# Optional: for development
+pytest==8.3.0
+pytest-asyncio==0.25.0
