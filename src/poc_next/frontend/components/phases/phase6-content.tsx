@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LogsViewer } from '@/components/logs/logs-viewer';
@@ -13,7 +13,7 @@ interface Asset {
   policy?: any;
 }
 
-export default function Phase6Content() {
+const Phase6Content = forwardRef<{ refresh: () => void }>((props, ref) => {
   const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState<string | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -85,6 +85,11 @@ export default function Phase6Content() {
       setLoading(null);
     }
   }
+
+  // Expose refresh method to parent
+  useImperativeHandle(ref, () => ({
+    refresh: handleCatalogRequest
+  }));
 
   return (
     <div className="space-y-4">
@@ -203,4 +208,8 @@ export default function Phase6Content() {
       {logs.length > 0 && <LogsViewer logs={logs} title="Transfer Logs" />}
     </div>
   );
-}
+});
+
+Phase6Content.displayName = 'Phase6Content';
+
+export default Phase6Content;

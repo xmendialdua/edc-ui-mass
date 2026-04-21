@@ -1,17 +1,30 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Phase5Content from "@/components/phases/phase5-content";
 import Phase6Content from "@/components/phases/phase6-content";
 import Image from "next/image";
+import { RefreshCw } from "lucide-react";
 
 export default function PartnerDataPage() {
   const [connectorStatus] = useState<"checking" | "connected" | "disconnected">("connected");
   const [isMounted, setIsMounted] = useState(false);
+  const [globalLogs, setGlobalLogs] = useState<string[]>([]);
+  const phase5Ref = useRef<any>(null);
+  const phase6Ref = useRef<any>(null);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setGlobalLogs(prev => [...prev, `[${timestamp}] ${message}`]);
+  };
+
+  const clearLogs = () => {
+    setGlobalLogs([]);
+  };
 
   return (
     <div style={{ 
@@ -67,12 +80,12 @@ export default function PartnerDataPage() {
                 color: "#555",
                 marginBottom: "5px",
                 fontSize: "14px"
-              }}>MASS Connector:</div>
+              }}>IKLN Connector:</div>
               <div style={{
                 color: "#333",
                 fontFamily: "'Courier New', monospace",
                 fontSize: "14px"
-              }}>BPNL000000MASS</div>
+              }}>BPNL00000002IKLN</div>
             </div>
 
             <div style={{
@@ -109,7 +122,7 @@ export default function PartnerDataPage() {
                 fontFamily: "'Courier New', monospace",
                 fontSize: "12px",
                 wordBreak: "break-all"
-              }}>https://edc-mass-control.51.178.34.25.nip.io/management</div>
+              }}>https://edc-ikln-control.51.178.94.25.nip.io/management</div>
             </div>
           </div>
         </div>
@@ -144,14 +157,36 @@ export default function PartnerDataPage() {
                 gap: "10px"
               }}>
                 <span style={{ fontSize: "24px" }}>📋</span>
-                <span>Catálogo</span>
+                <span>Catálogo Disponible</span>
               </div>
+              <button
+                onClick={() => phase5Ref.current?.refresh()}
+                style={{
+                  padding: "8px",
+                  background: "rgba(255, 255, 255, 0.2)",
+                  color: "white",
+                  border: "1px solid rgba(255, 255, 255, 0.3)",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  transition: "all 0.2s ease"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.3)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)";
+                }}
+              >
+                <RefreshCw size={16} />
+              </button>
             </div>
             <div style={{
               padding: "20px",
               minHeight: "400px"
             }}>
-              <Phase5Content />
+              <Phase5Content ref={phase5Ref} onLog={addLog} />
             </div>
           </div>
 
@@ -178,8 +213,30 @@ export default function PartnerDataPage() {
                 gap: "10px"
               }}>
                 <span style={{ fontSize: "24px" }}>🤝</span>
-                <span>Negociación</span>
+                <span>Negociaciones</span>
               </div>
+              <button
+                onClick={() => phase6Ref.current?.refresh()}
+                style={{
+                  padding: "8px",
+                  background: "rgba(255, 255, 255, 0.2)",
+                  color: "white",
+                  border: "1px solid rgba(255, 255, 255, 0.3)",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  transition: "all 0.2s ease"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.3)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)";
+                }}
+              >
+                <RefreshCw size={16} />
+              </button>
             </div>
             <div style={{
               padding: "20px",
@@ -221,14 +278,36 @@ export default function PartnerDataPage() {
                 gap: "10px"
               }}>
                 <span style={{ fontSize: "24px" }}>📥</span>
-                <span>Transferencia</span>
+                <span>Transferencias</span>
               </div>
+              <button
+                onClick={() => phase6Ref.current?.refresh()}
+                style={{
+                  padding: "8px",
+                  background: "rgba(255, 255, 255, 0.2)",
+                  color: "white",
+                  border: "1px solid rgba(255, 255, 255, 0.3)",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  transition: "all 0.2s ease"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.3)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)";
+                }}
+              >
+                <RefreshCw size={16} />
+              </button>
             </div>
             <div style={{
               padding: "20px",
               minHeight: "400px"
             }}>
-              <Phase6Content />
+              <Phase6Content ref={phase6Ref} />
             </div>
           </div>
         </div>
@@ -258,6 +337,7 @@ export default function PartnerDataPage() {
               📋 Registro de Operaciones
             </div>
             <button
+              onClick={clearLogs}
               style={{
                 padding: "8px 16px",
                 background: "rgba(255, 255, 255, 0.2)",
@@ -282,16 +362,22 @@ export default function PartnerDataPage() {
             overflowY: "auto"
           }}>
             <div style={{ padding: "15px" }}>
-              {isMounted ? (
-                <>
-                  <div>[{new Date().toLocaleTimeString()}] Sistema iniciado</div>
-                  <div>[{new Date().toLocaleTimeString()}] Listo para consultar catálogos</div>
-                </>
+              {globalLogs.length === 0 ? (
+                isMounted ? (
+                  <>
+                    <div>[{new Date().toLocaleTimeString()}] Sistema iniciado</div>
+                    <div>[{new Date().toLocaleTimeString()}] Listo para consultar catálogos</div>
+                  </>
+                ) : (
+                  <>
+                    <div>[--:--:--] Sistema iniciado</div>
+                    <div>[--:--:--] Listo para consultar catálogos</div>
+                  </>
+                )
               ) : (
-                <>
-                  <div>[--:--:--] Sistema iniciado</div>
-                  <div>[--:--:--] Listo para consultar catálogos</div>
-                </>
+                globalLogs.map((log, index) => (
+                  <div key={index}>{log}</div>
+                ))
               )}
             </div>
           </div>

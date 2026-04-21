@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 80" width="400" height="80">
-  <!-- Purple circle with white IK -->
-  <circle cx="40" cy="40" r="35" fill="#667eea"/>
-  <text x="40" y="54" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="white" text-anchor="middle">IK</text>
-  
-  <!-- Text: IKERLAN -->
-  <text x="95" y="45" font-family="Arial, sans-serif" font-size="24" font-weight="600" fill="#4A4A4A" letter-spacing="3">IKERLAN</text>
-</svg>
