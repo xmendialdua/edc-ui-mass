@@ -125,11 +125,41 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
       alert(`Debug de transferencia: ${transferId}\nEsta funcionalidad mostrará detalles técnicos de la transferencia.`);
     };
 
-    const handleDownloadData = (transferId: string, edrEndpoint?: string, edrToken?: string) => {
+    const handleDownloadData = async (transferId: string, edrEndpoint?: string, edrToken?: string) => {
       addLog(`📥 Descargando datos de transferencia: ${transferId}`);
-      if (edrEndpoint && edrToken) {
-        addLog(`Endpoint: ${edrEndpoint}`);
-        alert(`Descarga iniciada desde:\n${edrEndpoint}\n\nToken: ${edrToken.substring(0, 20)}...`);
+      
+      if (!edrEndpoint || !edrToken) {
+        addLog(`❌ No hay endpoint o token EDR disponible`);
+        return;
+      }
+
+      addLog(`Endpoint: ${edrEndpoint}`);
+      
+      try {
+        // Llamar al backend para descargar el archivo (actúa como proxy para evitar CORS)
+        const blob = await api.phase6.downloadFile({
+          transferId: transferId,
+          endpoint: edrEndpoint,
+          token: edrToken
+        });
+
+        // Crear un URL temporal para el blob
+        const url = window.URL.createObjectURL(blob);
+        
+        // Crear un enlace temporal y hacer click automáticamente
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `data-${transferId}.csv`; // Puedes ajustar la extensión según el tipo de archivo
+        document.body.appendChild(link);
+        link.click();
+        
+        // Limpiar
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        addLog(`✅ Archivo descargado exitosamente`);
+      } catch (error) {
+        addLog(`❌ Error al descargar: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     };
 

@@ -162,8 +162,26 @@ export const api = {
     ),
     initiateTransfer: (data: { contractAgreementId: string; assetId: string }) =>
       apiRequest<{ success: boolean; logs: string[] }>(
-        '/api/phase6/initiate-transfer',
+        '/api/phase6/initiate-transfer-for-contract',
         { method: 'POST', body: JSON.stringify(data) }
       ),
+    downloadFile: async (data: { transferId: string; endpoint: string; token: string }) => {
+      const response = await fetch(`${API_BASE_URL}/api/phase6/download-file`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.detail || `API Error: ${response.status} ${response.statusText}`
+        );
+      }
+
+      return response.blob();
+    },
   },
 };

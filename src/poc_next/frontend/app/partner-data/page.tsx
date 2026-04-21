@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Phase5Content from "@/components/phases/phase5-content";
 import NegotiationsContent from "@/components/phases/negotiations-content";
 import TransfersContent from "@/components/phases/transfers-content";
+import { api } from "@/lib/api";
 import Image from "next/image";
 import { RefreshCw } from "lucide-react";
 
@@ -26,6 +27,35 @@ export default function PartnerDataPage() {
 
   const clearLogs = () => {
     setGlobalLogs([]);
+  };
+
+  const handleInitiateTransfer = async (contractId: string, assetId: string) => {
+    addLog(`📥 Iniciando transferencia para contrato: ${contractId}`);
+    try {
+      const result = await api.phase6.initiateTransfer({
+        contractAgreementId: contractId,
+        assetId: assetId
+      });
+      
+      if (result.logs) {
+        result.logs.forEach((log: string) => addLog(log));
+      }
+
+      if (result.success) {
+        addLog(`✅ Transferencia iniciada exitosamente`);
+        
+        // Refrescar el panel de transferencias después de 2 segundos
+        setTimeout(() => {
+          if (transfersRef.current) {
+            transfersRef.current.refresh();
+          }
+        }, 2000);
+      } else {
+        addLog(`⚠️ La transferencia no se completó correctamente`);
+      }
+    } catch (error) {
+      addLog(`❌ Error al iniciar transferencia: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   return (
@@ -248,7 +278,11 @@ export default function PartnerDataPage() {
               padding: "20px",
               minHeight: "400px"
             }}>
-              <NegotiationsContent ref={negotiationsRef} onLog={addLog} />
+              <NegotiationsContent 
+                ref={negotiationsRef} 
+                onLog={addLog}
+                onInitiateTransfer={handleInitiateTransfer}
+              />
             </div>
           </div>
 
