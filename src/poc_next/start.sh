@@ -171,9 +171,10 @@ if [ ! -f ".env" ]; then
     fi
 fi
 
-# Iniciar backend en background
+# Iniciar backend en background con logs visibles
 echo -e "${GREEN}✓${NC} Iniciando servidor backend en puerto 5001..."
-python3 main.py > ../backend.log 2>&1 &
+# Usar tee para mostrar logs en terminal Y guardarlos en archivo
+python3 main.py 2>&1 | tee ../backend.log &
 BACKEND_PID=$!
 echo $BACKEND_PID > ../.backend.pid
 

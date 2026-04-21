@@ -383,7 +383,10 @@ class EdcManagementClient:
             **transfer_data
         }
         
-        logger.debug(f"Initiating transfer with payload: {payload}")
+        logger.info(f"🚀 [EDC Client] Iniciando transfer request")
+        logger.info(f"   Asset ID: {transfer_data.get('assetId', 'unknown')}")
+        logger.info(f"   Contract ID: {transfer_data.get('contractId', 'unknown')}")
+        logger.info(f"   Endpoint: {self.base_url}/v3/transferprocesses")
         
         resp = await self._client.post(
             f"{self.base_url}/v3/transferprocesses",
@@ -393,10 +396,15 @@ class EdcManagementClient:
         
         if resp.status_code not in [200, 201]:
             error_text = resp.text
-            logger.error(f"Transfer failed with status {resp.status_code}: {error_text}")
+            logger.error(f"❌ [EDC Client] Transfer failed with status {resp.status_code}: {error_text}")
             resp.raise_for_status()
-            
-        return resp.json()
+        
+        result = resp.json()
+        logger.info(f"✅ [EDC Client] Transfer response received")
+        logger.info(f"   Transfer ID: {result.get('@id', 'unknown')}")
+        logger.info(f"   Estado: {result.get('state', 'unknown')}")
+        
+        return result
 
     async def get_transfer(self, transfer_id: str) -> Dict[str, Any]:
         """Get the status of a transfer process.
@@ -407,12 +415,18 @@ class EdcManagementClient:
         Returns:
             Transfer status.
         """
+        logger.debug(f"🔍 [EDC Client] Consultando estado de transfer: {transfer_id}")
+        
         resp = await self._client.get(
             f"{self.base_url}/v3/transferprocesses/{transfer_id}",
             headers=self._headers(),
         )
         resp.raise_for_status()
-        return resp.json()
+        result = resp.json()
+        
+        logger.debug(f"📊 [EDC Client] Estado obtenido: {result.get('state', 'unknown')} para transfer {transfer_id}")
+        
+        return result
 
     async def list_transfers(self) -> list[Dict[str, Any]]:
         """List all transfer processes.
@@ -420,6 +434,8 @@ class EdcManagementClient:
         Returns:
             List of transfers.
         """
+        logger.debug(f"📋 [EDC Client] Listando todas las transferencias")
+        
         payload = _with_context({
             "@type": "QuerySpec",
             "offset": 0,
@@ -433,7 +449,11 @@ class EdcManagementClient:
             json=payload,
         )
         resp.raise_for_status()
-        return resp.json()
+        result = resp.json()
+        
+        logger.debug(f"📦 [EDC Client] Transferencias obtenidas: {len(result)} total")
+        
+        return result
 
     # ==================== EDR (Endpoint Data Reference) ====================
 

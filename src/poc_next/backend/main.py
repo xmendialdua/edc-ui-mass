@@ -26,17 +26,47 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan — startup and shutdown hooks."""
-    # Logging
-    logging.basicConfig(
-        level=getattr(logging, settings.log_level.upper(), logging.INFO),
-        format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    # Logging configuration similar to src/poc - force output to console
+    import sys
+    
+    # Clear any existing handlers
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    
+    # Create console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    
+    # Create formatter
+    formatter = logging.Formatter(
+        fmt="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
     )
+    console_handler.setFormatter(formatter)
+    
+    # Add handler to root logger
+    root_logger.addHandler(console_handler)
+    root_logger.setLevel(logging.INFO)
+    
+    # Also set specific loggers
+    logging.getLogger("api.routes.phase6").setLevel(logging.INFO)
+    logging.getLogger("clients.edc").setLevel(logging.INFO)
 
-    logger.info("POC Next Backend API started on %s:%s", settings.app_host, settings.app_port)
+    logger.info("="*80)
+    logger.info("🚀 POC Next Backend API started")
+    logger.info(f"   Host: {settings.app_host}")
+    logger.info(f"   Port: {settings.app_port}")
+    logger.info(f"   Log Level: INFO")
+    logger.info(f"   IKLN Management: {settings.ikln_management_url}")
+    logger.info(f"   MASS BPN: {settings.mass_bpn}")
+    logger.info("="*80)
 
     yield
 
-    logger.info("POC Next Backend API shutting down")
+    logger.info("="*80)
+    logger.info("🛑 POC Next Backend API shutting down")
+    logger.info("="*80)
 
 
 # Create FastAPI application

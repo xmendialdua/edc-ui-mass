@@ -15,6 +15,30 @@ from api.routes.phase6_edr_monitor import monitor_transfer_for_edr, get_cached_e
 # Configure logger
 logger = logging.getLogger(__name__)
 
+# EDC Transfer Process State Codes (based on TransferProcessStates.java)
+STATE_CODES = {
+    "INITIAL": 100,
+    "PROVISIONING": 200,
+    "PROVISIONED": 300,
+    "REQUESTING": 400,
+    "REQUESTED": 500,
+    "STARTING": 550,
+    "STARTED": 600,
+    "SUSPENDING": 650,
+    "SUSPENDED": 700,
+    "RESUMING": 720,
+    "COMPLETING": 750,
+    "COMPLETED": 800,
+    "TERMINATING": 825,
+    "TERMINATED": 850,
+    "DEPROVISIONING": 900,
+    "DEPROVISIONED": 1000,
+}
+
+def get_state_code(state: str) -> int:
+    """Get numeric code for transfer state."""
+    return STATE_CODES.get(state, 0)
+
 router = APIRouter(prefix="/api/phase6", tags=["Phase 6 - Discovery & Transfer"])
 
 
@@ -229,8 +253,26 @@ async def initiate_transfer_for_contract(
     background_tasks: BackgroundTasks
 ) -> Dict[str, Any]:
     """Initiate a data transfer for a negotiated contract."""
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+    
     logs: List[str] = []
 
+    logger.info(f"\n{'='*80}")
+    logger.info(f"🚀 Iniciando transferencia desde IKLN hacia MASS")
+    logger.info(f"   Timestamp: {timestamp}")
+    logger.info(f"   Contract Agreement ID: {request.contractAgreementId}")
+    logger.info(f"   Asset ID: {request.assetId}")
+    logger.info(f"   Counter Party (MASS): {settings.mass_bpn}")
+    logger.info(f"   DSP Endpoint: {settings.mass_dsp}")
+    
+    # FORCE OUTPUT - print to stdout directly
+    print(f"\n{'='*80}", flush=True)
+    print(f"{timestamp} | INFO     | 🚀 Iniciando transferencia desde IKLN hacia MASS", flush=True)
+    print(f"{timestamp} | INFO     |    Contract: {request.contractAgreementId}", flush=True)
+    print(f"{timestamp} | INFO     |    Asset: {request.assetId}", flush=True)
+    print(f"{timestamp} | INFO     |    MASS BPN: {settings.mass_bpn}", flush=True)
+    
     logs.append(log_message(f"📥 Iniciando transferencia..."))
     logs.append(log_message(f"   Contract Agreement: {request.contractAgreementId}"))
     logs.append(log_message(f"   Asset: {request.assetId}"))
@@ -258,9 +300,24 @@ async def initiate_transfer_for_contract(
 
     ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
     try:
+        logger.info(f"📤 Enviando TransferRequest al conector IKLN...")
+        print(f"{timestamp} | INFO     | 📤 Enviando TransferRequest al conector IKLN...", flush=True)
+        
         result = await ikln_client.initiate_transfer(transfer_data)
 
         transfer_id = result.get("@id")
+        transfer_state = result.get("state", "UNKNOWN")
+        
+        logger.info(f"✅ Respuesta del conector MASS recibida:")
+        logger.info(f"   Transfer ID: {transfer_id}")
+        logger.info(f"   Estado inicial: {transfer_state}")
+        logger.info(f"   Response completa: {json.dumps(result, indent=2)[:500]}...")
+        logger.info(f"{'='*80}\n")
+        
+        print(f"{timestamp} | INFO     | ✅ Transferencia iniciada: {transfer_id}", flush=True)
+        print(f"{timestamp} | INFO     |    Estado: {transfer_state}", flush=True)
+        print(f"{'='*80}\n", flush=True)
+        
         logs.append(log_message(f"✅ Transferencia iniciada"))
         logs.append(log_message(f"   Transfer ID: {transfer_id}"))
         logs.append(log_message(f"🔍 Monitoreando EDR en background..."))
@@ -310,14 +367,29 @@ async def initiate_transfer_for_contract(
 async def list_transfers() -> Dict[str, Any]:
     """List all transfer processes - optimized to return immediately without waiting for EDR queries."""
     import time
+    from datetime import datetime
     start_time = time.time()
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+    
+    logger.info(f"\n{'~'*80}")
+    logger.info(f"📋 Listando todas las transferencias")
+    logger.info(f"   Timestamp: {timestamp}")
+    
+    print(f"\n{'~'*80}", flush=True)
+    print(f"{timestamp} | INFO     | 📋 Listando transferencias", flush=True)
     
     ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
     try:
         # Get all transfers
         t0 = time.time()
         transfers_raw = await ikln_client.list_transfers()
-        print(f"⏱️ list_transfers() took {time.time() - t0:.2f}s")
+        query_time = time.time() - t0
+        
+        logger.info(f"📦 Respuesta del conector MASS:")
+        logger.info(f"   Número de transferencias: {len(transfers_raw)}")
+        logger.info(f"   Tiempo de consulta: {query_time:.2f}s")
+        
+        print(f"{timestamp} | INFO     | 📦 Transferencias: {len(transfers_raw)} total", flush=True)
 
         # Process transfers and use ONLY cached/embedded EDR data
         # Skip expensive EDR queries - the background monitor will populate the cache
@@ -326,7 +398,15 @@ async def list_transfers() -> Dict[str, Any]:
         for idx, transfer in enumerate(transfers_raw):
             transfer_id = transfer.get("@id")
             state = transfer.get("state")
+            state_code = get_state_code(state)
             data_address = transfer.get("dataAddress")
+            
+            # Log primeras 3 transferencias con detalle
+            if idx < 3:
+                logger.info(f"   [{idx+1}] Transfer ID: {transfer_id}")
+                logger.info(f"       Estado: {state} (código: {state_code})")
+                logger.info(f"       Asset: {transfer.get('assetId', 'unknown')}")
+                logger.info(f"       Tiene dataAddress: {bool(data_address)}")
             
             # Initialize EDR data
             edr_available = False
@@ -353,6 +433,8 @@ async def list_transfers() -> Dict[str, Any]:
             transfers_info.append({
                 "id": transfer_id,
                 "state": state,
+                "stateCode": get_state_code(state),
+                "rawState": state,  # Estado original sin transformar del EDC
                 "assetId": transfer.get("assetId", "unknown"),
                 "contractId": transfer.get("contractId"),
                 "counterPartyId": transfer.get("counterPartyId"),
@@ -364,7 +446,11 @@ async def list_transfers() -> Dict[str, Any]:
             })
 
         elapsed = time.time() - start_time
-        print(f"✅ list_transfers completed in {elapsed:.2f}s (returned {len(transfers_info)} transfers)")
+        logger.info(f"✅ list_transfers completado en {elapsed:.2f}s")
+        logger.info(f"   Transferencias procesadas: {len(transfers_info)}")
+        logger.info(f"   Con EDR disponible: {sum(1 for t in transfers_info if t['edrAvailable'])}")
+        logger.info(f"   Sin EDR disponible: {sum(1 for t in transfers_info if not t['edrAvailable'])}")
+        logger.info(f"{'~'*80}\n")
 
         return {
             "success": True,
@@ -420,6 +506,86 @@ async def get_transfer_edr(transfer_id: str) -> Dict[str, Any]:
             "success": False,
             "error": str(e),
             "cached": False
+        }
+    finally:
+        await ikln_client.close()
+
+
+@router.get("/transfer-status/{transfer_id}")
+async def get_transfer_status(transfer_id: str) -> Dict[str, Any]:
+    """Get the current state of a specific transfer process."""
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+    
+    logger.info(f"\n{'-'*80}")
+    logger.info(f"🔍 Consultando estado de transferencia")
+    logger.info(f"   Timestamp: {timestamp}")
+    logger.info(f"   Transfer ID: {transfer_id}")
+    
+    print(f"\n{'-'*80}", flush=True)
+    print(f"{timestamp} | INFO     | 🔍 Consultando estado: {transfer_id}", flush=True)
+    
+    ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
+    try:
+        transfer = await ikln_client.get_transfer(transfer_id)
+        state = transfer.get("state")
+        state_code = get_state_code(state)
+        data_address = transfer.get("dataAddress")
+        
+        logger.info(f"📊 Respuesta del conector MASS:")
+        logger.info(f"   Estado: {state}")
+        logger.info(f"   Código estado: {state_code}")
+        logger.info(f"   Tiene dataAddress: {bool(data_address)}")
+        logger.info(f"   Transfer completo: {json.dumps(transfer, indent=2)[:800]}...")
+        logger.info(f"{'-'*80}\n")
+        
+        print(f"{timestamp} | INFO     | 📊 Estado: {state} (código: {state_code})", flush=True)
+        print(f"{'-'*80}\n", flush=True)
+        
+        # Check for EDR availability
+        edr_available = False
+        edr_endpoint = None
+        edr_token = None
+        
+        # Check cached EDR first
+        cached_edr = get_cached_edr(transfer_id)
+        if cached_edr:
+            edr_available = True
+            edr_endpoint = cached_edr.get("endpoint")
+            edr_token = cached_edr.get("authorization")
+        # Check embedded in dataAddress
+        elif data_address:
+            edr_endpoint = data_address.get("endpoint") or data_address.get("baseUrl")
+            edr_token = data_address.get("authCode") or data_address.get("authorization") or data_address.get("authKey")
+            if edr_endpoint:
+                edr_available = True
+        
+        # Get timestamps
+        created_at = transfer.get("createdAt") or transfer.get("createdTimestamp")
+        state_timestamp = transfer.get("stateTimestamp") or transfer.get("updatedAt")
+        
+        return {
+            "success": True,
+            "transfer": {
+                "id": transfer_id,
+                "state": state,
+                "stateCode": get_state_code(state),
+                "rawState": state,  # Estado original sin transformar del EDC
+                "assetId": transfer.get("assetId", "unknown"),
+                "contractId": transfer.get("contractId"),
+                "counterPartyId": transfer.get("counterPartyId"),
+                "edrAvailable": edr_available,
+                "edrEndpoint": edr_endpoint,
+                "edrToken": edr_token,
+                "createdAt": created_at,
+                "stateTimestamp": state_timestamp,
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error getting transfer status: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
         }
     finally:
         await ikln_client.close()
