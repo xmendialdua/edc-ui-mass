@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import Phase5Content from "@/components/phases/phase5-content";
-import Phase6Content from "@/components/phases/phase6-content";
+import NegotiationsContent from "@/components/phases/negotiations-content";
+import TransfersContent from "@/components/phases/transfers-content";
 import Image from "next/image";
 import { RefreshCw } from "lucide-react";
 
@@ -11,7 +12,8 @@ export default function PartnerDataPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [globalLogs, setGlobalLogs] = useState<string[]>([]);
   const phase5Ref = useRef<any>(null);
-  const phase6Ref = useRef<any>(null);
+  const negotiationsRef = useRef<any>(null);
+  const transfersRef = useRef<any>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -186,7 +188,11 @@ export default function PartnerDataPage() {
               padding: "20px",
               minHeight: "400px"
             }}>
-              <Phase5Content ref={phase5Ref} onLog={addLog} />
+              <Phase5Content 
+                ref={phase5Ref} 
+                onLog={addLog}
+                onNegotiationComplete={() => negotiationsRef.current?.refresh()}
+              />
             </div>
           </div>
 
@@ -216,7 +222,7 @@ export default function PartnerDataPage() {
                 <span>Negociaciones</span>
               </div>
               <button
-                onClick={() => phase6Ref.current?.refresh()}
+                onClick={() => negotiationsRef.current?.refresh()}
                 style={{
                   padding: "8px",
                   background: "rgba(255, 255, 255, 0.2)",
@@ -242,16 +248,7 @@ export default function PartnerDataPage() {
               padding: "20px",
               minHeight: "400px"
             }}>
-              <div style={{
-                background: "#f8f9fa",
-                border: "2px dashed #ddd",
-                borderRadius: "8px",
-                padding: "20px",
-                textAlign: "center",
-                color: "#666"
-              }}>
-                Selecciona un asset del catálogo para negociar
-              </div>
+              <NegotiationsContent ref={negotiationsRef} onLog={addLog} />
             </div>
           </div>
 
@@ -281,7 +278,7 @@ export default function PartnerDataPage() {
                 <span>Transferencias</span>
               </div>
               <button
-                onClick={() => phase6Ref.current?.refresh()}
+                onClick={() => transfersRef.current?.refresh()}
                 style={{
                   padding: "8px",
                   background: "rgba(255, 255, 255, 0.2)",
@@ -307,7 +304,7 @@ export default function PartnerDataPage() {
               padding: "20px",
               minHeight: "400px"
             }}>
-              <Phase6Content ref={phase6Ref} />
+              <TransfersContent ref={transfersRef} onLog={addLog} />
             </div>
           </div>
         </div>

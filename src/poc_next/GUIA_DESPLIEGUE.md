@@ -106,7 +106,105 @@ pnpm install
 
 ## 🚀 Lanzamiento de la Aplicación
 
-### Opción 1: Lanzamiento Manual (Recomendado para Desarrollo)
+### Opción 1: Scripts Automatizados (Recomendado)
+
+La forma más sencilla de iniciar la aplicación es usando los scripts automatizados que gestionan ambos servicios (Backend + Frontend).
+
+#### Iniciar la Aplicación
+
+```bash
+cd /home/xmendialdua/projects/assembly/iflex/src/poc_next
+./start.sh
+```
+
+**El script realiza automáticamente:**
+- ✅ Verifica requisitos (Python 3.9+, Node.js 18.19+, pnpm 10+)
+- ✅ Detecta y limpia puertos ocupados (5001, 3001)
+- ✅ Configura entornos virtuales y dependencias
+- ✅ Inicia el backend y espera a que esté operativo
+- ✅ Inicia el frontend y verifica disponibilidad
+- ✅ Muestra URLs de acceso y estado de los servicios
+- ✅ Guarda logs en `backend.log` y `frontend.log`
+- ✅ Maneja Ctrl+C para detención limpia
+
+**Salida esperada:**
+```
+════════════════════════════════════════════════════════
+   🚀 Iniciando POC Next - Dashboard de Tractus-X
+════════════════════════════════════════════════════════
+
+📋 Verificando requisitos...
+✓ Python 3.9.x encontrado
+✓ Node.js v18.19.x encontrado
+✓ pnpm 10.x encontrado
+
+🔍 Verificando puertos...
+✓ Puertos disponibles
+
+📡 Configurando Backend (FastAPI)...
+✓ Iniciando servidor backend en puerto 5001...
+   Esperando a que el backend esté listo........
+✓ Backend operativo en http://localhost:5001
+
+🎨 Configurando Frontend (Next.js)...
+✓ Iniciando servidor frontend en puerto 3001...
+   Esperando a que el frontend esté listo......
+✓ Frontend operativo en http://localhost:3001
+
+════════════════════════════════════════════════════════
+   ✅ POC Next iniciado correctamente
+════════════════════════════════════════════════════════
+
+📍 URLs disponibles:
+   ● Backend API:        http://localhost:5001
+   ● Health Check:       http://localhost:5001/health
+   ● API Docs:           http://localhost:5001/docs
+
+   ● Data Publication:   http://localhost:3001/data-publication
+   ● Partner Data:       http://localhost:3001/partner-data
+
+📝 Logs:
+   Backend:  tail -f backend.log
+   Frontend: tail -f frontend.log
+
+⏹️  Para detener: Ctrl+C o ejecuta ./stop.sh
+
+═══════════════════════════════════════════════════════
+   Presiona Ctrl+C para detener los servicios
+═══════════════════════════════════════════════════════
+```
+
+#### Reiniciar la Aplicación
+
+Para reiniciar ambos servicios:
+
+```bash
+cd /home/xmendialdua/projects/assembly/iflex/src/poc_next
+./restart.sh
+```
+
+Este script ejecuta automáticamente `stop.sh` seguido de `start.sh`.
+
+#### Ver Logs en Tiempo Real
+
+Durante la ejecución, los logs se guardan en archivos:
+
+```bash
+# Ver logs del backend
+tail -f backend.log
+
+# Ver logs del frontend
+tail -f frontend.log
+
+# Ver ambos simultáneamente
+tail -f backend.log frontend.log
+```
+
+---
+
+### Opción 2: Lanzamiento Manual (Para Desarrollo/Debug)
+
+Si prefieres iniciar cada servicio manualmente para debugging:
 
 #### Terminal 1 - Backend
 
@@ -140,73 +238,34 @@ pnpm dev
 ✓ Ready in 2.6s
 ```
 
-### Opción 2: Script de Lanzamiento Automatizado
-
-```bash
-# Desde el directorio raíz del proyecto
-cd /home/xmendialdua/projects/assembly/iflex/src/poc_next
-
-# Crear un script de lanzamiento (ejecutar solo una vez)
-cat > start.sh << 'EOF'
-#!/bin/bash
-echo "🚀 Iniciando POC Next..."
-
-# Arrancar backend en segundo plano
-echo "📡 Arrancando backend en puerto 5001..."
-cd backend
-source venv/bin/activate
-python3 main.py &
-BACKEND_PID=$!
-cd ..
-
-# Esperar a que el backend esté listo
-sleep 3
-
-# Arrancar frontend en segundo plano
-echo "🎨 Arrancando frontend en puerto 3001..."
-cd frontend
-pnpm dev &
-FRONTEND_PID=$!
-cd ..
-
-echo ""
-echo "✅ Aplicación iniciada correctamente"
-echo ""
-echo "📍 URLs disponibles:"
-echo "   - Backend:          http://localhost:5001"
-echo "   - Health Check:     http://localhost:5001/health"
-echo "   - Data Publication: http://localhost:3001/data-publication"
-echo "   - Partner Data:     http://localhost:3001/partner-data"
-echo ""
-echo "⏹️  Para detener: ./stop.sh o Ctrl+C"
-echo ""
-
-# Guardar PIDs para detener después
-echo $BACKEND_PID > .backend.pid
-echo $FRONTEND_PID > .frontend.pid
-
-# Esperar indefinidamente
-wait
-EOF
-
-chmod +x start.sh
-
-# Ejecutar
-./start.sh
-```
+---
 
 ### Verificación del Lanzamiento
 
-Una vez iniciados ambos servidores, verifica que estén funcionando:
+Una vez iniciados los servidores, verifica que estén funcionando correctamente:
 
 ```bash
 # Verificar backend
 curl http://localhost:5001/health
 # Debe devolver: {"status":"healthy"}
 
+# Verificar API docs
+curl -I http://localhost:5001/docs
+# Debe devolver: HTTP/1.1 200 OK
+
 # Verificar frontend
 curl -I http://localhost:3001/data-publication
 # Debe devolver: HTTP/1.1 200 OK
+```
+
+**Verificar puertos en uso:**
+
+```bash
+# Ver procesos en puerto 5001 (Backend)
+lsof -i :5001
+
+# Ver procesos en puerto 3001 (Frontend)
+lsof -i :3001
 ```
 
 ---
@@ -308,44 +367,97 @@ curl -I http://localhost:3001/data-publication
 
 ## ⏹️ Detener la Aplicación
 
-### Detener Manualmente
+### Opción 1: Detener con Script (Recomendado)
 
-En cada terminal donde arrancaste los servidores:
+Para detener ambos servicios de forma limpia:
+
 ```bash
-# Presionar Ctrl+C para detener cada proceso
+cd /home/xmendialdua/projects/assembly/iflex/src/poc_next
+./stop.sh
 ```
 
-### Script de Detención
+**El script realiza automáticamente:**
+- ✅ Detiene el backend por PID guardado
+- ✅ Detiene el frontend por PID guardado
+- ✅ Libera los puertos 5001 y 3001
+- ✅ Limpia procesos huérfanos (uvicorn, next-server)
+- ✅ Verifica que los puertos queden liberados
+- ✅ Elimina archivos temporales (.backend.pid, .frontend.pid)
+
+**Salida esperada:**
+```
+════════════════════════════════════════════════════════
+   ⏹️  Deteniendo POC Next
+════════════════════════════════════════════════════════
+
+📡 Deteniendo Backend...
+⏹️  Deteniendo Backend (PID: 12345)...
+✓ Backend detenido correctamente
+✓ Puerto 5001 liberado
+
+🎨 Deteniendo Frontend...
+⏹️  Deteniendo Frontend (PID: 12346)...
+✓ Frontend detenido correctamente
+✓ Puerto 3001 liberado
+
+🧹 Limpiando procesos huérfanos...
+✓ Limpieza completada
+
+════════════════════════════════════════════════════════
+   ✅ POC Next detenido correctamente
+      (2 servicio(s) detenido(s))
+════════════════════════════════════════════════════════
+
+📊 Estado de puertos:
+   ✓ Puerto 5001 (Backend): Libre
+   ✓ Puerto 3001 (Frontend): Libre
+```
+
+### Opción 2: Detener con Ctrl+C
+
+Si iniciaste la aplicación con `./start.sh`, puedes detenerla presionando:
+
+```
+Ctrl+C
+```
+
+El script `start.sh` captura la señal y ejecuta una detención limpia automáticamente.
+
+### Opción 3: Detener Manualmente
+
+Si iniciaste los servicios manualmente en terminales separadas:
 
 ```bash
-# Crear script stop.sh
-cat > stop.sh << 'EOF'
-#!/bin/bash
-echo "⏹️  Deteniendo POC Next..."
+# En cada terminal donde arrancaste los servidores:
+Ctrl+C
+```
 
-if [ -f .backend.pid ]; then
-    kill $(cat .backend.pid) 2>/dev/null
-    rm .backend.pid
-    echo "✓ Backend detenido"
-fi
+### Verificar que los Servicios se Detuvieron
 
-if [ -f .frontend.pid ]; then
-    kill $(cat .frontend.pid) 2>/dev/null
-    rm .frontend.pid
-    echo "✓ Frontend detenido"
-fi
+```bash
+# Verificar que no haya procesos en los puertos
+lsof -i :5001  # Debe estar vacío
+lsof -i :3001  # Debe estar vacío
 
-# Asegurar que los puertos estén liberados
-fuser -k 5001/tcp 2>/dev/null
-fuser -k 3001/tcp 2>/dev/null
+# Verificar procesos de Python/Node relacionados
+ps aux | grep uvicorn
+ps aux | grep next-server
+```
 
-echo "✅ Aplicación detenida completamente"
-EOF
+### Forzar Detención de Puertos (Si es necesario)
 
-chmod +x stop.sh
+Si los puertos siguen ocupados después de ejecutar `stop.sh`:
 
-# Ejecutar
-./stop.sh
+```bash
+# Liberar puerto 5001 (Backend)
+kill $(lsof -t -i:5001) 2>/dev/null
+# o
+fuser -k 5001/tcp
+
+# Liberar puerto 3001 (Frontend)
+kill $(lsof -t -i:3001) 2>/dev/null
+# o
+fuser -k 3001/tcp
 ```
 
 ---
@@ -356,15 +468,35 @@ chmod +x stop.sh
 
 **Error**: `EADDRINUSE: address already in use :::3001` o similar para puerto 5001
 
-**Solución**:
+**Causa**: Hay una instancia previa de la aplicación corriendo.
+
+**Solución 1 (Recomendada)**: Usar el script de detención
+```bash
+cd /home/xmendialdua/projects/assembly/iflex/src/poc_next
+./stop.sh
+./start.sh
+```
+
+**Solución 2**: Liberar puertos manualmente
 ```bash
 # Liberar puerto 3001 (frontend)
+kill $(lsof -t -i:3001) 2>/dev/null
+# o
 fuser -k 3001/tcp
 
 # Liberar puerto 5001 (backend)
+kill $(lsof -t -i:5001) 2>/dev/null
+# o
 fuser -k 5001/tcp
 
 # Reintentar el lanzamiento
+./start.sh
+```
+
+**Solución 3**: Dejar que el script lo maneje
+```bash
+./start.sh
+# El script detectará los puertos ocupados y preguntará si deseas detener los procesos
 ```
 
 ### Problema: Módulos de Python no encontrados
@@ -401,6 +533,85 @@ rm -rf .next
 pnpm dev
 ```
 
+### Problema: El script start.sh no se puede ejecutar
+
+**Error**: `bash: ./start.sh: Permission denied`
+
+**Solución**:
+```bash
+cd /home/xmendialdua/projects/assembly/iflex/src/poc_next
+chmod +x start.sh stop.sh restart.sh
+./start.sh
+```
+
+---
+
+### Problema: Backend no responde después de iniciar
+
+**Síntoma**: El script `start.sh` se queda esperando en "Esperando a que el backend esté listo..."
+
+**Solución**:
+```bash
+# 1. Revisar el log del backend
+cat backend.log
+
+# 2. Verificar el entorno virtual
+cd backend
+source venv/bin/activate
+python3 -c "import fastapi; print('FastAPI OK')"
+
+# 3. Verificar el archivo .env
+cat .env
+
+# 4. Intentar arrancar manualmente para ver el error
+python3 main.py
+```
+
+---
+
+### Problema: Frontend no compila
+
+**Síntoma**: El script se queda esperando en "Esperando a que el frontend esté listo..."
+
+**Solución**:
+```bash
+# 1. Revisar el log del frontend
+cat frontend.log
+
+# 2. Verificar dependencias
+cd frontend
+pnpm install
+
+# 3. Limpiar caché y reconstruir
+rm -rf .next node_modules pnpm-lock.yaml
+pnpm install
+pnpm dev
+```
+
+---
+
+### Problema: Procesos zombies o huérfanos
+
+**Síntoma**: Después de detener la aplicación, los puertos siguen ocupados
+
+**Solución**:
+```bash
+# Ejecutar el script de detención (ya incluye limpieza de zombies)
+./stop.sh
+
+# Si persiste, buscar y matar procesos manualmente
+ps aux | grep uvicorn
+ps aux | grep next-server
+
+# Matar todos los procesos de uvicorn en puerto 5001
+ps aux | grep "uvicorn.*5001" | awk '{print $2}' | xargs kill -9
+
+# Matar todos los procesos de next-server en puerto 3001
+ps aux | grep "next-server.*3001" | awk '{print $2}' | xargs kill -9
+```
+
+---
+
 ### Problema: Backend no conecta con EDC
 
 **Síntoma**: Errores de conexión a MASS o IKLN connectors
@@ -408,11 +619,14 @@ pnpm dev
 **Solución**:
 ```bash
 # Verificar que las URLs en .env sean correctas
-cd src/poc_next/backend
+cd backend
 cat .env | grep EDC
 
 # Probar conectividad
 curl https://edc-mass-control.51.178.34.25.nip.io/management/v3/assets
+
+# Verificar el API Key
+echo $EDC_API_KEY
 ```
 
 ### Problema: Logs no aparecen en el frontend
@@ -453,11 +667,50 @@ EDC_API_KEY=tu-api-key-aqui
 
 ### Logs y Debugging
 
-- **Backend logs**: Se muestran en la terminal donde se ejecuta `python3 main.py`
-- **Frontend logs**: 
+#### Archivos de Log
+
+Cuando usas los scripts automatizados, los logs se guardan en:
+
+- **backend.log**: Logs del servidor FastAPI/Uvicorn
+- **frontend.log**: Logs del servidor Next.js
+
+```bash
+# Ver logs en tiempo real
+tail -f backend.log
+tail -f frontend.log
+
+# Ver ambos simultáneamente
+tail -f backend.log frontend.log
+
+# Buscar errores en los logs
+grep -i error backend.log
+grep -i error frontend.log
+```
+
+#### Otras Fuentes de Logs
+
+- **Logs en terminal**: Si inicias manualmente, los logs aparecen directamente en la terminal
+- **Logs del navegador**: 
   - Consola del navegador (F12 → Console)
-  - Terminal donde se ejecuta `pnpm dev`
-- **Panel de operaciones**: Logs en tiempo real en la interfaz web
+  - Network tab para ver requests HTTP
+- **Panel de operaciones**: Logs en tiempo real en la interfaz web (Dashboard)
+
+#### Limpiar Logs
+
+```bash
+# Limpiar logs antiguos
+cd /home/xmendialdua/projects/assembly/iflex/src/poc_next
+rm -f backend.log frontend.log
+```
+
+#### Archivos Temporales
+
+Los scripts crean archivos temporales que se limpian automáticamente:
+
+- `.backend.pid`: PID del proceso backend
+- `.frontend.pid`: PID del proceso frontend
+
+Estos archivos se eliminan automáticamente al ejecutar `./stop.sh` o presionar Ctrl+C.
 
 ### Arquitectura de Red
 
@@ -477,15 +730,137 @@ EDC_API_KEY=tu-api-key-aqui
 
 ---
 
+## 📚 Scripts Disponibles
+
+La aplicación incluye tres scripts principales para gestionar el ciclo de vida:
+
+### start.sh - Iniciar la Aplicación
+
+```bash
+./start.sh
+```
+
+**Características completas:**
+- Verifica requisitos del sistema (Python, Node.js, pnpm)
+- Detecta puertos ocupados y ofrece liberarlos
+- Configura entornos virtuales automáticamente
+- Instala/actualiza dependencias si es necesario
+- Inicia backend con verificación de health check
+- Inicia frontend con verificación de disponibilidad
+- Guarda PIDs para detención posterior
+- Genera logs en archivos separados
+- Maneja Ctrl+C para detención limpia
+
+### stop.sh - Detener la Aplicación
+
+```bash
+./stop.sh
+```
+
+**Características completas:**
+- Detiene procesos por PID guardado
+- Detiene procesos por puerto si PID no disponible
+- Limpia procesos huérfanos (uvicorn, next-server)
+- Libera puertos 5001 y 3001
+- Elimina archivos temporales (.pid)
+- Verifica que los puertos queden libres
+
+### restart.sh - Reiniciar la Aplicación
+
+```bash
+./restart.sh
+```
+
+Equivalente a ejecutar `./stop.sh` seguido de `./start.sh`.
+
+---
+
+## 🔄 Comandos Útiles
+
+### Verificar Estado de Servicios
+
+```bash
+# Verificar que el backend está corriendo
+curl http://localhost:5001/health
+
+# Verificar que el frontend está corriendo
+curl http://localhost:3001
+
+# Ver procesos activos
+ps aux | grep uvicorn
+ps aux | grep next-server
+
+# Ver puertos en uso
+lsof -i :5001
+lsof -i :3001
+netstat -tulpn | grep -E '5001|3001'
+```
+
+### Ver Logs en Tiempo Real
+
+```bash
+# Backend
+tail -f backend.log
+
+# Frontend
+tail -f frontend.log
+
+# Ambos
+tail -f backend.log frontend.log
+
+# Últimas 50 líneas de cada log
+tail -n 50 backend.log
+tail -n 50 frontend.log
+```
+
+### Reinicio Completo (Limpiar Todo)
+
+```bash
+# Detener servicios
+./stop.sh
+
+# Limpiar logs y archivos temporales
+rm -f backend.log frontend.log .backend.pid .frontend.pid
+
+# Limpiar caché de Next.js
+rm -rf frontend/.next
+
+# Reiniciar
+./start.sh
+```
+
+---
+
 ## 🆘 Soporte
 
 Para problemas o dudas:
-1. Revisar esta guía de troubleshooting
-2. Consultar los logs del backend y frontend
-3. Verificar el estado de los conectores EDC
-4. Contactar con el equipo de desarrollo
+
+1. **Revisar esta guía**: Especialmente la sección de [Troubleshooting](#-troubleshooting)
+2. **Consultar los logs**: 
+   ```bash
+   tail -f backend.log frontend.log
+   ```
+3. **Verificar el estado de los servicios**:
+   ```bash
+   curl http://localhost:5001/health
+   curl http://localhost:3001
+   ```
+4. **Reinicio limpio**:
+   ```bash
+   ./stop.sh && rm -f *.log && ./start.sh
+   ```
+5. **Verificar conectores EDC**: Comprobar que MASS e IKLN estén operativos
+6. **Contactar con el equipo de desarrollo**
+
+---
+
+## 📖 Documentación Adicional
+
+- **README.md**: Descripción general del proyecto
+- **SCRIPTS_README.md**: Documentación detallada de los scripts de automatización
+- **Backend API Docs**: http://localhost:5001/docs (cuando el backend está corriendo)
 
 ---
 
 **Última actualización**: 21 de abril de 2026
-**Versión**: 1.0.0
+**Versión**: 2.0.0

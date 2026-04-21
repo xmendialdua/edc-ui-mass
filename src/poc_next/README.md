@@ -6,11 +6,33 @@ Modern EDC Dashboard built with Next.js + FastAPI.
 
 This is a complete rewrite of `src/poc` using modern web technologies:
 - **Backend:** FastAPI (Python) - Port 5001
-- **Frontend:** Next.js 16 + TypeScript - Port 3001
+- **Frontend:** Next.js 15 + TypeScript - Port 3001
 
 ## Quick Start
 
-### 1. Start Backend
+### Option 1: Automated Scripts (Recommended)
+
+**Start the entire application (Backend + Frontend):**
+```bash
+./start.sh
+```
+
+**Stop the application:**
+```bash
+./stop.sh
+# or press Ctrl+C in the terminal where you started it
+```
+
+**Restart the application:**
+```bash
+./restart.sh
+```
+
+📖 For detailed information about the scripts, see [SCRIPTS_README.md](SCRIPTS_README.md)
+
+### Option 2: Manual Start
+
+#### 1. Start Backend
 
 ```bash
 cd backend
@@ -19,7 +41,7 @@ cd backend
 
 Backend will be available at: http://localhost:5001
 
-### 2. Start Frontend
+#### 2. Start Frontend
 
 ```bash
 cd frontend
@@ -28,6 +50,21 @@ pnpm dev
 ```
 
 Frontend will be available at: http://localhost:3001
+
+## Access Points
+
+Once started, you can access:
+
+### Backend
+- API: http://localhost:5001
+- Health Check: http://localhost:5001/health
+- API Documentation: http://localhost:5001/docs
+
+### Frontend Dashboards
+- **Data Publication**: http://localhost:3001/data-publication
+  - Manage assets and policies (MASS Connector)
+- **Partner Data Access**: http://localhost:3001/partner-data
+  - Browse catalog, negotiations, and transfers (IKLN Connector)
 
 ## Project Structure
 

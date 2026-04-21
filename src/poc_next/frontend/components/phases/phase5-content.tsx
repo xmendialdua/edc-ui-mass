@@ -24,9 +24,10 @@ interface Offer {
 
 interface Phase5ContentProps {
   onLog?: (message: string) => void;
+  onNegotiationComplete?: () => void;
 }
 
-const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({ onLog }, ref) => {
+const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({ onLog, onNegotiationComplete }, ref) => {
   const [loading, setLoading] = useState(false);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
@@ -76,9 +77,31 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
 
   const handleNegotiate = async (assetId: string, policy: any) => {
     addLog(`🤝 Iniciando negociación para asset: ${assetId}`);
-    console.log('Negociando asset:', assetId, policy);
-    // TODO: Implement negotiation logic
-    alert(`Negociación iniciada para asset: ${assetId}`);
+    try {
+      const result = await api.phase6.negotiate({
+        assetId: assetId,
+        policy: policy
+      });
+      
+      if (result.logs) {
+        result.logs.forEach(log => addLog(log));
+      }
+      
+      if (result.success) {
+        addLog(`✅ Negociación iniciada exitosamente para asset: ${assetId}`);
+        
+        // Refrescar el panel de negociaciones después de 2 segundos
+        setTimeout(() => {
+          if (onNegotiationComplete) {
+            onNegotiationComplete();
+          }
+        }, 2000);
+      } else {
+        addLog(`⚠️ La negociación no se completó correctamente`);
+      }
+    } catch (error) {
+      addLog(`❌ Error al negociar: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   // Expose refresh method to parent
@@ -198,8 +221,8 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
                   >
                     {/* Left colored bar */}
                     <div style={{
-                      width: '4px',
-                      background: 'linear-gradient(180deg, #6366f1 0%, #a855f7 100%)',
+                      width: '3px',
+                      background: '#667eea',
                       flexShrink: 0
                     }}></div>
                     

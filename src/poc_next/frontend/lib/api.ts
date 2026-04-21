@@ -149,8 +149,16 @@ export const api = {
       { method: 'POST' }
     ),
     negotiate: (data: { assetId: string; policy: any }) => apiRequest<{ success: boolean; logs: string[] }>(
-      '/api/phase6/negotiate',
+      '/api/phase6/negotiate-asset',
       { method: 'POST', body: JSON.stringify(data) }
+    ),
+    listNegotiations: () => apiRequest<{ success: boolean; negotiations: any[]; logs: string[] }>(
+      '/api/phase6/list-negotiations',
+      { method: 'GET' }
+    ),
+    listTransfers: () => apiRequest<{ success: boolean; transfers: any[]; logs: string[] }>(
+      '/api/phase6/list-transfers',
+      { method: 'GET' }
     ),
     initiateTransfer: (data: { contractAgreementId: string; assetId: string }) =>
       apiRequest<{ success: boolean; logs: string[] }>(
