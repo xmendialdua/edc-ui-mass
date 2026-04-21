@@ -183,5 +183,9 @@ export const api = {
 
       return response.blob();
     },
+    getTransferEdr: (transferId: string) => apiRequest<{ success: boolean; edr: any; cached: boolean }>(
+      `/api/phase6/transfer-edr/${transferId}`,
+      { method: 'GET' }
+    ),
   },
 };

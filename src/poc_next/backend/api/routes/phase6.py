@@ -308,58 +308,49 @@ async def initiate_transfer_for_contract(
 
 @router.get("/list-transfers")
 async def list_transfers() -> Dict[str, Any]:
-    """List all transfer processes and check for EDRs."""
+    """List all transfer processes - optimized to return immediately without waiting for EDR queries."""
+    import time
+    start_time = time.time()
+    
     ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
     try:
+        # Get all transfers
+        t0 = time.time()
         transfers_raw = await ikln_client.list_transfers()
+        print(f"⏱️ list_transfers() took {time.time() - t0:.2f}s")
 
-        # Transform to simplified format and check for EDRs
-        transfers = []
-        for transfer in transfers_raw:
+        # Process transfers and use ONLY cached/embedded EDR data
+        # Skip expensive EDR queries - the background monitor will populate the cache
+        transfers_info = []
+        
+        for idx, transfer in enumerate(transfers_raw):
             transfer_id = transfer.get("@id")
             state = transfer.get("state")
-
-            # Try to get EDR if transfer is in a completed state
-            edr_data = None
+            data_address = transfer.get("dataAddress")
+            
+            # Initialize EDR data
             edr_available = False
             edr_endpoint = None
             edr_token = None
-
-            # First, check if we have a cached EDR from monitoring
+            
+            # Check cached EDR first (from background monitoring)
             cached_edr = get_cached_edr(transfer_id)
             if cached_edr:
                 edr_available = True
                 edr_endpoint = cached_edr.get("endpoint")
                 edr_token = cached_edr.get("authorization")
-                print(f"✅ Using cached EDR for transfer {transfer_id}")
-            # Second, check if EDR is embedded in the transfer's dataAddress field
-            else:
-                data_address = transfer.get("dataAddress")
-                if data_address:
-                    edr_endpoint = data_address.get("endpoint") or data_address.get("baseUrl")
-                    edr_token = data_address.get("authCode") or data_address.get("authorization") or data_address.get("authKey")
-                    if edr_endpoint:
-                        edr_data = data_address
-                        edr_available = True
-                        print(f"✅ EDR found in dataAddress for transfer {transfer_id}")
-
-                # If not embedded, query the EDRs endpoint for completed transfers
-                if not edr_data and not edr_available and state in ["STARTED", "COMPLETED", "TERMINATED"]:
-                    print(f"🔍 Querying EDRs endpoint for transfer {transfer_id} in state {state}")
-                    edr_data = await ikln_client.get_edr_for_transfer(transfer_id)
-                    if edr_data:
-                        edr_available = True
-                        edr_endpoint = edr_data.get("endpoint")
-                        edr_token = edr_data.get("authorization")
-                        print(f"✅ EDR retrieved from EDRs endpoint for transfer {transfer_id}")
-                    else:
-                        print(f"⚠️ No EDR found for transfer {transfer_id} (state: {state})")
-
-            # Try to get timestamp with fallback options (different EDC versions use different field names)
+            # Check if EDR is embedded in dataAddress
+            elif data_address:
+                edr_endpoint = data_address.get("endpoint") or data_address.get("baseUrl")
+                edr_token = data_address.get("authCode") or data_address.get("authorization") or data_address.get("authKey")
+                if edr_endpoint:
+                    edr_available = True
+            
+            # Get timestamps
             created_at = transfer.get("createdAt") or transfer.get("createdTimestamp")
             state_timestamp = transfer.get("stateTimestamp") or transfer.get("updatedAt")
             
-            transfers.append({
+            transfers_info.append({
                 "id": transfer_id,
                 "state": state,
                 "assetId": transfer.get("assetId", "unknown"),
@@ -372,12 +363,18 @@ async def list_transfers() -> Dict[str, Any]:
                 "stateTimestamp": state_timestamp,
             })
 
+        elapsed = time.time() - start_time
+        print(f"✅ list_transfers completed in {elapsed:.2f}s (returned {len(transfers_info)} transfers)")
+
         return {
             "success": True,
-            "transfers": transfers
+            "transfers": transfers_info
         }
 
     except Exception as e:
+        print(f"❌ Error in list_transfers: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return {
             "success": False,
             "error": str(e),
@@ -389,7 +386,8 @@ async def list_transfers() -> Dict[str, Any]:
 
 @router.get("/transfer-edr/{transfer_id}")
 async def get_transfer_edr(transfer_id: str) -> Dict[str, Any]:
-    """Get the cached EDR for a specific transfer."""
+    """Get the EDR for a specific transfer on-demand (if not cached)."""
+    # First, check cache
     edr = get_cached_edr(transfer_id)
     
     if edr:
@@ -398,12 +396,33 @@ async def get_transfer_edr(transfer_id: str) -> Dict[str, Any]:
             "edr": edr,
             "cached": True
         }
-    else:
+    
+    # If not cached, fetch from EDC
+    ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
+    try:
+        print(f"🔍 Fetching EDR on-demand for transfer {transfer_id}")
+        edr_data = await ikln_client.get_edr_for_transfer(transfer_id)
+        
+        if edr_data:
+            return {
+                "success": True,
+                "edr": edr_data,
+                "cached": False
+            }
+        else:
+            return {
+                "success": False,
+                "error": "EDR not found for this transfer",
+                "cached": False
+            }
+    except Exception as e:
         return {
             "success": False,
-            "message": "EDR not found in cache. It may not have been captured yet or the transfer may not have reached STARTED state.",
+            "error": str(e),
             "cached": False
         }
+    finally:
+        await ikln_client.close()
 
 
 @router.get("/get-fresh-token/{transfer_id}")

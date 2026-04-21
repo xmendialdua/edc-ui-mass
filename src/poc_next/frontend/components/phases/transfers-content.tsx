@@ -128,19 +128,41 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
     const handleDownloadData = async (transferId: string, edrEndpoint?: string, edrToken?: string) => {
       addLog(`📥 Descargando datos de transferencia: ${transferId}`);
       
-      if (!edrEndpoint || !edrToken) {
+      let endpoint = edrEndpoint;
+      let token = edrToken;
+      
+      // If no EDR available, try to fetch it on-demand
+      if (!endpoint || !token) {
+        addLog(`⏳ EDR no disponible, obteniéndolo bajo demanda...`);
+        try {
+          const result = await api.phase6.getTransferEdr(transferId);
+          if (result.success && result.edr) {
+            endpoint = result.edr.endpoint;
+            token = result.edr.authorization;
+            addLog(`✅ EDR obtenido ${result.cached ? '(caché)' : '(consulta)'}`);
+          } else {
+            addLog(`❌ No se pudo obtener el EDR para esta transferencia`);
+            return;
+          }
+        } catch (error) {
+          addLog(`❌ Error al obtener EDR: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          return;
+        }
+      }
+      
+      if (!endpoint || !token) {
         addLog(`❌ No hay endpoint o token EDR disponible`);
         return;
       }
 
-      addLog(`Endpoint: ${edrEndpoint}`);
+      addLog(`Endpoint: ${endpoint}`);
       
       try {
         // Llamar al backend para descargar el archivo (actúa como proxy para evitar CORS)
         const blob = await api.phase6.downloadFile({
           transferId: transferId,
-          endpoint: edrEndpoint,
-          token: edrToken
+          endpoint: endpoint,
+          token: token
         });
 
         // Crear un URL temporal para el blob
@@ -276,7 +298,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                     <strong>EDR Disponible:</strong> {transfer.edrAvailable ? ' ✅ Sí' : ' ❌ No'}
                   </div>
 
-                  {transfer.edrAvailable ? (
+                  {(transfer.state === 'COMPLETED' || transfer.state === 'STARTED') ? (
                     <button
                       onClick={() => handleDownloadData(transfer.id, transfer.edrEndpoint, transfer.edrToken)}
                       style={{
