@@ -23,6 +23,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
   ({ onLog }, ref) => {
     const [loading, setLoading] = useState(false);
     const [transfers, setTransfers] = useState<Transfer[]>([]);
+    const [autoRefreshCount, setAutoRefreshCount] = useState(0);
 
     const addLog = (message: string) => {
       if (onLog) {
@@ -49,37 +50,66 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
     }
 
     useImperativeHandle(ref, () => ({
-      refresh: fetchTransfers
+      refresh: () => {
+        fetchTransfers();
+        setAutoRefreshCount(0); // Reset counter on manual refresh
+      }
     }));
 
     useEffect(() => {
       fetchTransfers();
     }, []);
 
-    const getStateBadgeColor = (state: string) => {
+    // Auto-refresh effect: refresh every 5 seconds if there are transfers without EDR (max 10 times)
+    useEffect(() => {
+      const hasTransfersWithoutEdr = transfers.some(
+        t => (t.state === 'STARTED' || t.state === 'REQUESTED') && !t.edrAvailable
+      );
+
+      if (hasTransfersWithoutEdr && autoRefreshCount < 10) {
+        const timer = setTimeout(() => {
+          addLog('🔄 Auto-refrescando para verificar EDRs...');
+          fetchTransfers();
+          setAutoRefreshCount(prev => prev + 1);
+        }, 5000);
+
+        return () => clearTimeout(timer);
+      }
+    }, [transfers, autoRefreshCount]);
+
+    const getStateBadgeColor = (state: string, edrAvailable: boolean) => {
+      // Show FINALIZED when transfer is STARTED/COMPLETED and EDR is available
+      if ((state === 'STARTED' || state === 'COMPLETED') && edrAvailable) {
+        return { bg: '#3b82f6', color: 'white', label: 'FINALIZED' };
+      }
+      
       switch (state) {
         case 'STARTED':
-          return { bg: '#22c55e', color: 'white' };
+          return { bg: '#f59e0b', color: 'white', label: 'EN PROGRESO' };
         case 'COMPLETED':
-          return { bg: '#3b82f6', color: 'white' };
+          return { bg: '#3b82f6', color: 'white', label: 'COMPLETADA' };
         case 'REQUESTED':
-          return { bg: '#f59e0b', color: 'white' };
+          return { bg: '#8b5cf6', color: 'white', label: 'SOLICITADA' };
         case 'SUSPENDED':
         case 'TERMINATED':
-          return { bg: '#ef4444', color: 'white' };
+          return { bg: '#ef4444', color: 'white', label: state };
         default:
-          return { bg: '#6b7280', color: 'white' };
+          return { bg: '#6b7280', color: 'white', label: state };
       }
     };
 
-    const getCardBorderColor = (state: string) => {
+    const getCardBorderColor = (state: string, edrAvailable: boolean) => {
+      if ((state === 'STARTED' || state === 'COMPLETED') && edrAvailable) {
+        return '#3b82f6'; // Blue for finalized
+      }
+      
       switch (state) {
         case 'STARTED':
-          return '#22c55e';
+          return '#f59e0b'; // Orange for in progress
         case 'COMPLETED':
           return '#3b82f6';
         case 'REQUESTED':
-          return '#f59e0b';
+          return '#8b5cf6'; // Purple for requested
         case 'SUSPENDED':
         case 'TERMINATED':
           return '#ef4444';
@@ -88,14 +118,18 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
       }
     };
 
-    const getCardBackground = (state: string) => {
+    const getCardBackground = (state: string, edrAvailable: boolean) => {
+      if ((state === 'STARTED' || state === 'COMPLETED') && edrAvailable) {
+        return '#eff6ff'; // Blue background for finalized
+      }
+      
       switch (state) {
         case 'STARTED':
-          return '#f0fdf4';
+          return '#fffbeb'; // Yellow background for in progress
         case 'COMPLETED':
           return '#eff6ff';
         case 'REQUESTED':
-          return '#fffbeb';
+          return '#faf5ff'; // Purple background for requested
         case 'SUSPENDED':
         case 'TERMINATED':
           return '#fef2f2';
@@ -185,16 +219,11 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
       }
     };
 
-    // Sort transfers by state priority
+    // Sort transfers by date (most recent first)
     const sortedTransfers = [...transfers].sort((a, b) => {
-      const priority: Record<string, number> = { 
-        'STARTED': 1, 
-        'COMPLETED': 2, 
-        'REQUESTED': 3,
-        'SUSPENDED': 4,
-        'TERMINATED': 5
-      };
-      return (priority[a.state] || 6) - (priority[b.state] || 6);
+      const dateA = new Date(a.createdAt || a.stateTimestamp || 0).getTime();
+      const dateB = new Date(b.createdAt || b.stateTimestamp || 0).getTime();
+      return dateB - dateA; // Descending order (most recent first)
     });
 
     return (
@@ -245,9 +274,9 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
         {!loading && sortedTransfers.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {sortedTransfers.map((transfer) => {
-              const badgeColor = getStateBadgeColor(transfer.state);
-              const borderColor = getCardBorderColor(transfer.state);
-              const backgroundColor = getCardBackground(transfer.state);
+              const badgeColor = getStateBadgeColor(transfer.state, transfer.edrAvailable);
+              const borderColor = getCardBorderColor(transfer.state, transfer.edrAvailable);
+              const backgroundColor = getCardBackground(transfer.state, transfer.edrAvailable);
 
               return (
                 <div
@@ -276,7 +305,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                       background: badgeColor.bg,
                       color: badgeColor.color
                     }}>
-                      {transfer.state}
+                      {badgeColor.label}
                     </span>
                   </div>
 
@@ -301,26 +330,34 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                   {(transfer.state === 'COMPLETED' || transfer.state === 'STARTED') ? (
                     <button
                       onClick={() => handleDownloadData(transfer.id, transfer.edrEndpoint, transfer.edrToken)}
+                      disabled={!transfer.edrAvailable}
                       style={{
                         width: '100%',
-                        background: 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)',
+                        background: transfer.edrAvailable 
+                          ? 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)' 
+                          : '#9ca3af',
                         color: 'white',
                         padding: '10px 16px',
                         borderRadius: '6px',
                         border: 'none',
                         fontSize: '13px',
                         fontWeight: '600',
-                        cursor: 'pointer',
+                        cursor: transfer.edrAvailable ? 'pointer' : 'not-allowed',
+                        opacity: transfer.edrAvailable ? 1 : 0.6,
                         transition: 'all 0.2s ease'
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.opacity = '0.9';
+                        if (transfer.edrAvailable) {
+                          e.currentTarget.style.opacity = '0.9';
+                        }
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.opacity = '1';
+                        if (transfer.edrAvailable) {
+                          e.currentTarget.style.opacity = '1';
+                        }
                       }}
                     >
-                      📥 Descargar Datos
+                      📥 Descargar Datos {!transfer.edrAvailable && '(EDR no disponible)'}
                     </button>
                   ) : (
                     <button

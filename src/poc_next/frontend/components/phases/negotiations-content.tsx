@@ -120,15 +120,11 @@ const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsCont
       }
     };
 
-    // Sort negotiations by state priority
+    // Sort negotiations by date (most recent first)
     const sortedNegotiations = [...negotiations].sort((a, b) => {
-      const priority: Record<string, number> = { 
-        'FINALIZED': 1, 
-        'AGREED': 2, 
-        'REQUESTED': 3, 
-        'FAILED': 4 
-      };
-      return (priority[a.state] || 5) - (priority[b.state] || 5);
+      const dateA = new Date(a.createdAt || a.stateTimestamp || 0).getTime();
+      const dateB = new Date(b.createdAt || b.stateTimestamp || 0).getTime();
+      return dateB - dateA; // Descending order (most recent first)
     });
 
     return (

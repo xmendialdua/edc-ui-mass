@@ -48,6 +48,7 @@ export default function PartnerDataPage() {
         setTimeout(() => {
           if (transfersRef.current) {
             transfersRef.current.refresh();
+            addLog(`🔄 Auto-refresco activado. Monitoreando EDR...`);
           }
         }, 2000);
       } else {
