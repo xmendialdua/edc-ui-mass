@@ -35,9 +35,10 @@ interface Asset {
 
 interface Phase2ContentProps {
   onLog?: (message: string) => void;
+  phase4Ref?: any;  // Referencia a Phase4 para refrescar contratos
 }
 
-const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog }, ref) => {
+const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref }, ref) => {
   const [loading, setLoading] = useState<string | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
@@ -46,6 +47,40 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog }, ref) => {
   const [newAssetId, setNewAssetId] = useState('');
   const [assetUrlType, setAssetUrlType] = useState<'pdf' | 'csv' | 'custom'>('pdf');
   const [customUrl, setCustomUrl] = useState('');
+  const [showPublishDialog, setShowPublishDialog] = useState(false);
+  const [selectedPartners, setSelectedPartners] = useState<Set<string>>(new Set());
+  const [policies, setPolicies] = useState<any[]>([]);
+
+  // Lista de partners disponibles (hardcoded)
+  function getAvailablePartners() {
+    return [
+      {
+        bpn: "BPNL00000002IKLN",
+        name: "Ikerlan",
+        description: "IKERLAN Technology Centre"
+      },
+      {
+        bpn: "BPNL00000000MASS",
+        name: "MondragonAssembly",
+        description: "Mondragon Assembly"
+      },
+      {
+        bpn: "BPNL00000001PTR1",
+        name: "Partner1",
+        description: "Partner 1"
+      },
+      {
+        bpn: "BPNL00000001PTR2",
+        name: "Partner2",
+        description: "Partner 2"
+      },
+      {
+        bpn: "BPNL00000001PTR3",
+        name: "Partner3",
+        description: "Partner 3"
+      }
+    ];
+  }
 
   const log = (message: string) => {
     if (onLog) {
@@ -64,6 +99,133 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog }, ref) => {
       log(`❌ Error al cargar assets: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(null);
+    }
+  }
+
+  async function loadPolicies() {
+    try {
+      const result = await api.phase3.listPolicies();
+      setPolicies(result.policies || []);
+    } catch (error) {
+      console.error('Error cargando políticas:', error);
+    }
+  }
+
+  function findPolicyById(policyId: string): boolean {
+    return policies.some(policy => policy['@id'] === policyId);
+  }
+
+  async function ensureContractPolicyGeneral(): Promise<{ success: boolean; error?: string }> {
+    // Check if already exists
+    if (findPolicyById('contract-policy-general')) {
+      log('ℹ️  Contract Policy General ya existe');
+      return { success: true };
+    }
+
+    log('📜 Creando Contract Policy General...');
+    
+    try {
+      const result = await api.phase3.createContractPolicy();
+      
+      if (result.success || (result as any).error === 'POLICY_EXISTS') {
+        await loadPolicies();  // Reload to get the new policy
+        log('✅ Contract Policy General disponible: contract-policy-general');
+        return { success: true };
+      } else {
+        const errorMsg = (result as any).error || 'Error desconocido';
+        log(`❌ Error creando Contract Policy General: ${errorMsg}`);
+        return { success: false, error: errorMsg };
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
+      log(`❌ Error creando Contract Policy General: ${errorMsg}`);
+      return { success: false, error: errorMsg };
+    }
+  }
+
+  async function ensureAccessPolicy(partner: { bpn: string; name: string }): Promise<{ success: boolean; policyId?: string; error?: string }> {
+    const accessPolicyId = `access-policy-${partner.bpn.toLowerCase()}`;
+    
+    // Check if already exists
+    if (findPolicyById(accessPolicyId)) {
+      log(`  ℹ️  Access Policy ya existe para ${partner.name}: ${accessPolicyId}`);
+      return { success: true, policyId: accessPolicyId };
+    }
+
+    log(`  📋 Creando Access Policy para ${partner.name}...`);
+    try {
+      const result = await api.phase3.createAccessPolicy(partner.bpn);
+      
+      if (result.success || (result as any).error === 'POLICY_EXISTS') {
+        await loadPolicies();  // Reload to get the new policy
+        log(`  ✅ Access Policy disponible: ${accessPolicyId}`);
+        return { success: true, policyId: accessPolicyId };
+      } else {
+        const errorMsg = (result as any).error || 'Error desconocido';
+        log(`  ❌ Error con Access Policy: ${errorMsg}`);
+        if ((result as any).logs) {
+          (result as any).logs.forEach((logMsg: string) => log(`     ${logMsg}`));
+        }
+        return { success: false, error: errorMsg };
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
+      log(`  ❌ Error con Access Policy: ${errorMsg}`);
+      return { success: false, error: errorMsg };
+    }
+  }
+
+  async function createPublicationForAssetPartner(assetId: string, partner: { bpn: string; name: string }): Promise<{ success: boolean; error?: string }> {
+    log(`\n📝 Publicando '${assetId}' para ${partner.name} (${partner.bpn})...`);
+    
+    // 1. Ensure contract-policy-general exists
+    const contractPolicyResult = await ensureContractPolicyGeneral();
+    if (!contractPolicyResult.success) {
+      log(`  ❌ No se pudo asegurar Contract Policy General`);
+      return { success: false, error: 'Contract policy general missing' };
+    }
+    
+    // 2. Ensure Access Policy for this partner exists
+    const accessPolicyResult = await ensureAccessPolicy(partner);
+    if (!accessPolicyResult.success) {
+      log(`  ❌ No se pudo asegurar Access Policy para ${partner.name}`);
+      return { success: false, error: 'Access policy missing' };
+    }
+    
+    const accessPolicyId = accessPolicyResult.policyId || `access-policy-${partner.bpn.toLowerCase()}`;
+    const contractPolicyId = 'contract-policy-general';
+    
+    // 3. Create Contract Definition
+    const contractName = `${assetId}-${partner.name.toLowerCase()}`;
+    
+    log(`  🔗 Creando Contract Definition: ${contractName}...`);
+    
+    try {
+      const contractResult = await api.phase4.createContractDefinition({
+        contractName: contractName,
+        assetId: assetId,
+        accessPolicyId: accessPolicyId,
+        contractPolicyId: contractPolicyId
+      });
+      
+      if (contractResult.success) {
+        log(`  ✅ Contract Definition creado exitosamente`);
+        return { success: true };
+      } else if ((contractResult as any).error === 'CONTRACT_EXISTS') {
+        log(`  ℹ️  Contract Definition ya existe`);
+        return { success: true };  // Consider this a success
+      } else {
+        const errorMsg = (contractResult as any).error || 'Error desconocido';
+        log(`  ❌ Error creando Contract Definition: ${errorMsg}`);
+        if ((contractResult as any).logs) {
+          (contractResult as any).logs.forEach((logMsg: string) => log(`     ${logMsg}`));
+        }
+        return { success: false, error: errorMsg };
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
+      log(`  ❌ Error creando Contract Definition: ${errorMsg}`);
+      return { success: false, error: errorMsg };
     }
   }
 
@@ -133,16 +295,91 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog }, ref) => {
       return;
     }
 
+    // Abrir modal de selección de partners
+    setSelectedPartners(new Set());
+    setShowPublishDialog(true);
+    log(`🔵 Abriendo selector de partners para ${selectedAssets.size} asset(s)`);
+  }
+
+  async function confirmPublish() {
+    if (selectedPartners.size === 0) {
+      alert('Por favor selecciona al menos un partner');
+      return;
+    }
+
+    setShowPublishDialog(false);
     setLoading('publish');
-    const assetList = Array.from(selectedAssets).join(', ');
-    log(`📤 Publicando ${selectedAssets.size} asset(s) seleccionado(s): ${assetList}`);
     
-    // Simular publicación
-    setTimeout(() => {
-      log(`✅ Assets publicados correctamente`);
-      setSelectedAssets(new Set());
+    const selectedPartnerList = Array.from(selectedPartners).map(bpn => {
+      const partner = getAvailablePartners().find(p => p.bpn === bpn);
+      return partner;
+    }).filter(p => p) as { bpn: string; name: string; description: string }[];
+    
+    const partnerList = selectedPartnerList.map(p => p.name).join(', ');
+    
+    log(`📤 Publicando ${selectedAssets.size} asset(s) para ${selectedPartners.size} partner(s): ${partnerList}`);
+    
+    // Ensure contract-policy-general exists before starting
+    const contractPolicyResult = await ensureContractPolicyGeneral();
+    if (!contractPolicyResult.success) {
+      log(`\n❌ No se pudo crear/obtener Contract Policy General. Proceso abortado.`);
       setLoading(null);
-    }, 2000);
+      return;
+    }
+    
+    // Track errors during publication
+    let hasErrors = false;
+    let successCount = 0;
+    let failureCount = 0;
+    
+    // For each combination of asset-partner, create policies and contract definition
+    for (const assetId of Array.from(selectedAssets)) {
+      for (const partner of selectedPartnerList) {
+        const result = await createPublicationForAssetPartner(assetId, partner);
+        if (result.success) {
+          successCount++;
+        } else {
+          hasErrors = true;
+          failureCount++;
+        }
+      }
+    }
+    
+    // Show final summary
+    if (hasErrors) {
+      log(`\n❌ Proceso de publicación finalizado con errores`);
+      log(`   ✅ Exitosos: ${successCount}`);
+      log(`   ❌ Fallidos: ${failureCount}`);
+    } else {
+      log(`\n✅ Proceso de publicación completado exitosamente`);
+      log(`   Total: ${successCount} contrato(s) creado(s)`);
+    }
+    
+    // Reload data
+    await loadAssets();
+    await loadPolicies();
+    
+    // Refresh contract definitions panel if ref available
+    if (phase4Ref?.current?.refresh) {
+      phase4Ref.current.refresh();
+    }
+    
+    // Clear selections
+    setSelectedAssets(new Set());
+    setSelectedPartners(new Set());
+    setLoading(null);
+  }
+
+  function togglePartnerSelection(bpn: string) {
+    setSelectedPartners(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(bpn)) {
+        newSet.delete(bpn);
+      } else {
+        newSet.add(bpn);
+      }
+      return newSet;
+    });
   }
 
   function toggleAssetSelection(assetId: string) {
@@ -171,6 +408,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog }, ref) => {
 
   useEffect(() => {
     loadAssets();
+    loadPolicies();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -723,6 +961,168 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog }, ref) => {
         </DialogContent>
       </Dialog>
       */}
+
+      {/* Publish to Partners Dialog */}
+      {showPublishDialog && (
+        <>
+          {/* Overlay */}
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              zIndex: 9998,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            {/* Modal content */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                padding: '24px',
+                maxWidth: '600px',
+                width: '90%',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+                position: 'relative',
+                zIndex: 9999
+              }}
+            >
+              {/* Header */}
+              <div style={{ marginBottom: '16px' }}>
+                <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '8px' }}>
+                  🚀 Publicar Assets a Partners
+                </h2>
+                <p style={{ fontSize: '14px', color: '#666' }}>
+                  Selecciona los partners con los que deseas compartir los assets seleccionados
+                </p>
+              </div>
+
+              {/* Close button */}
+              <button
+                onClick={() => {
+                  log('❌ Cancelando publicación');
+                  setShowPublishDialog(false);
+                  setSelectedPartners(new Set());
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '16px',
+                  right: '16px',
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  color: '#666'
+                }}
+              >
+                ×
+              </button>
+
+              {/* Partners list */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '12px', fontSize: '14px', fontWeight: '600' }}>
+                  Partners Disponibles:
+                </label>
+                <div style={{
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  padding: '12px',
+                  maxHeight: '300px',
+                  overflowY: 'auto'
+                }}>
+                  {getAvailablePartners().map(partner => (
+                    <div
+                      key={partner.bpn}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '10px',
+                        marginBottom: '8px',
+                        borderRadius: '4px',
+                        backgroundColor: selectedPartners.has(partner.bpn) ? '#e0e7ff' : '#f8f9fa',
+                        border: `1px solid ${selectedPartners.has(partner.bpn) ? '#667eea' : '#e0e0e0'}`,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onClick={() => togglePartnerSelection(partner.bpn)}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedPartners.has(partner.bpn)}
+                        onChange={() => togglePartnerSelection(partner.bpn)}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          width: '18px',
+                          height: '18px',
+                          cursor: 'pointer',
+                          accentColor: '#667eea',
+                          marginRight: '12px'
+                        }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '2px' }}>
+                          {partner.name}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#666', fontFamily: "'Courier New', monospace" }}>
+                          {partner.bpn}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p style={{ fontSize: '12px', color: '#999', marginTop: '8px' }}>
+                  Selecciona uno o varios partners
+                </p>
+              </div>
+
+              {/* Footer buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
+                <button
+                  onClick={() => {
+                    setShowPublishDialog(false);
+                    setSelectedPartners(new Set());
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    backgroundColor: 'white',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmPublish}
+                  disabled={selectedPartners.size === 0}
+                  style={{
+                    padding: '8px 16px',
+                    border: 'none',
+                    borderRadius: '4px',
+                    backgroundColor: selectedPartners.size === 0 ? '#ccc' : '#11998e',
+                    color: 'white',
+                    cursor: selectedPartners.size === 0 ? 'not-allowed' : 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '600'
+                  }}
+                >
+                  Publicar
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 });

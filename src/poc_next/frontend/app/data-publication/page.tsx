@@ -218,7 +218,7 @@ export default function DataPublicationPage() {
               maxHeight: "600px",
               overflowY: "auto"
             }}>
-              <Phase2Content ref={phase2Ref} onLog={addLog} />
+              <Phase2Content ref={phase2Ref} onLog={addLog} phase4Ref={phase4Ref} />
             </div>
           </div>
 
