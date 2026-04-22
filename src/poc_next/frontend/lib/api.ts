@@ -75,9 +75,9 @@ export const api = {
       '/api/phase2/list-assets',
       { method: 'POST' }
     ),
-    createAsset: (assetId: string, url?: string) => apiRequest<{ success: boolean; logs: string[] }>(
+    createAsset: (assetId: string, url?: string, description?: string) => apiRequest<{ success: boolean; logs: string[] }>(
       '/api/phase2/create-asset',
-      { method: 'POST', body: JSON.stringify({ assetId, url }) }
+      { method: 'POST', body: JSON.stringify({ assetId, url, description }) }
     ),
     deleteAsset: (assetId: string) => apiRequest<{ success: boolean; logs: string[] }>(
       '/api/phase2/delete-asset',

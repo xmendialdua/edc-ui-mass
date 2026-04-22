@@ -2,7 +2,7 @@
 
 import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { api } from '@/lib/api';
-import { Search, Package, ChevronDown, ChevronUp, FileText } from 'lucide-react';
+import { Package, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Dataset {
   '@id': string;
@@ -30,8 +30,7 @@ interface Phase5ContentProps {
 const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({ onLog, onNegotiationComplete }, ref) => {
   const [loading, setLoading] = useState(false);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
-  const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
-  const [isDetailExpanded, setIsDetailExpanded] = useState(true);
+  const [expandedDatasets, setExpandedDatasets] = useState<Set<string>>(new Set());
 
   const addLog = (message: string) => {
     if (onLog) {
@@ -41,7 +40,7 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
 
   async function handleCatalogRequest() {
     setLoading(true);
-    setSelectedDataset(null);
+    setExpandedDatasets(new Set());
     addLog('🔍 Consultando catálogo de MASS...');
     try {
       const result = await api.phase5.catalogRequest();
@@ -61,13 +60,18 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
     }
   }
 
-  const handleSelectDataset = (dataset: Dataset) => {
-    setSelectedDataset(dataset);
-    setIsDetailExpanded(true);
-    const datasetId = dataset['@id'] || 'unknown';
-    addLog(`📦 Dataset seleccionado: ${datasetId}`);
-    const offers = getOffers(dataset);
-    addLog(`📦 ${offers.length} asset(s) disponibles`);
+  const toggleDatasetExpansion = (datasetId: string) => {
+    setExpandedDatasets(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(datasetId)) {
+        newSet.delete(datasetId);
+      } else {
+        newSet.add(datasetId);
+      }
+      return newSet;
+    });
+    const datasetName = datasets.find(d => d['@id'] === datasetId)?.['@id'] || datasetId;
+    addLog(`📦 Dataset ${expandedDatasets.has(datasetId) ? 'colapsado' : 'expandido'}: ${datasetName}`);
   };
 
   const getOffers = (dataset: Dataset): Offer[] => {
@@ -129,44 +133,72 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
       {/* Datasets Cards */}
       {!loading && datasets.length > 0 && (
         <div className="space-y-3">
-          <div className="grid gap-3">
+          <h3 className="text-base font-semibold" style={{ color: '#1f2937' }}>Datasets</h3>
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
             {datasets.map((dataset, index) => {
               const datasetId = dataset['@id'] || `dataset-${index}`;
               const offers = getOffers(dataset);
-              const isSelected = selectedDataset?.['@id'] === dataset['@id'];
+              const isExpanded = expandedDatasets.has(datasetId);
               
               return (
                 <div
                   key={datasetId}
-                  onClick={() => handleSelectDataset(dataset)}
                   style={{
-                    background: isSelected ? '#e0f2fe' : '#eff6ff',
-                    border: isSelected ? '2px solid #3b82f6' : '1px solid #bfdbfe',
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
                     borderRadius: '8px',
-                    padding: '16px',
-                    cursor: 'pointer',
+                    overflow: 'hidden',
                     transition: 'all 0.2s ease',
-                    boxShadow: isSelected ? '0 4px 6px rgba(59, 130, 246, 0.2)' : '0 1px 3px rgba(0,0,0,0.1)'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isSelected) {
-                      e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.15)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSelected) {
-                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-                    }
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ fontWeight: '600', fontSize: '14px', color: '#1e40af' }}>
-                      {datasetId}
+                  {/* Dataset Header - clickable */}
+                  <div
+                    onClick={() => toggleDatasetExpansion(datasetId)}
+                    style={{
+                      padding: '16px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <div style={{ flex: 1, marginRight: '12px' }}>
+                      <div style={{ fontWeight: '600', fontSize: '14px', color: '#1e40af' }}>
+                        {datasetId}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                        {offers.length === 0 || !offers[0] ? 'undefined offer(s)' : `${offers.length} offer(s)`}
+                      </div>
                     </div>
-                    <div style={{ fontSize: '13px', color: '#64748b', whiteSpace: 'nowrap', marginLeft: '16px' }}>
-                      {offers.length === 0 || !offers[0] ? 'undefined offer(s)' : `${offers.length} offer(s)`}
+                    <div>
+                      {isExpanded ? (
+                        <ChevronUp className="h-5 w-5" style={{ color: '#64748b' }} />
+                      ) : (
+                        <ChevronDown className="h-5 w-5" style={{ color: '#64748b' }} />
+                      )}
                     </div>
                   </div>
+
+                  {/* Dataset Detail - always shown when expanded */}
+                  {isExpanded && (
+                    <div style={{ borderTop: '1px solid #bfdbfe', padding: '12px 16px', background: 'white' }}>
+                      <div style={{ fontSize: '13px', fontWeight: '700', color: '#000000', marginBottom: '8px' }}>
+                        Dataset Detail
+                      </div>
+                      <pre style={{ 
+                        background: '#f1f5f9', 
+                        padding: '12px', 
+                        borderRadius: '4px', 
+                        fontSize: '10px', 
+                        overflow: 'auto', 
+                        maxHeight: '200px',
+                        margin: 0
+                      }}>
+                        {JSON.stringify(dataset, null, 2)}
+                      </pre>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -184,180 +216,111 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
         </div>
       )}
 
-      {/* Assets in Dataset */}
-      {selectedDataset && (
-        <div className="space-y-4 mt-6">
-          <h3 className="text-base font-semibold" style={{ color: '#1f2937' }}>Assets in Dataset</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
-            {(() => {
-              const offers = getOffers(selectedDataset);
-              const datasetName = selectedDataset['name'] || selectedDataset['dct:title'] || selectedDataset['@id'] || 'Asset';
-              const datasetDescription = selectedDataset['description'] || selectedDataset['dct:description'] || 'Asset disponible en el catálogo';
-              const datasetId = selectedDataset['@id'] || 'unknown';
-              
-              if (offers.length === 0 || !offers[0]) {
-                return (
-                  <div className="text-center p-8 text-muted-foreground" style={{ gridColumn: '1 / -1' }}>
-                    No hay assets en este dataset
-                  </div>
-                );
-              }
-              
-              return offers.map((offer, index) => {
-                const offerId = offer['@id'] || `offer-${index}`;
-                const assetId = offer['odrl:target'] || datasetId;
-                
-                return (
-                  <div 
-                    key={offerId} 
-                    style={{
-                      background: 'white',
-                      borderRadius: '6px',
-                      overflow: 'hidden',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-                      display: 'flex',
-                      border: '1px solid #e5e7eb'
-                    }}
-                  >
-                    {/* Left colored bar */}
-                    <div style={{
-                      width: '3px',
-                      background: '#667eea',
-                      flexShrink: 0
-                    }}></div>
+      {/* Assets from all datasets */}
+      {!loading && datasets.length > 0 && (
+        <div className="space-y-6 mt-6">
+          {datasets.map((dataset, datasetIndex) => {
+            const datasetId = dataset['@id'] || `dataset-${datasetIndex}`;
+            const offers = getOffers(dataset);
+            const datasetName = dataset['name'] || dataset['dct:title'] || dataset['@id'] || 'Dataset';
+            
+            if (offers.length === 0 || !offers[0]) {
+              return null;
+            }
+
+            return (
+              <div key={datasetId} className="space-y-3">
+                <h3 className="text-base font-semibold" style={{ color: '#1f2937' }}>
+                  Assets in {datasetName}
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
+                  {offers.map((offer, index) => {
+                    const offerId = offer['@id'] || `offer-${index}`;
+                    const assetId = offer['odrl:target'] || datasetId;
+                    const assetName = dataset['name'] || dataset['dct:title'] || dataset['@id'] || 'Asset';
+                    const assetDescription = dataset['description'] || dataset['dct:description'] || 'Asset disponible en el catálogo';
                     
-                    {/* Icon area */}
-                    <div style={{
-                      width: '45px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'linear-gradient(135deg, #ddd6fe 0%, #e9d5ff 100%)',
-                      flexShrink: 0,
-                      padding: '8px 4px'
-                    }}>
-                      <FileText style={{ width: '20px', height: '20px', color: '#6366f1' }} />
-                    </div>
-                    
-                    {/* Content */}
-                    <div style={{ flex: 1, padding: '10px 12px' }}>
-                      <h3 style={{ 
-                        fontWeight: '600', 
-                        fontSize: '14px', 
-                        marginTop: 0,
-                        marginBottom: '3px',
-                        color: '#1f2937',
-                        lineHeight: '1.2'
-                      }}>
-                        {datasetName}
-                      </h3>
-                      <p style={{ 
-                        fontSize: '12px', 
-                        color: '#6b7280', 
-                        marginBottom: '8px',
-                        marginTop: 0,
-                        lineHeight: '1.3'
-                      }}>
-                        {datasetDescription}
-                      </p>
-                      
-                      <div style={{ marginBottom: '10px' }}>
-                        <div style={{ 
-                          fontSize: '11px', 
-                          marginBottom: '2px'
-                        }}>
-                          <span style={{ fontWeight: 'bold', color: '#4b5563' }}>ID: </span>
-                          <span style={{ fontFamily: 'monospace', color: '#374151' }}>{assetId}</span>
-                        </div>
-                        <div style={{ 
-                          fontSize: '11px'
-                        }}>
-                          <span style={{ fontWeight: 'bold', color: '#4b5563' }}>Contract ID: </span>
-                          <span style={{ 
-                            fontFamily: 'monospace', 
-                            color: '#374151',
-                            wordBreak: 'break-word',
-                            lineHeight: '1.5',
-                            display: 'inline'
-                          }}>
-                            {offerId}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <button
-                        onClick={() => handleNegotiate(assetId, offer)}
+                    return (
+                      <div 
+                        key={offerId} 
                         style={{
-                          background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)',
-                          color: 'white',
-                          padding: '5px 12px',
-                          borderRadius: '5px',
-                          border: 'none',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = 'linear-gradient(90deg, #059669 0%, #047857 100%)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = 'linear-gradient(90deg, #10b981 0%, #059669 100%)';
+                          background: '#f5f3ff',
+                          borderRadius: '6px',
+                          padding: '16px',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                          border: '2px solid #7c3aed',
+                          display: 'flex',
+                          flexDirection: 'column'
                         }}
                       >
-                        Negociar
-                      </button>
-                    </div>
-                  </div>
-                );
-              });
-            })()}
-          </div>
-        </div>
-      )}
-
-      {/* Dataset Detail */}
-      {selectedDataset && (
-        <div className="mt-4" style={{ background: 'white', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <div 
-            style={{
-              padding: '16px 20px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              borderBottom: isDetailExpanded ? '1px solid #e5e7eb' : 'none'
-            }}
-            onClick={() => setIsDetailExpanded(!isDetailExpanded)}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#f9fafb';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'white';
-            }}
-          >
-            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#1f2937' }}>Dataset Detail</h3>
-            {isDetailExpanded ? (
-              <ChevronUp className="h-5 w-5 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="h-5 w-5 text-muted-foreground" />
-            )}
-          </div>
-          {isDetailExpanded && (
-            <div style={{ padding: '20px' }}>
-              <pre style={{ 
-                background: '#f1f5f9', 
-                padding: '16px', 
-                borderRadius: '6px', 
-                fontSize: '11px', 
-                overflow: 'auto', 
-                maxHeight: '384px',
-                margin: 0
-              }}>
-                {JSON.stringify(selectedDataset, null, 2)}
-              </pre>
-            </div>
-          )}
+                        {/* Content */}
+                        <div style={{ flex: 1, marginBottom: '12px' }}>
+                          <div style={{ marginBottom: 0 }}>
+                            <div style={{ 
+                              fontSize: '11px', 
+                              marginBottom: '6px'
+                            }}>
+                              <span style={{ fontWeight: 'bold', color: '#4b5563' }}>Asset ID: </span>
+                              <span style={{ fontFamily: 'monospace', color: '#374151' }}>{assetId}</span>
+                            </div>
+                            <div style={{ 
+                              fontSize: '12px', 
+                              color: '#6b7280', 
+                              marginBottom: '6px',
+                              lineHeight: '1.4'
+                            }}>
+                              <span style={{ fontWeight: 'bold', color: '#4b5563' }}>Description: </span>
+                              <span>{assetDescription}</span>
+                            </div>
+                            <div style={{ 
+                              fontSize: '11px'
+                            }}>
+                              <span style={{ fontWeight: 'bold', color: '#4b5563' }}>Contract ID: </span>
+                              <span style={{ 
+                                fontFamily: 'monospace', 
+                                color: '#374151',
+                                wordBreak: 'break-word',
+                                lineHeight: '1.5',
+                                display: 'inline'
+                              }}>
+                                {offerId}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Button aligned to bottom right */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <button
+                            onClick={() => handleNegotiate(assetId, offer)}
+                            style={{
+                              background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)',
+                              color: 'white',
+                              padding: '6px 14px',
+                              borderRadius: '5px',
+                              border: 'none',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = 'linear-gradient(90deg, #059669 0%, #047857 100%)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = 'linear-gradient(90deg, #10b981 0%, #059669 100%)';
+                            }}
+                          >
+                            Negociar
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

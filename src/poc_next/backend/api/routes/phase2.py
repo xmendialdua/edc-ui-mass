@@ -20,6 +20,7 @@ def log_message(message: str) -> str:
 class CreateAssetRequest(BaseModel):
     assetId: str
     url: str = None  # Optional URL, defaults to settings.pdf_url if not provided
+    description: str = None  # Optional description
 
 
 class DeleteAssetRequest(BaseModel):
@@ -32,9 +33,12 @@ async def create_asset(request: CreateAssetRequest) -> Dict[str, Any]:
     logs: List[str] = []
     asset_id = request.assetId
     asset_url = request.url if request.url else settings.pdf_url
+    asset_description = request.description if request.description else f"Asset publicado desde Data Publication UI - {asset_url}"
 
     logs.append(log_message(f"📦 Creando asset '{asset_id}'..."))
     logs.append(log_message(f"🔗 URL: {asset_url}"))
+    if request.description:
+        logs.append(log_message(f"📝 Descripción: {asset_description}"))
 
     # Determine content type based on URL extension
     content_type = "application/octet-stream"
@@ -53,7 +57,7 @@ async def create_asset(request: CreateAssetRequest) -> Dict[str, Any]:
         "@type": "Asset",
         "properties": {
             "name": asset_id,
-            "description": f"Asset publicado desde Data Publication UI - {asset_url}",
+            "description": asset_description,
             "contenttype": content_type,
             "version": "1.0"
         },

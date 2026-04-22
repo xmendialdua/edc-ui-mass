@@ -45,6 +45,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
   const [expandedAssets, setExpandedAssets] = useState<Set<string>>(new Set());
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newAssetId, setNewAssetId] = useState('');
+  const [assetDescription, setAssetDescription] = useState('');
   const [assetUrlType, setAssetUrlType] = useState<'pdf' | 'csv' | 'custom'>('pdf');
   const [customUrl, setCustomUrl] = useState('');
   const [showPublishDialog, setShowPublishDialog] = useState(false);
@@ -256,11 +257,15 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
     setLoading('create');
     log(`🔨 Creando asset: ${newAssetId}`);
     log(`🔗 URL: ${assetUrl}`);
+    if (assetDescription) {
+      log(`📝 Descripción: ${assetDescription}`);
+    }
     try {
-      await api.phase2.createAsset(newAssetId, assetUrl);
+      await api.phase2.createAsset(newAssetId, assetUrl, assetDescription || undefined);
       log(`✅ Asset creado: ${newAssetId}`);
       setShowCreateDialog(false);
       setNewAssetId('');
+      setAssetDescription('');
       setAssetUrlType('pdf');
       setCustomUrl('');
       setTimeout(() => loadAssets(), 1000);
@@ -756,6 +761,30 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
 
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>
+                  Descripción (opcional)
+                </label>
+                <textarea
+                  placeholder="Descripción del asset"
+                  value={assetDescription}
+                  onChange={(e) => setAssetDescription(e.target.value)}
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    resize: 'vertical',
+                    fontFamily: 'inherit'
+                  }}
+                />
+                <p style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                  Proporciona una descripción del asset (opcional)
+                </p>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>
                   Tipo de Archivo
                 </label>
                 <select
@@ -840,6 +869,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                   onClick={() => {
                     setShowCreateDialog(false);
                     setNewAssetId('');
+                    setAssetDescription('');
                     setAssetUrlType('pdf');
                     setCustomUrl('');
                   }}
