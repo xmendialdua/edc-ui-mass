@@ -70,92 +70,109 @@ export default function PartnerDataPage() {
         {/* Header */}
         <div style={{
           background: "white",
-          padding: "30px",
+          padding: "20px 30px",
           borderRadius: "10px",
           boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
           marginBottom: "20px"
         }}>
           <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "20px",
-            marginBottom: "15px"
-          }}>
-            <Image 
-              src="/logo-mondragon.png" 
-              alt="Mondragon Assembly" 
-              width={180} 
-              height={36}
-              style={{ height: "40px", width: "auto" }}
-            />
-            <div>
-              <h1 style={{ 
-                color: "#333", 
-                margin: 0,
-                fontSize: "28px" 
-              }}>Partner Data Access Dashboard</h1>
-            </div>
-          </div>
-
-          <div style={{
-            background: "#f0f4f8",
-            padding: "15px",
-            borderRadius: "5px",
-            marginTop: "15px",
             display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "10px",
-            fontSize: "13px"
+            gridTemplateColumns: "1fr auto",
+            gap: "30px",
+            alignItems: "center"
           }}>
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <div style={{
-                fontWeight: "bold",
-                color: "#555",
-                marginBottom: "5px",
-                fontSize: "14px"
-              }}>IKLN Connector:</div>
-              <div style={{
-                color: "#333",
-                fontFamily: "'Courier New', monospace",
-                fontSize: "14px"
-              }}>BPNL00000002IKLN</div>
-            </div>
-
+            {/* Panel A: Logo + Título */}
             <div style={{
               display: "flex",
-              flexDirection: "column",
               alignItems: "center",
-              gap: "8px"
+              gap: "20px"
             }}>
-              <div style={{
-                width: "16px",
-                height: "16px",
-                borderRadius: "50%",
-                background: "#28a745",
-                boxShadow: "0 0 10px rgba(40, 167, 69, 0.6)"
-              }} />
-              <div style={{
-                fontSize: "13px",
-                fontWeight: "600",
-                color: "#28a745"
-              }}>
-                Conectado
+              <Image 
+                src="/logo-mondragon.png" 
+                alt="Mondragon Assembly" 
+                width={180} 
+                height={36}
+                style={{ height: "40px", width: "auto" }}
+              />
+              <div>
+                <h1 style={{ 
+                  color: "#333", 
+                  margin: 0,
+                  fontSize: "24px",
+                  whiteSpace: "nowrap"
+                }}>Partner Data Access Dashboard</h1>
               </div>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column" }}>
+            {/* Panel B: Información del Conector */}
+            <div style={{
+              background: "#f0f4f8",
+              padding: "12px 20px",
+              borderRadius: "8px",
+              display: "grid",
+              gridTemplateColumns: "auto auto auto",
+              gap: "20px",
+              alignItems: "center",
+              fontSize: "13px",
+              width: "fit-content",
+              marginLeft: "auto"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{
+                  fontWeight: "bold",
+                  color: "#555",
+                  fontSize: "13px"
+                }}>IKLN Connector:</div>
+                <div style={{
+                  color: "#333",
+                  fontFamily: "'Courier New', monospace",
+                  fontSize: "13px"
+                }}>BPNL00000002IKLN</div>
+              </div>
+
               <div style={{
-                fontWeight: "bold",
-                color: "#555",
-                marginBottom: "5px",
-                fontSize: "14px"
-              }}>Management API:</div>
-              <div style={{
-                color: "#333",
-                fontFamily: "'Courier New', monospace",
-                fontSize: "12px",
-                wordBreak: "break-all"
-              }}>https://edc-ikln-control.51.178.94.25.nip.io/management</div>
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                paddingLeft: "15px",
+                borderLeft: "2px solid #d1d5db"
+              }}>
+                <div style={{
+                  width: "12px",
+                  height: "12px",
+                  borderRadius: "50%",
+                  background: "#28a745",
+                  boxShadow: "0 0 8px rgba(40, 167, 69, 0.6)"
+                }} />
+                <div style={{
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: "#28a745"
+                }}>
+                  Conectado
+                </div>
+              </div>
+
+              <div style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                gap: "8px",
+                paddingLeft: "15px",
+                borderLeft: "2px solid #d1d5db"
+              }}>
+                <div style={{
+                  fontWeight: "bold",
+                  color: "#555",
+                  fontSize: "13px",
+                  whiteSpace: "nowrap"
+                }}>Management API:</div>
+                <div style={{
+                  color: "#333",
+                  fontFamily: "'Courier New', monospace",
+                  fontSize: "11px",
+                  whiteSpace: "nowrap"
+                }}>https://edc-ikln-control.51.178.94.25.nip.io/management</div>
+              </div>
             </div>
           </div>
         </div>
