@@ -437,6 +437,7 @@ async def list_transfers() -> Dict[str, Any]:
                 "rawState": state,  # Estado original sin transformar del EDC
                 "assetId": transfer.get("assetId", "unknown"),
                 "contractId": transfer.get("contractId"),
+                "contractAgreementId": transfer.get("contractId"),  # Alias para consistencia con negociaciones
                 "counterPartyId": transfer.get("counterPartyId"),
                 "edrAvailable": edr_available,
                 "edrEndpoint": edr_endpoint,
@@ -573,6 +574,7 @@ async def get_transfer_status(transfer_id: str) -> Dict[str, Any]:
                 "rawState": state,  # Estado original sin transformar del EDC
                 "assetId": transfer.get("assetId", "unknown"),
                 "contractId": transfer.get("contractId"),
+                "contractAgreementId": transfer.get("contractId"),  # Alias para consistencia con negociaciones
                 "counterPartyId": transfer.get("counterPartyId"),
                 "edrAvailable": edr_available,
                 "edrEndpoint": edr_endpoint,

@@ -15,6 +15,7 @@ interface Transfer {
   edrAvailable: boolean;
   edrEndpoint?: string;
   edrToken?: string;
+  contractAgreementId?: string;
 }
 
 interface TransfersContentProps {
@@ -292,6 +293,31 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
       }
     };
 
+    const getTimeAgo = (dateString?: string) => {
+      if (!dateString) return 'Unknown time';
+      try {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffSecs = Math.floor(diffMs / 1000);
+        const diffMins = Math.floor(diffSecs / 60);
+        const diffHours = Math.floor(diffMins / 60);
+        const diffDays = Math.floor(diffHours / 24);
+
+        if (diffDays > 0) {
+          return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+        } else if (diffHours > 0) {
+          return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+        } else if (diffMins > 0) {
+          return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+        } else {
+          return `${diffSecs} second${diffSecs !== 1 ? 's' : ''} ago`;
+        }
+      } catch {
+        return 'Unknown time';
+      }
+    };
+
     const handleDebugTransfer = (transferId: string) => {
       addLog(`🔍 Depurando transferencia: ${transferId}`);
       alert(`Debug de transferencia: ${transferId}\nEsta funcionalidad mostrará detalles técnicos de la transferencia.`);
@@ -305,29 +331,30 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
       
       // If no EDR available, try to fetch it on-demand
       if (!endpoint || !token) {
-        addLog(`⏳ EDR no disponible, obteniéndolo bajo demanda...`);
+        addLog(`   ⏳ EDR no disponible, obteniéndolo bajo demanda...`);
         try {
           const result = await api.phase6.getTransferEdr(transferId);
           if (result.success && result.edr) {
             endpoint = result.edr.endpoint;
             token = result.edr.authorization;
-            addLog(`✅ EDR obtenido ${result.cached ? '(caché)' : '(consulta)'}`);
+            addLog(`   ✅ EDR obtenido ${result.cached ? '(caché)' : '(consulta)'}`);
           } else {
-            addLog(`❌ No se pudo obtener el EDR para esta transferencia`);
+            addLog(`   ❌ No se pudo obtener el EDR para esta transferencia`);
             return;
           }
         } catch (error) {
-          addLog(`❌ Error al obtener EDR: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          addLog(`   ❌ Error al obtener EDR: ${error instanceof Error ? error.message : 'Unknown error'}`);
           return;
         }
       }
       
       if (!endpoint || !token) {
-        addLog(`❌ No hay endpoint o token EDR disponible`);
+        addLog(`   ❌ No hay endpoint o token EDR disponible`);
         return;
       }
 
-      addLog(`Endpoint: ${endpoint}`);
+      addLog(`   Endpoint: ${endpoint}`);
+      addLog(`   Token: ${token.substring(0, 50)}...`);
       
       try {
         // Llamar al backend para descargar el archivo (actúa como proxy para evitar CORS)
@@ -351,7 +378,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
         
-        addLog(`✅ Archivo descargado exitosamente`);
+        addLog(`   ✅ Archivo descargado exitosamente`);
 
         // Iniciar polling individual para esta transferencia
         if (!pollingTransfers.has(transferId)) {
@@ -361,7 +388,61 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
         }
         
       } catch (error) {
-        addLog(`❌ Error al descargar: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        
+        // Check if token expired (403 error with specific message)
+        if (errorMessage.includes('403') && errorMessage.includes('Token has expired')) {
+          addLog(`   ⚠️ Token expirado detectado, renovando...`);
+          
+          try {
+            // Request a fresh EDR
+            const result = await api.phase6.getTransferEdr(transferId);
+            if (result.success && result.edr) {
+              const newEndpoint = result.edr.endpoint;
+              const newToken = result.edr.authorization;
+              addLog(`   ✅ Nuevo token obtenido`);
+              addLog(`   Token renovado: ${newToken.substring(0, 50)}...`);
+              
+              // Retry download with new token
+              addLog(`   🔄 Reintentando descarga con nuevo token...`);
+              const blob = await api.phase6.downloadFile({
+                transferId: transferId,
+                endpoint: newEndpoint,
+                token: newToken
+              });
+
+              // Crear un URL temporal para el blob
+              const url = window.URL.createObjectURL(blob);
+              
+              // Crear un enlace temporal y hacer click automáticamente
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `data-${transferId}.csv`;
+              document.body.appendChild(link);
+              link.click();
+              
+              // Limpiar
+              document.body.removeChild(link);
+              window.URL.revokeObjectURL(url);
+              
+              addLog(`   ✅ Archivo descargado exitosamente con token renovado`);
+
+              // Iniciar polling individual para esta transferencia
+              if (!pollingTransfers.has(transferId)) {
+                addLog(`🔄 Iniciando monitoreo del estado de transferencia ${transferId}...`);
+                setPollingTransfers(prev => new Set(prev).add(transferId));
+                pollTransferState(transferId);
+              }
+              
+            } else {
+              addLog(`   ❌ No se pudo obtener un nuevo token`);
+            }
+          } catch (retryError) {
+            addLog(`   ❌ Error al renovar token: ${retryError instanceof Error ? retryError.message : 'Unknown error'}`);
+          }
+        } else {
+          addLog(`   ❌ Error al descargar: ${errorMessage}`);
+        }
       }
     };
 
@@ -463,34 +544,25 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                     </div>
                   )}
 
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '10px'
-                  }}>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Transferencia</span>
-                    <span style={{
-                      padding: '4px 12px',
-                      borderRadius: '12px',
-                      fontSize: '11px',
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{ 
+                      fontSize: '14px', 
                       fontWeight: 'bold',
-                      textTransform: 'uppercase',
-                      background: badgeColor.bg,
-                      color: badgeColor.color
+                      color: '#1f2937',
+                      marginBottom: '4px'
                     }}>
-                      {transfer.stateCode && (
-                        <span style={{ marginRight: '6px', opacity: 0.8 }}>[{transfer.stateCode}]</span>
-                      )}
-                      {badgeColor.label}
-                    </span>
+                      {transfer.assetId}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                      {getTimeAgo(transfer.stateTimestamp || transfer.createdAt)} ({formatDate(transfer.stateTimestamp || transfer.createdAt)})
+                    </div>
                   </div>
 
-                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>
-                    <strong>ID:</strong> {transfer.id}
+                  <div style={{ fontSize: '11px', color: '#666', marginBottom: '3px' }}>
+                    <strong>Transfer ID:</strong> {transfer.id}
                   </div>
-                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>
-                    <strong>Asset:</strong> {transfer.assetId}
+                  <div style={{ fontSize: '11px', color: '#666', marginBottom: '3px' }}>
+                    <strong>Agreement ID:</strong> {transfer.contractAgreementId || 'N/A'}
                   </div>
                   
                   {/* Mostrar los 3 campos de estado para debugging */}
@@ -509,79 +581,83 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                     </div>
                   </div>
 
-                  <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>
-                    <strong>Creada:</strong> {formatDate(transfer.createdAt)}
-                  </div>
-                  {transfer.stateTimestamp && (
-                    <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>
-                      <strong>Actualizada:</strong> {formatDate(transfer.stateTimestamp)}
-                    </div>
-                  )}
-                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '8px' }}>
                     <strong>EDR Disponible:</strong> {transfer.edrAvailable ? ' ✅ Sí' : ' ❌ No'}
                   </div>
 
                   {(transfer.stateCode === 800 || transfer.stateCode === 600) ? (
-                    <button
-                      onClick={() => handleDownloadData(transfer.id, transfer.edrEndpoint, transfer.edrToken)}
-                      disabled={!transfer.edrAvailable}
-                      style={{
-                        width: '100%',
-                        background: transfer.edrAvailable 
-                          ? 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)' 
-                          : '#9ca3af',
-                        color: 'white',
-                        padding: '10px 16px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        fontSize: '13px',
-                        fontWeight: '600',
-                        cursor: transfer.edrAvailable ? 'pointer' : 'not-allowed',
-                        opacity: transfer.edrAvailable ? 1 : 0.6,
-                        transition: 'all 0.2s ease'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (transfer.edrAvailable) {
-                          e.currentTarget.style.opacity = '0.9';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (transfer.edrAvailable) {
-                          e.currentTarget.style.opacity = '1';
-                        }
-                      }}
-                    >
-                      📥 Descargar Datos {!transfer.edrAvailable && '(EDR no disponible)'}
-                    </button>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      marginTop: '8px'
+                    }}>
+                      <button
+                        onClick={() => handleDownloadData(transfer.id, transfer.edrEndpoint, transfer.edrToken)}
+                        disabled={!transfer.edrAvailable}
+                        style={{
+                          background: transfer.edrAvailable 
+                            ? 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)' 
+                            : '#9ca3af',
+                          color: 'white',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          cursor: transfer.edrAvailable ? 'pointer' : 'not-allowed',
+                          opacity: transfer.edrAvailable ? 1 : 0.6,
+                          transition: 'all 0.2s ease',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (transfer.edrAvailable) {
+                            e.currentTarget.style.opacity = '0.9';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (transfer.edrAvailable) {
+                            e.currentTarget.style.opacity = '1';
+                          }
+                        }}
+                      >
+                        📥 Descargar
+                      </button>
+                    </div>
                   ) : (
-                    <button
-                      onClick={() => handleDebugTransfer(transfer.id)}
-                      style={{
-                        width: '100%',
-                        background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                        color: 'white',
-                        padding: '10px 16px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        fontSize: '13px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        transition: 'all 0.2s ease'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.opacity = '0.9';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.opacity = '1';
-                      }}
-                    >
-                      <Search size={14} />
-                      Debug
-                    </button>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      marginTop: '8px'
+                    }}>
+                      <button
+                        onClick={() => handleDebugTransfer(transfer.id)}
+                        style={{
+                          background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                          color: 'white',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.opacity = '0.9';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.opacity = '1';
+                        }}
+                      >
+                        <Search size={12} />
+                        Debug
+                      </button>
+                    </div>
                   )}
                 </div>
               );
