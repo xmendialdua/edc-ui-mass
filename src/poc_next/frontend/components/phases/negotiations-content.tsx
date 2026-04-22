@@ -55,20 +55,6 @@ const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsCont
       fetchNegotiations();
     }, []);
 
-    const getStateBadgeColor = (state: string) => {
-      switch (state) {
-        case 'FINALIZED':
-        case 'AGREED':
-          return { bg: '#22c55e', color: 'white' };
-        case 'REQUESTED':
-          return { bg: '#3b82f6', color: 'white' };
-        case 'FAILED':
-          return { bg: '#ef4444', color: 'white' };
-        default:
-          return { bg: '#6b7280', color: 'white' };
-      }
-    };
-
     const getCardBorderColor = (state: string) => {
       switch (state) {
         case 'FINALIZED':
@@ -110,6 +96,31 @@ const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsCont
         });
       } catch {
         return dateString;
+      }
+    };
+
+    const getTimeAgo = (dateString?: string) => {
+      if (!dateString) return 'Unknown time';
+      try {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffSecs = Math.floor(diffMs / 1000);
+        const diffMins = Math.floor(diffSecs / 60);
+        const diffHours = Math.floor(diffMins / 60);
+        const diffDays = Math.floor(diffHours / 24);
+
+        if (diffDays > 0) {
+          return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+        } else if (diffHours > 0) {
+          return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+        } else if (diffMins > 0) {
+          return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+        } else {
+          return `${diffSecs} second${diffSecs !== 1 ? 's' : ''} ago`;
+        }
+      } catch {
+        return 'Unknown time';
       }
     };
 
@@ -178,7 +189,6 @@ const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsCont
               const canTransfer = 
                 (negotiation.state === 'FINALIZED' || negotiation.state === 'AGREED') && 
                 negotiation.contractAgreementId;
-              const badgeColor = getStateBadgeColor(negotiation.state);
               const borderColor = getCardBorderColor(negotiation.state);
               const backgroundColor = getCardBackground(negotiation.state);
 
@@ -193,72 +203,67 @@ const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsCont
                     boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
                   }}
                 >
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '10px'
-                  }}>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Negociación</span>
-                    <span style={{
-                      padding: '4px 12px',
-                      borderRadius: '12px',
-                      fontSize: '11px',
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{ 
+                      fontSize: '14px', 
                       fontWeight: 'bold',
-                      textTransform: 'uppercase',
-                      background: badgeColor.bg,
-                      color: badgeColor.color
+                      color: '#1f2937',
+                      marginBottom: '4px'
                     }}>
-                      {negotiation.state}
-                    </span>
+                      {negotiation.assetId}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                      {getTimeAgo(negotiation.createdAt)} ({formatDate(negotiation.createdAt)})
+                    </div>
                   </div>
 
-                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>
-                    <strong>ID:</strong> {negotiation.id}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>
-                    <strong>Asset:</strong> {negotiation.assetId}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>
-                    <strong>Creada:</strong> {formatDate(negotiation.createdAt)}
+                  <div style={{ fontSize: '11px', color: '#666', marginBottom: '3px' }}>
+                    <strong>Negotiation ID:</strong> {negotiation.id}
                   </div>
 
                   {negotiation.contractAgreementId && (
-                    <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>
-                      <strong>Contrato:</strong> {negotiation.contractAgreementId}
+                    <div style={{ fontSize: '11px', color: '#666', marginBottom: '3px' }}>
+                      <strong>Agreement ID:</strong> {negotiation.contractAgreementId}
                     </div>
                   )}
 
+                  <div style={{ fontSize: '11px', color: '#666', marginBottom: '3px' }}>
+                    <strong>Counter Party ID:</strong> BPNL00000000MASS
+                  </div>
+
                   {canTransfer && (
-                    <button
-                      onClick={() => handleInitiateTransfer(negotiation.contractAgreementId!, negotiation.assetId)}
-                      style={{
-                        width: '100%',
-                        marginTop: '12px',
-                        background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
-                        color: 'white',
-                        padding: '10px 16px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        fontSize: '13px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        transition: 'all 0.2s ease'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.opacity = '0.9';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.opacity = '1';
-                      }}
-                    >
-                      <Download size={16} />
-                      Iniciar Transferencia
-                    </button>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      marginTop: '8px'
+                    }}>
+                      <button
+                        onClick={() => handleInitiateTransfer(negotiation.contractAgreementId!, negotiation.assetId)}
+                        style={{
+                          background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
+                          color: 'white',
+                          padding: '8px 16px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          transition: 'all 0.2s ease',
+                          whiteSpace: 'nowrap'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.opacity = '0.9';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.opacity = '1';
+                        }}
+                      >
+                        Transfer
+                      </button>
+                    </div>
                   )}
                 </div>
               );
