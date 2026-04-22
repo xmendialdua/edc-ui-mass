@@ -603,17 +603,24 @@ async def get_fresh_token(transfer_id: str) -> Dict[str, Any]:
     logger.info(f"🔄 Solicitando token FRESCO (sin caché)")
     logger.info(f"   Timestamp: {timestamp}")
     logger.info(f"   Transfer ID: {transfer_id}")
+    logger.info(f"   Management URL: {settings.ikln_management_url}")
     
     print(f"\n{'='*80}", flush=True)
     print(f"{timestamp} | INFO     | 🔄 Renovando token para: {transfer_id}", flush=True)
+    print(f"{timestamp} | INFO     |    Management URL: {settings.ikln_management_url}", flush=True)
     
     ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
     try:
+        logger.info(f"🔍 Llamando a get_edr_for_transfer...")
+        print(f"{timestamp} | INFO     | 🔍 Consultando EDR para transfer {transfer_id}", flush=True)
+        
         edr_data = await ikln_client.get_edr_for_transfer(transfer_id)
 
         if not edr_data:
             logger.warning(f"⚠️ EDR no disponible para transferencia {transfer_id}")
+            logger.warning(f"   Posibles causas: EDR expirado, transferencia no encontrada, o error en listado")
             print(f"{timestamp} | WARNING  | ⚠️ EDR no disponible", flush=True)
+            print(f"{timestamp} | WARNING  |    Transfer ID solicitado: {transfer_id}", flush=True)
             return {
                 "success": False,
                 "error": "EDR not available yet"
@@ -622,12 +629,33 @@ async def get_fresh_token(transfer_id: str) -> Dict[str, Any]:
         token = edr_data.get("authorization")
         endpoint = edr_data.get("endpoint")
         
+        if not token:
+            logger.error(f"❌ EDR encontrado pero sin token de autorización")
+            logger.error(f"   EDR data keys: {list(edr_data.keys())}")
+            print(f"{timestamp} | ERROR    | ❌ EDR sin token", flush=True)
+            return {
+                "success": False,
+                "error": "EDR found but no authorization token"
+            }
+        
+        if not endpoint:
+            logger.error(f"❌ EDR encontrado pero sin endpoint")
+            logger.error(f"   EDR data keys: {list(edr_data.keys())}")
+            print(f"{timestamp} | ERROR    | ❌ EDR sin endpoint", flush=True)
+            return {
+                "success": False,
+                "error": "EDR found but no endpoint"
+            }
+        
         logger.info(f"✅ Token fresco obtenido exitosamente")
         logger.info(f"   Endpoint: {endpoint}")
         logger.info(f"   Token length: {len(token) if token else 0} chars")
+        logger.info(f"   Token preview: {token[:50]}..." if len(token) > 50 else f"   Token: {token}")
         logger.info(f"{'='*80}\n")
         
         print(f"{timestamp} | INFO     | ✅ Token renovado exitosamente", flush=True)
+        print(f"{timestamp} | INFO     |    Endpoint: {endpoint}", flush=True)
+        print(f"{timestamp} | INFO     |    Token length: {len(token)} chars", flush=True)
         print(f"{'='*80}\n", flush=True)
 
         return {
@@ -637,8 +665,11 @@ async def get_fresh_token(transfer_id: str) -> Dict[str, Any]:
         }
 
     except Exception as e:
+        import traceback
         logger.error(f"❌ Error al obtener token fresco: {str(e)}")
+        logger.error(f"   Traceback: {traceback.format_exc()}")
         print(f"{timestamp} | ERROR    | ❌ Error renovación: {str(e)}", flush=True)
+        print(f"{timestamp} | ERROR    | {traceback.format_exc()}", flush=True)
         print(f"{'='*80}\n", flush=True)
         return {
             "success": False,

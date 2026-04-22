@@ -466,9 +466,17 @@ class EdcManagementClient:
         Returns:
             EDR data with endpoint and authorization token, or None if not available.
         """
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+        
         try:
             # Step 1: List all EDRs
-            logger.info(f"Listing all EDRs to find transfer {transfer_id}")
+            logger.info(f"\n{'-'*60}")
+            logger.info(f"📋 STEP 1: Listing all EDRs to find transfer {transfer_id}")
+            logger.info(f"   Timestamp: {timestamp}")
+            logger.info(f"   EDC URL: {self.base_url}/v3/edrs/request")
+            print(f"\n{timestamp} | INFO     | 📋 Listing EDRs for transfer: {transfer_id}", flush=True)
+            
             edr_list_resp = await self._client.post(
                 f"{self.base_url}/v3/edrs/request",
                 headers=self._headers(),
@@ -480,37 +488,58 @@ class EdcManagementClient:
                 },
             )
             
+            logger.info(f"   EDR list response status: {edr_list_resp.status_code}")
+            print(f"{timestamp} | INFO     |    Response status: {edr_list_resp.status_code}", flush=True)
+            
             if edr_list_resp.status_code != 200:
                 logger.warning(f"Failed to list EDRs: HTTP {edr_list_resp.status_code} - {edr_list_resp.text[:200]}")
+                print(f"{timestamp} | WARNING  | Failed to list EDRs: {edr_list_resp.status_code}", flush=True)
                 return None
             
             edr_list = edr_list_resp.json()
             
             # Log the raw response for debugging
-            logger.info(f"Raw EDR response type: {type(edr_list)}")
-            logger.info(f"Raw EDR response: {json.dumps(edr_list, indent=2)[:500]}")
-            
-            logger.info(f"Retrieved {len(edr_list) if isinstance(edr_list, list) else 0} EDRs")
+            logger.info(f"   Raw EDR response type: {type(edr_list)}")
+            logger.info(f"   Retrieved {len(edr_list) if isinstance(edr_list, list) else 0} EDRs")
+            print(f"{timestamp} | INFO     |    Retrieved {len(edr_list) if isinstance(edr_list, list) else 0} EDRs", flush=True)
             
             if not isinstance(edr_list, list):
                 logger.warning(f"EDR list is not a list, got: {type(edr_list)}")
+                print(f"{timestamp} | WARNING  | EDR list is not a list", flush=True)
                 return None
             
+            # Log all transfer IDs in the list
+            transfer_ids_in_list = [edr.get('transferProcessId') for edr in edr_list]
+            logger.info(f"   Transfer IDs in EDR list: {transfer_ids_in_list}")
+            print(f"{timestamp} | INFO     |    Transfer IDs found: {', '.join(transfer_ids_in_list[:5])}...", flush=True)
+            
             # Step 2: Find the EDR matching this transfer_id
+            logger.info(f"\n🔍 STEP 2: Searching for matching EDR")
+            print(f"{timestamp} | INFO     | 🔍 Searching for transfer: {transfer_id}", flush=True)
+            
             matching_edr = next(
                 (edr for edr in edr_list if edr.get("transferProcessId") == transfer_id),
                 None
             )
             
             if not matching_edr:
-                logger.warning(f"No EDR found for transfer {transfer_id}. Available transfers: {[edr.get('transferProcessId') for edr in edr_list[:5]]}")
+                logger.warning(f"❌ No EDR found for transfer {transfer_id}")
+                logger.warning(f"   Requested: {transfer_id}")
+                logger.warning(f"   Available (first 10): {transfer_ids_in_list[:10]}")
+                print(f"{timestamp} | WARNING  | ❌ Transfer {transfer_id} NOT found in EDR list", flush=True)
+                print(f"{timestamp} | WARNING  |    Available transfers: {', '.join(transfer_ids_in_list[:5])}...", flush=True)
                 return None
             
-            logger.info(f"Found matching EDR for transfer {transfer_id}")
-            logger.info(f"EDR object keys: {list(matching_edr.keys())}")
+            logger.info(f"✅ Found matching EDR for transfer {transfer_id}")
+            logger.info(f"   EDR ID: {matching_edr.get('@id')}")
+            logger.info(f"   EDR object keys: {list(matching_edr.keys())}")
+            print(f"{timestamp} | INFO     | ✅ Found matching EDR: {matching_edr.get('@id')}", flush=True)
             
             # Try to extract endpoint and authorization from the EDR object directly first
             # This avoids calling the /dataaddress endpoint which may fail due to STS issues
+            logger.info(f"\n🔧 STEP 3: Extracting endpoint and authorization")
+            print(f"{timestamp} | INFO     | 🔧 Extracting endpoint/auth from EDR", flush=True)
+            
             endpoint = None
             authorization = None
             
@@ -518,45 +547,78 @@ class EdcManagementClient:
             if "endpoint" in matching_edr or "baseUrl" in matching_edr:
                 endpoint = matching_edr.get("endpoint") or matching_edr.get("baseUrl")
                 authorization = matching_edr.get("authCode") or matching_edr.get("authorization") or matching_edr.get("authKey")
-                logger.info(f"Found endpoint/auth directly in EDR object")
+                logger.info(f"✅ Found endpoint/auth directly in EDR object")
+                logger.info(f"   Endpoint: {endpoint}")
+                logger.info(f"   Has authorization: {bool(authorization)}")
+                print(f"{timestamp} | INFO     | ✅ Found in EDR object directly", flush=True)
             
             # If not found in EDR object, try the /dataaddress endpoint
             if not endpoint or not authorization:
                 edr_id = matching_edr.get("@id") or transfer_id
-                logger.info(f"Endpoint/auth not in EDR object, trying dataaddress endpoint for EDR {edr_id}")
+                logger.info(f"\n🔄 STEP 4: Calling /dataaddress endpoint")
+                logger.info(f"   EDR ID: {edr_id}")
+                logger.info(f"   Using auto_refresh=true to enable automatic token refresh")
+                logger.info(f"   URL: {self.base_url}/v3/edrs/{edr_id}/dataaddress?auto_refresh=true")
+                print(f"{timestamp} | INFO     | 🔄 Calling /dataaddress with auto_refresh=true", flush=True)
+                print(f"{timestamp} | INFO     |    EDR ID: {edr_id}", flush=True)
                 
                 try:
                     dataaddress_resp = await self._client.get(
                         f"{self.base_url}/v3/edrs/{edr_id}/dataaddress",
                         headers=self._headers(),
+                        params={"auto_refresh": "true"}  # Enable automatic token refresh
                     )
                     
+                    logger.info(f"   Dataaddress response status: {dataaddress_resp.status_code}")
+                    print(f"{timestamp} | INFO     |    Response status: {dataaddress_resp.status_code}", flush=True)
+                    
                     if dataaddress_resp.status_code != 200:
-                        logger.warning(f"Failed to get dataaddress for EDR {edr_id}: HTTP {dataaddress_resp.status_code} - {dataaddress_resp.text[:200]}")
+                        error_body = dataaddress_resp.text[:500]
+                        logger.warning(f"❌ Failed to get dataaddress for EDR {edr_id}")
+                        logger.warning(f"   HTTP Status: {dataaddress_resp.status_code}")
+                        logger.warning(f"   Response body: {error_body}")
+                        print(f"{timestamp} | WARNING  | ❌ Dataaddress failed: {dataaddress_resp.status_code}", flush=True)
+                        print(f"{timestamp} | WARNING  |    Error: {error_body[:200]}", flush=True)
                         # If dataaddress fails but we already have data from EDR object, use that
                         if endpoint or authorization:
-                            logger.info(f"Using endpoint/auth from EDR object despite dataaddress failure")
+                            logger.info(f"✅ Using endpoint/auth from EDR object despite dataaddress failure")
+                            print(f"{timestamp} | INFO     | ✅ Falling back to EDR object data", flush=True)
                         else:
                             return None
                     else:
                         edr_data = dataaddress_resp.json()
-                        logger.info(f"Successfully retrieved EDR data from dataaddress endpoint")
+                        logger.info(f"✅ Successfully retrieved EDR data from dataaddress endpoint")
+                        logger.info(f"   Dataaddress keys: {list(edr_data.keys())}")
+                        print(f"{timestamp} | INFO     | ✅ Dataaddress retrieved successfully", flush=True)
                         
                         # Normalize field names (different EDC versions use different names)
                         endpoint = edr_data.get("endpoint") or edr_data.get("baseUrl")
                         authorization = edr_data.get("authCode") or edr_data.get("authorization") or edr_data.get("authKey")
+                        logger.info(f"   Extracted endpoint: {endpoint}")
+                        logger.info(f"   Extracted auth (has value): {bool(authorization)}")
                         
                 except Exception as e:
-                    logger.warning(f"Exception calling dataaddress endpoint: {e}")
+                    logger.warning(f"❌ Exception calling dataaddress endpoint: {e}")
+                    print(f"{timestamp} | WARNING  | ❌ Dataaddress exception: {str(e)}", flush=True)
                     # Continue with data from EDR object if available
                     if not (endpoint or authorization):
                         return None
             
             if not endpoint:
-                logger.warning(f"No endpoint found in EDR data. EDR fields: {list(matching_edr.keys())}")
+                logger.warning(f"❌ No endpoint found in EDR data")
+                logger.warning(f"   EDR fields: {list(matching_edr.keys())}")
+                print(f"{timestamp} | WARNING  | ❌ No endpoint found", flush=True)
                 return None
             
-            logger.info(f"Successfully retrieved EDR for transfer {transfer_id}: endpoint={endpoint[:50]}...")
+            logger.info(f"\n✅ SUCCESS: EDR retrieved for transfer {transfer_id}")
+            logger.info(f"   Endpoint: {endpoint[:50]}...")
+            logger.info(f"   Has authorization: {bool(authorization)}")
+            logger.info(f"   Authorization length: {len(authorization) if authorization else 0} chars")
+            logger.info(f"{'-'*60}\n")
+            print(f"{timestamp} | INFO     | ✅ EDR data ready", flush=True)
+            print(f"{timestamp} | INFO     |    Endpoint: {endpoint}", flush=True)
+            print(f"{timestamp} | INFO     |    Token length: {len(authorization) if authorization else 0} chars", flush=True)
+            print(f"{'-'*60}\n", flush=True)
             
             return {
                 "endpoint": endpoint,
