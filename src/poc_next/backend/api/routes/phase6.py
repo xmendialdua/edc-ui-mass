@@ -406,12 +406,13 @@ async def list_transfers() -> Dict[str, Any]:
                 logger.info(f"   [{idx+1}] Transfer ID: {transfer_id}")
                 logger.info(f"       Estado: {state} (código: {state_code})")
                 logger.info(f"       Asset: {transfer.get('assetId', 'unknown')}")
-                logger.info(f"       Tiene dataAddress: {bool(data_address)}")
+                logger.info(f"       dataAddress embebido: {bool(data_address)}")
             
             # Initialize EDR data
             edr_available = False
             edr_endpoint = None
             edr_token = None
+            edr_source = None
             
             # Check cached EDR first (from background monitoring)
             cached_edr = get_cached_edr(transfer_id)
@@ -419,12 +420,21 @@ async def list_transfers() -> Dict[str, Any]:
                 edr_available = True
                 edr_endpoint = cached_edr.get("endpoint")
                 edr_token = cached_edr.get("authorization")
+                edr_source = "cache"
+                if idx < 3:
+                    logger.info(f"       ✅ EDR obtenido de: CACHÉ (monitor background)")
             # Check if EDR is embedded in dataAddress
             elif data_address:
                 edr_endpoint = data_address.get("endpoint") or data_address.get("baseUrl")
                 edr_token = data_address.get("authCode") or data_address.get("authorization") or data_address.get("authKey")
                 if edr_endpoint:
                     edr_available = True
+                    edr_source = "embedded"
+                    if idx < 3:
+                        logger.info(f"       ✅ EDR obtenido de: EMBEBIDO (dataAddress)")
+            else:
+                if idx < 3:
+                    logger.info(f"       ⚠️ EDR: No disponible (ni en caché ni embebido)")
             
             # Get timestamps
             created_at = transfer.get("createdAt") or transfer.get("createdTimestamp")
@@ -442,15 +452,27 @@ async def list_transfers() -> Dict[str, Any]:
                 "edrAvailable": edr_available,
                 "edrEndpoint": edr_endpoint,
                 "edrToken": edr_token,
+                "edrSource": edr_source,  # cache, embedded, or None
                 "createdAt": created_at,
                 "stateTimestamp": state_timestamp,
             })
 
         elapsed = time.time() - start_time
+        
+        # Count EDR sources
+        edr_from_cache = sum(1 for t in transfers_info if t.get('edrSource') == 'cache')
+        edr_from_embedded = sum(1 for t in transfers_info if t.get('edrSource') == 'embedded')
+        edr_not_available = sum(1 for t in transfers_info if not t['edrAvailable'])
+        
         logger.info(f"✅ list_transfers completado en {elapsed:.2f}s")
         logger.info(f"   Transferencias procesadas: {len(transfers_info)}")
-        logger.info(f"   Con EDR disponible: {sum(1 for t in transfers_info if t['edrAvailable'])}")
-        logger.info(f"   Sin EDR disponible: {sum(1 for t in transfers_info if not t['edrAvailable'])}")
+        logger.info(f"   EDR disponible: {len(transfers_info) - edr_not_available}")
+        if edr_from_cache > 0:
+            logger.info(f"      • Desde caché: {edr_from_cache}")
+        if edr_from_embedded > 0:
+            logger.info(f"      • Embebido en transfer: {edr_from_embedded}")
+        if edr_not_available > 0:
+            logger.info(f"   EDR no disponible: {edr_not_available}")
         logger.info(f"{'~'*80}\n")
 
         return {
