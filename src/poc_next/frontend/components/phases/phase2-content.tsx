@@ -14,6 +14,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Asset {
   '@id': string;
@@ -37,6 +44,8 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog }, ref) => {
   const [expandedAssets, setExpandedAssets] = useState<Set<string>>(new Set());
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newAssetId, setNewAssetId] = useState('');
+  const [assetUrlType, setAssetUrlType] = useState<'pdf' | 'csv' | 'custom'>('pdf');
+  const [customUrl, setCustomUrl] = useState('');
 
   const log = (message: string) => {
     if (onLog) {
@@ -46,15 +55,12 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog }, ref) => {
 
   async function loadAssets() {
     setLoading('list');
-    console.log('[Phase2] Iniciando carga de assets...');
     log('🔄 Cargando assets...');
     try {
       const result = await api.phase2.listAssets();
-      console.log('[Phase2] Assets recibidos:', result.assets);
       setAssets(result.assets || []);
       log(`✅ ${result.assets?.length || 0} asset(s) cargado(s)`);
     } catch (error) {
-      console.error('[Phase2] Error al cargar assets:', error);
       log(`❌ Error al cargar assets: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(null);
@@ -67,13 +73,34 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog }, ref) => {
       return;
     }
 
+    // Determine URL based on selection
+    let assetUrl: string;
+    if (assetUrlType === 'pdf') {
+      assetUrl = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
+    } else if (assetUrlType === 'csv') {
+      assetUrl = 'https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv';
+    } else {
+      assetUrl = customUrl.trim();
+      if (!assetUrl) {
+        alert('Por favor introduce una URL personalizada');
+        return;
+      }
+      if (!assetUrl.startsWith('http://') && !assetUrl.startsWith('https://')) {
+        alert('La URL debe comenzar con http:// o https://');
+        return;
+      }
+    }
+
     setLoading('create');
     log(`🔨 Creando asset: ${newAssetId}`);
+    log(`🔗 URL: ${assetUrl}`);
     try {
-      await api.phase2.createAsset(newAssetId);
+      await api.phase2.createAsset(newAssetId, assetUrl);
       log(`✅ Asset creado: ${newAssetId}`);
       setShowCreateDialog(false);
       setNewAssetId('');
+      setAssetUrlType('pdf');
+      setCustomUrl('');
       setTimeout(() => loadAssets(), 1000);
     } catch (error) {
       log(`❌ Error al crear asset: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -144,6 +171,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog }, ref) => {
 
   useEffect(() => {
     loadAssets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useImperativeHandle(ref, () => ({
@@ -186,7 +214,10 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog }, ref) => {
         borderBottom: '2px solid #f0f0f0'
       }}>
         <button
-          onClick={() => setShowCreateDialog(true)}
+          onClick={() => {
+            log('🔵 Botón "Crear Nuevo Asset" pulsado');
+            setShowCreateDialog(true);
+          }}
           disabled={loading !== null}
           style={greenButtonStyle}
         >
@@ -394,32 +425,295 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog }, ref) => {
       )}
 
       {/* Create Asset Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent>
+      {showCreateDialog && (
+        <>
+          {/* Overlay manual */}
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              zIndex: 9998,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            {/* Modal content */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                padding: '24px',
+                maxWidth: '600px',
+                width: '90%',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+                position: 'relative',
+                zIndex: 9999
+              }}
+            >
+              {/* Header */}
+              <div style={{ marginBottom: '16px' }}>
+                <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '8px' }}>
+                  Crear Nuevo Asset
+                </h2>
+                <p style={{ fontSize: '14px', color: '#666' }}>
+                  Introduce los datos del asset que deseas publicar
+                </p>
+              </div>
+
+              {/* Close button */}
+              <button
+                onClick={() => {
+                  log('❌ Botón cerrar pulsado');
+                  setShowCreateDialog(false);
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '16px',
+                  right: '16px',
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  color: '#666'
+                }}
+              >
+                ×
+              </button>
+
+              {/* Form */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>
+                  Nombre del Asset
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: pdf-dummy-mass-ikln"
+                  value={newAssetId}
+                  onChange={(e) => setNewAssetId(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && assetUrlType !== 'custom') {
+                      handleCreateAsset();
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    fontSize: '14px'
+                  }}
+                />
+                <p style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                  Solo letras minúsculas, números y guiones
+                </p>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>
+                  Tipo de Archivo
+                </label>
+                <select
+                  value={assetUrlType}
+                  onChange={(e) => setAssetUrlType(e.target.value as 'pdf' | 'csv' | 'custom')}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    backgroundColor: 'white'
+                  }}
+                >
+                  <option value="pdf">📄 PDF de prueba</option>
+                  <option value="csv">📊 CSV de prueba</option>
+                  <option value="custom">✏️ URL personalizada</option>
+                </select>
+              </div>
+
+              {/* Mostrar URL para PDF y CSV (solo lectura) */}
+              {(assetUrlType === 'pdf' || assetUrlType === 'csv') && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>
+                    URL del archivo
+                  </label>
+                  <input
+                    type="text"
+                    value={
+                      assetUrlType === 'pdf'
+                        ? 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
+                        : 'https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv'
+                    }
+                    readOnly
+                    style={{
+                      width: '90%',
+                      padding: '8px 12px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                      backgroundColor: '#f5f5f5',
+                      color: '#666',
+                      cursor: 'not-allowed'
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Input para URL personalizada */}
+              {assetUrlType === 'custom' && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>
+                    URL Personalizada
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="https://ejemplo.com/archivo.csv"
+                    value={customUrl}
+                    onChange={(e) => setCustomUrl(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleCreateAsset();
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      fontSize: '14px'
+                    }}
+                  />
+                  <p style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                    Introduce la URL completa del recurso
+                  </p>
+                </div>
+              )}
+
+              {/* Footer buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
+                <button
+                  onClick={() => {
+                    setShowCreateDialog(false);
+                    setNewAssetId('');
+                    setAssetUrlType('pdf');
+                    setCustomUrl('');
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    backgroundColor: 'white',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleCreateAsset}
+                  disabled={loading !== null}
+                  style={{
+                    padding: '8px 16px',
+                    border: 'none',
+                    borderRadius: '4px',
+                    backgroundColor: loading !== null ? '#ccc' : '#667eea',
+                    color: 'white',
+                    cursor: loading !== null ? 'not-allowed' : 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '600'
+                  }}
+                >
+                  {loading === 'create' ? 'Creando...' : 'Crear Asset'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+      
+      {/* Dialog original comentado */}
+      {/*
+      <Dialog open={showCreateDialog} onOpenChange={(open) => {
+        console.log('[Phase2] Dialog onOpenChange llamado con:', open);
+        log(`🔄 Dialog cambiando a: ${open ? 'abierto' : 'cerrado'}`);
+        setShowCreateDialog(open);
+      }}>
+        <DialogContent 
+          className="sm:max-w-[500px]"
+          onOpenAutoFocus={(e) => {
+            console.log('[Phase2] Dialog onOpenAutoFocus disparado');
+            log('👁️ Dialog recibiendo foco');
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Crear Nuevo Asset</DialogTitle>
             <DialogDescription>
-              Ingresa el ID del asset a crear. Se creará con metadata predeterminada.
+              Introduce los datos del asset que deseas publicar
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="assetId">Asset ID</Label>
+              <Label htmlFor="assetId">Nombre del Asset</Label>
               <Input
                 id="assetId"
-                placeholder="pdf-dummy-mass-ikln"
+                placeholder="Ej: pdf-dummy-mass-ikln"
                 value={newAssetId}
                 onChange={(e) => setNewAssetId(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (e.key === 'Enter' && assetUrlType !== 'custom') {
                     handleCreateAsset();
                   }
                 }}
               />
+              <p className="text-xs text-muted-foreground">Solo letras minúsculas, números y guiones</p>
             </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="urlType">URL del Asset</Label>
+              <Select value={assetUrlType} onValueChange={(value: 'pdf' | 'csv' | 'custom') => setAssetUrlType(value)}>
+                <SelectTrigger id="urlType">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pdf">📄 PDF de prueba (dummy.pdf)</SelectItem>
+                  <SelectItem value="csv">📊 Dataset de vinos (winequality-red.csv)</SelectItem>
+                  <SelectItem value="custom">✏️ URL personalizada...</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {assetUrlType === 'custom' && (
+              <div className="space-y-2">
+                <Label htmlFor="customUrl">URL Personalizada</Label>
+                <Input
+                  id="customUrl"
+                  placeholder="https://ejemplo.com/archivo.csv"
+                  value={customUrl}
+                  onChange={(e) => setCustomUrl(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleCreateAsset();
+                    }
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">Introduce la URL completa del recurso</p>
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+            <Button variant="outline" onClick={() => {
+              setShowCreateDialog(false);
+              setNewAssetId('');
+              setAssetUrlType('pdf');
+              setCustomUrl('');
+            }}>
               Cancelar
             </Button>
             <Button onClick={handleCreateAsset} disabled={loading !== null}>
@@ -428,6 +722,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog }, ref) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      */}
     </div>
   );
 });

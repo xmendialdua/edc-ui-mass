@@ -19,6 +19,7 @@ def log_message(message: str) -> str:
 
 class CreateAssetRequest(BaseModel):
     assetId: str
+    url: str = None  # Optional URL, defaults to settings.pdf_url if not provided
 
 
 class DeleteAssetRequest(BaseModel):
@@ -30,8 +31,21 @@ async def create_asset(request: CreateAssetRequest) -> Dict[str, Any]:
     """Create a new asset in MASS connector."""
     logs: List[str] = []
     asset_id = request.assetId
+    asset_url = request.url if request.url else settings.pdf_url
 
     logs.append(log_message(f"📦 Creando asset '{asset_id}'..."))
+    logs.append(log_message(f"🔗 URL: {asset_url}"))
+
+    # Determine content type based on URL extension
+    content_type = "application/octet-stream"
+    if asset_url.lower().endswith('.pdf'):
+        content_type = "application/pdf"
+    elif asset_url.lower().endswith('.csv'):
+        content_type = "text/csv"
+    elif asset_url.lower().endswith('.json'):
+        content_type = "application/json"
+    elif asset_url.lower().endswith('.xml'):
+        content_type = "application/xml"
 
     # Build asset definition
     asset_data = {
@@ -39,8 +53,8 @@ async def create_asset(request: CreateAssetRequest) -> Dict[str, Any]:
         "@type": "Asset",
         "properties": {
             "name": asset_id,
-            "description": "PDF de prueba para demostración de políticas EDC basadas en BPN",
-            "contenttype": "application/pdf",
+            "description": f"Asset publicado desde Data Publication UI - {asset_url}",
+            "contenttype": content_type,
             "version": "1.0"
         },
         "privateProperties": {},
@@ -49,7 +63,7 @@ async def create_asset(request: CreateAssetRequest) -> Dict[str, Any]:
             "type": "HttpData",
             "proxyPath": "true", 
             "proxyQueryParams": "true",
-            "baseUrl": settings.pdf_url
+            "baseUrl": asset_url
         }
     }
 
@@ -67,7 +81,8 @@ async def create_asset(request: CreateAssetRequest) -> Dict[str, Any]:
 
         logs.append(log_message("✅ Asset creado exitosamente"))
         logs.append(log_message(f"   ID: {asset_id}"))
-        logs.append(log_message(f"   URL: {settings.pdf_url}"))
+        logs.append(log_message(f"   URL: {asset_url}"))
+        logs.append(log_message(f"   Tipo: {content_type}"))
 
         return {
             "success": True,

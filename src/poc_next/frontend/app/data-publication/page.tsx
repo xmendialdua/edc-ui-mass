@@ -176,7 +176,7 @@ export default function DataPublicationPage() {
             <div style={{
               background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
               color: "white",
-              padding: "20px 25px",
+              padding: "4px 25px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center"
@@ -232,7 +232,7 @@ export default function DataPublicationPage() {
             <div style={{
               background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
               color: "white",
-              padding: "20px 25px",
+              padding: "4px 25px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center"
@@ -330,7 +330,7 @@ export default function DataPublicationPage() {
             style={{
               background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
               color: "white",
-              padding: "20px 25px",
+              padding: "4px 25px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
