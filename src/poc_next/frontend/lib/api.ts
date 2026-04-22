@@ -187,6 +187,10 @@ export const api = {
       `/api/phase6/transfer-edr/${transferId}`,
       { method: 'GET' }
     ),
+    getFreshToken: (transferId: string) => apiRequest<{ success: boolean; token: string; endpoint: string; error?: string }>(
+      `/api/phase6/get-fresh-token/${transferId}`,
+      { method: 'GET' }
+    ),
     getTransferStatus: (transferId: string) => apiRequest<{ 
       success: boolean; 
       transfer: any;

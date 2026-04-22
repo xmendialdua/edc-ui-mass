@@ -2,7 +2,7 @@
 
 import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
 import { api } from '@/lib/api';
-import { Search } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Transfer {
   id: string;
@@ -28,7 +28,20 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
     const [transfers, setTransfers] = useState<Transfer[]>([]);
     const [autoRefreshCount, setAutoRefreshCount] = useState(0);
     const [pollingTransfers, setPollingTransfers] = useState<Set<string>>(new Set());
+    const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
     const previousTransferIdsRef = useRef<Set<string>>(new Set());
+
+    const toggleCard = (id: string) => {
+      setCollapsedCards(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+        return next;
+      });
+    };
 
     const addLog = (message: string) => {
       if (onLog) {
@@ -395,11 +408,11 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
           addLog(`   ⚠️ Token expirado detectado, renovando...`);
           
           try {
-            // Request a fresh EDR
-            const result = await api.phase6.getTransferEdr(transferId);
-            if (result.success && result.edr) {
-              const newEndpoint = result.edr.endpoint;
-              const newToken = result.edr.authorization;
+            // Request a fresh token (bypass cache)
+            const result = await api.phase6.getFreshToken(transferId);
+            if (result.success && result.token && result.endpoint) {
+              const newEndpoint = result.endpoint;
+              const newToken = result.token;
               addLog(`   ✅ Nuevo token obtenido`);
               addLog(`   Token renovado: ${newToken.substring(0, 50)}...`);
               
@@ -435,7 +448,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
               }
               
             } else {
-              addLog(`   ❌ No se pudo obtener un nuevo token`);
+              addLog(`   ❌ No se pudo obtener un nuevo token: ${result.error || 'Desconocido'}`);
             }
           } catch (retryError) {
             addLog(`   ❌ Error al renovar token: ${retryError instanceof Error ? retryError.message : 'Unknown error'}`);
@@ -505,6 +518,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
               const borderColor = getCardBorderColor(transfer.stateCode, transfer.edrAvailable);
               const backgroundColor = getCardBackground(transfer.stateCode, transfer.edrAvailable);
               const isPolling = pollingTransfers.has(transfer.id);
+              const isCollapsed = collapsedCards.has(transfer.id);
 
               return (
                 <div
@@ -518,7 +532,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                     position: 'relative'
                   }}
                 >
-                  {isPolling && (
+                  {isPolling && !isCollapsed && (
                     <div style={{
                       position: 'absolute',
                       top: '8px',
@@ -544,19 +558,35 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                     </div>
                   )}
 
-                  <div style={{ marginBottom: '12px' }}>
-                    <div style={{ 
-                      fontSize: '14px', 
-                      fontWeight: 'bold',
-                      color: '#1f2937',
-                      marginBottom: '4px'
-                    }}>
-                      {transfer.assetId}
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    marginBottom: isCollapsed ? '0' : '12px',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => toggleCard(transfer.id)}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ 
+                        fontSize: '14px', 
+                        fontWeight: 'bold',
+                        color: '#1f2937',
+                        marginBottom: '2px'
+                      }}>
+                        {transfer.assetId}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                        {getTimeAgo(transfer.stateTimestamp || transfer.createdAt)} ({formatDate(transfer.stateTimestamp || transfer.createdAt)})
+                      </div>
                     </div>
-                    <div style={{ fontSize: '11px', color: '#6b7280' }}>
-                      {getTimeAgo(transfer.stateTimestamp || transfer.createdAt)} ({formatDate(transfer.stateTimestamp || transfer.createdAt)})
+                    <div style={{ marginLeft: '12px' }}>
+                      {isCollapsed ? <ChevronDown size={20} color="#6b7280" /> : <ChevronUp size={20} color="#6b7280" />}
                     </div>
                   </div>
+
+                  {!isCollapsed && (<>
+                    <div style={{ height: '1px', background: '#e5e7eb', marginBottom: '12px' }}></div>
 
                   <div style={{ fontSize: '11px', color: '#666', marginBottom: '3px' }}>
                     <strong>Transfer ID:</strong> {transfer.id}
@@ -592,7 +622,10 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                       marginTop: '8px'
                     }}>
                       <button
-                        onClick={() => handleDownloadData(transfer.id, transfer.edrEndpoint, transfer.edrToken)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadData(transfer.id, transfer.edrEndpoint, transfer.edrToken);
+                        }}
                         disabled={!transfer.edrAvailable}
                         style={{
                           background: transfer.edrAvailable 
@@ -632,7 +665,10 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                       marginTop: '8px'
                     }}>
                       <button
-                        onClick={() => handleDebugTransfer(transfer.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDebugTransfer(transfer.id);
+                        }}
                         style={{
                           background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
                           color: 'white',
@@ -658,6 +694,8 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                         Debug
                       </button>
                     </div>
+                  )}
+                  </>
                   )}
                 </div>
               );

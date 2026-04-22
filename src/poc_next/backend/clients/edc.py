@@ -507,34 +507,61 @@ class EdcManagementClient:
                 return None
             
             logger.info(f"Found matching EDR for transfer {transfer_id}")
+            logger.info(f"EDR object keys: {list(matching_edr.keys())}")
             
-            # Step 3: Get the data address for this EDR
-            edr_id = matching_edr.get("@id") or transfer_id
-            logger.info(f"Getting dataaddress for EDR {edr_id}")
+            # Try to extract endpoint and authorization from the EDR object directly first
+            # This avoids calling the /dataaddress endpoint which may fail due to STS issues
+            endpoint = None
+            authorization = None
             
-            dataaddress_resp = await self._client.get(
-                f"{self.base_url}/v3/edrs/{edr_id}/dataaddress",
-                headers=self._headers(),
-            )
+            # Check if EDR contains direct endpoint data
+            if "endpoint" in matching_edr or "baseUrl" in matching_edr:
+                endpoint = matching_edr.get("endpoint") or matching_edr.get("baseUrl")
+                authorization = matching_edr.get("authCode") or matching_edr.get("authorization") or matching_edr.get("authKey")
+                logger.info(f"Found endpoint/auth directly in EDR object")
             
-            if dataaddress_resp.status_code != 200:
-                logger.warning(f"Failed to get dataaddress for EDR {edr_id}: HTTP {dataaddress_resp.status_code} - {dataaddress_resp.text[:200]}")
-                return None
-            
-            edr_data = dataaddress_resp.json()
-            logger.info(f"Successfully retrieved EDR data for transfer {transfer_id}")
-            
-            # Normalize field names (different EDC versions use different names)
-            endpoint = edr_data.get("endpoint") or edr_data.get("baseUrl")
-            authorization = edr_data.get("authCode") or edr_data.get("authorization") or edr_data.get("authKey")
+            # If not found in EDR object, try the /dataaddress endpoint
+            if not endpoint or not authorization:
+                edr_id = matching_edr.get("@id") or transfer_id
+                logger.info(f"Endpoint/auth not in EDR object, trying dataaddress endpoint for EDR {edr_id}")
+                
+                try:
+                    dataaddress_resp = await self._client.get(
+                        f"{self.base_url}/v3/edrs/{edr_id}/dataaddress",
+                        headers=self._headers(),
+                    )
+                    
+                    if dataaddress_resp.status_code != 200:
+                        logger.warning(f"Failed to get dataaddress for EDR {edr_id}: HTTP {dataaddress_resp.status_code} - {dataaddress_resp.text[:200]}")
+                        # If dataaddress fails but we already have data from EDR object, use that
+                        if endpoint or authorization:
+                            logger.info(f"Using endpoint/auth from EDR object despite dataaddress failure")
+                        else:
+                            return None
+                    else:
+                        edr_data = dataaddress_resp.json()
+                        logger.info(f"Successfully retrieved EDR data from dataaddress endpoint")
+                        
+                        # Normalize field names (different EDC versions use different names)
+                        endpoint = edr_data.get("endpoint") or edr_data.get("baseUrl")
+                        authorization = edr_data.get("authCode") or edr_data.get("authorization") or edr_data.get("authKey")
+                        
+                except Exception as e:
+                    logger.warning(f"Exception calling dataaddress endpoint: {e}")
+                    # Continue with data from EDR object if available
+                    if not (endpoint or authorization):
+                        return None
             
             if not endpoint:
-                logger.warning(f"EDR data has no endpoint field. Available fields: {list(edr_data.keys())}")
+                logger.warning(f"No endpoint found in EDR data. EDR fields: {list(matching_edr.keys())}")
+                return None
+            
+            logger.info(f"Successfully retrieved EDR for transfer {transfer_id}: endpoint={endpoint[:50]}...")
             
             return {
                 "endpoint": endpoint,
                 "authorization": authorization,
-                "raw": edr_data  # Include raw data for debugging
+                "raw": matching_edr  # Include raw EDR for debugging
             }
             
         except httpx.HTTPStatusError as e:

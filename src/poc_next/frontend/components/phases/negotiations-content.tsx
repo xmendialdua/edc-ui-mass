@@ -2,7 +2,7 @@
 
 import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { api } from '@/lib/api';
-import { Download } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Negotiation {
   id: string;
@@ -22,6 +22,19 @@ const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsCont
   ({ onLog, onInitiateTransfer }, ref) => {
     const [loading, setLoading] = useState(false);
     const [negotiations, setNegotiations] = useState<Negotiation[]>([]);
+    const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
+
+    const toggleCard = (id: string) => {
+      setCollapsedCards(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+        return next;
+      });
+    };
 
     const addLog = (message: string) => {
       if (onLog) {
@@ -191,6 +204,7 @@ const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsCont
                 negotiation.contractAgreementId;
               const borderColor = getCardBorderColor(negotiation.state);
               const backgroundColor = getCardBackground(negotiation.state);
+              const isCollapsed = collapsedCards.has(negotiation.id);
 
               return (
                 <div
@@ -203,19 +217,35 @@ const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsCont
                     boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
                   }}
                 >
-                  <div style={{ marginBottom: '12px' }}>
-                    <div style={{ 
-                      fontSize: '14px', 
-                      fontWeight: 'bold',
-                      color: '#1f2937',
-                      marginBottom: '4px'
-                    }}>
-                      {negotiation.assetId}
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    marginBottom: isCollapsed ? '0' : '12px',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => toggleCard(negotiation.id)}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ 
+                        fontSize: '14px', 
+                        fontWeight: 'bold',
+                        color: '#1f2937',
+                        marginBottom: '2px'
+                      }}>
+                        {negotiation.assetId}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                        {getTimeAgo(negotiation.createdAt)} ({formatDate(negotiation.createdAt)})
+                      </div>
                     </div>
-                    <div style={{ fontSize: '11px', color: '#6b7280' }}>
-                      {getTimeAgo(negotiation.createdAt)} ({formatDate(negotiation.createdAt)})
+                    <div style={{ marginLeft: '12px' }}>
+                      {isCollapsed ? <ChevronDown size={20} color="#6b7280" /> : <ChevronUp size={20} color="#6b7280" />}
                     </div>
                   </div>
+
+                  {!isCollapsed && (<>
+                    <div style={{ height: '1px', background: '#e5e7eb', marginBottom: '12px' }}></div>
 
                   <div style={{ fontSize: '11px', color: '#666', marginBottom: '3px' }}>
                     <strong>Negotiation ID:</strong> {negotiation.id}
@@ -238,7 +268,10 @@ const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsCont
                       marginTop: '8px'
                     }}>
                       <button
-                        onClick={() => handleInitiateTransfer(negotiation.contractAgreementId!, negotiation.assetId)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleInitiateTransfer(negotiation.contractAgreementId!, negotiation.assetId);
+                        }}
                         style={{
                           background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
                           color: 'white',
@@ -264,6 +297,8 @@ const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsCont
                         Init Transfer
                       </button>
                     </div>
+                  )}
+                  </>
                   )}
                 </div>
               );

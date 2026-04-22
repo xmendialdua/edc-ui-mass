@@ -595,24 +595,51 @@ async def get_transfer_status(transfer_id: str) -> Dict[str, Any]:
 
 @router.get("/get-fresh-token/{transfer_id}")
 async def get_fresh_token(transfer_id: str) -> Dict[str, Any]:
-    """Get a fresh EDR token for a transfer."""
+    """Get a fresh EDR token for a transfer (bypass cache)."""
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+    
+    logger.info(f"\n{'='*80}")
+    logger.info(f"🔄 Solicitando token FRESCO (sin caché)")
+    logger.info(f"   Timestamp: {timestamp}")
+    logger.info(f"   Transfer ID: {transfer_id}")
+    
+    print(f"\n{'='*80}", flush=True)
+    print(f"{timestamp} | INFO     | 🔄 Renovando token para: {transfer_id}", flush=True)
+    
     ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
     try:
         edr_data = await ikln_client.get_edr_for_transfer(transfer_id)
 
         if not edr_data:
+            logger.warning(f"⚠️ EDR no disponible para transferencia {transfer_id}")
+            print(f"{timestamp} | WARNING  | ⚠️ EDR no disponible", flush=True)
             return {
                 "success": False,
                 "error": "EDR not available yet"
             }
 
+        token = edr_data.get("authorization")
+        endpoint = edr_data.get("endpoint")
+        
+        logger.info(f"✅ Token fresco obtenido exitosamente")
+        logger.info(f"   Endpoint: {endpoint}")
+        logger.info(f"   Token length: {len(token) if token else 0} chars")
+        logger.info(f"{'='*80}\n")
+        
+        print(f"{timestamp} | INFO     | ✅ Token renovado exitosamente", flush=True)
+        print(f"{'='*80}\n", flush=True)
+
         return {
             "success": True,
-            "token": edr_data.get("authorization"),
-            "endpoint": edr_data.get("endpoint")
+            "token": token,
+            "endpoint": endpoint
         }
 
     except Exception as e:
+        logger.error(f"❌ Error al obtener token fresco: {str(e)}")
+        print(f"{timestamp} | ERROR    | ❌ Error renovación: {str(e)}", flush=True)
+        print(f"{'='*80}\n", flush=True)
         return {
             "success": False,
             "error": str(e)
