@@ -163,9 +163,9 @@ const Phase4Content = forwardRef<any, Phase4ContentProps>(({ onLog, filter = 'al
                   justifyContent: 'space-between',
                   alignItems: 'center'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '14px', fontWeight: '600', color: '#333' }}>
-                      Contract Definition
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: '14px', fontWeight: '600', color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {contract['@id']}
                     </span>
                     <span style={{
                       padding: '2px 8px',
@@ -173,7 +173,8 @@ const Phase4Content = forwardRef<any, Phase4ContentProps>(({ onLog, filter = 'al
                       fontSize: '11px',
                       fontWeight: '600',
                       color: 'white',
-                      background: badgeColor
+                      background: badgeColor,
+                      flexShrink: 0
                     }}>
                       {partnerName}
                     </span>
@@ -204,42 +205,21 @@ const Phase4Content = forwardRef<any, Phase4ContentProps>(({ onLog, filter = 'al
 
                 {/* Card Body */}
                 <div style={{ padding: '15px' }}>
-                  <div style={{
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    color: '#333',
-                    marginBottom: '10px'
-                  }}>
-                    {contract['@id']}
-                  </div>
-
-                  <div style={{ fontSize: '11px', color: '#666', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ fontSize: '11px', color: '#666', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                     <div>
-                      <strong style={{ color: '#11998e' }}>Asset:</strong> 
-                      <span style={{ fontFamily: "'Courier New', monospace", marginLeft: '4px' }}>
-                        {assetId}
-                      </span>
+                      <strong>Asset:</strong> {assetId}
                     </div>
                     <div>
-                      <strong style={{ color: '#667eea' }}>Partner BPN:</strong> 
-                      <span style={{ fontFamily: "'Courier New', monospace", marginLeft: '4px' }}>
-                        {partnerBPN}
-                      </span>
+                      <strong>Partner BPN:</strong> {partnerBPN}
                     </div>
                     {contract.accessPolicyId && (
                       <div>
-                        <strong style={{ color: '#f093fb' }}>Access Policy:</strong> 
-                        <span style={{ fontFamily: "'Courier New', monospace", marginLeft: '4px' }}>
-                          {contract.accessPolicyId}
-                        </span>
+                        <strong>Access Policy:</strong> {contract.accessPolicyId}
                       </div>
                     )}
                     {contract.contractPolicyId && (
                       <div>
-                        <strong style={{ color: '#f5576c' }}>Contract Policy:</strong> 
-                        <span style={{ fontFamily: "'Courier New', monospace", marginLeft: '4px' }}>
-                          {contract.contractPolicyId}
-                        </span>
+                        <strong>Contract Policy:</strong> {contract.contractPolicyId}
                       </div>
                     )}
                   </div>
