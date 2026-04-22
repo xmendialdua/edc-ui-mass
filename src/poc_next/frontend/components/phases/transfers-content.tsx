@@ -371,11 +371,14 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
       
       try {
         // Llamar al backend para descargar el archivo (actúa como proxy para evitar CORS)
-        const blob = await api.phase6.downloadFile({
+        const { blob, contentType, filename } = await api.phase6.downloadFile({
           transferId: transferId,
           endpoint: endpoint,
           token: token
         });
+
+        addLog(`   📄 Tipo de archivo: ${contentType}`);
+        addLog(`   📝 Nombre del archivo: ${filename}`);
 
         // Crear un URL temporal para el blob
         const url = window.URL.createObjectURL(blob);
@@ -383,7 +386,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
         // Crear un enlace temporal y hacer click automáticamente
         const link = document.createElement('a');
         link.href = url;
-        link.download = `data-${transferId}.csv`; // Puedes ajustar la extensión según el tipo de archivo
+        link.download = filename;
         document.body.appendChild(link);
         link.click();
         
@@ -418,11 +421,14 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
               
               // Retry download with new token
               addLog(`   🔄 Reintentando descarga con nuevo token...`);
-              const blob = await api.phase6.downloadFile({
+              const { blob, contentType, filename } = await api.phase6.downloadFile({
                 transferId: transferId,
                 endpoint: newEndpoint,
                 token: newToken
               });
+
+              addLog(`   📄 Tipo de archivo: ${contentType}`);
+              addLog(`   📝 Nombre del archivo: ${filename}`);
 
               // Crear un URL temporal para el blob
               const url = window.URL.createObjectURL(blob);
@@ -430,7 +436,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
               // Crear un enlace temporal y hacer click automáticamente
               const link = document.createElement('a');
               link.href = url;
-              link.download = `data-${transferId}.csv`;
+              link.download = filename;
               document.body.appendChild(link);
               link.click();
               

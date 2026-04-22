@@ -41,6 +41,33 @@ async function apiRequest<T>(
 }
 
 /**
+ * Helper function to get file extension from content-type
+ */
+function getExtensionFromContentType(contentType: string): string {
+  const type = contentType.toLowerCase().split(';')[0].trim();
+  
+  const extensionMap: Record<string, string> = {
+    'application/pdf': '.pdf',
+    'text/csv': '.csv',
+    'application/json': '.json',
+    'application/xml': '.xml',
+    'text/xml': '.xml',
+    'text/plain': '.txt',
+    'application/zip': '.zip',
+    'application/x-zip-compressed': '.zip',
+    'image/png': '.png',
+    'image/jpeg': '.jpg',
+    'image/gif': '.gif',
+    'application/vnd.ms-excel': '.xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+    'application/msword': '.doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx'
+  };
+  
+  return extensionMap[type] || '.dat';
+}
+
+/**
  * Organized API client
  */
 export const api = {
@@ -165,7 +192,7 @@ export const api = {
         '/api/phase6/initiate-transfer-for-contract',
         { method: 'POST', body: JSON.stringify(data) }
       ),
-    downloadFile: async (data: { transferId: string; endpoint: string; token: string }) => {
+    downloadFile: async (data: { transferId: string; endpoint: string; token: string }): Promise<{ blob: Blob; contentType: string; filename: string }> => {
       const response = await fetch(`${API_BASE_URL}/api/phase6/download-file`, {
         method: 'POST',
         headers: {
@@ -181,7 +208,30 @@ export const api = {
         );
       }
 
-      return response.blob();
+      const blob = await response.blob();
+      const contentType = response.headers.get('Content-Type') || 'application/octet-stream';
+      const contentDisposition = response.headers.get('Content-Disposition') || '';
+      
+      // Extract filename from Content-Disposition header
+      let filename = `data-${data.transferId}`;
+      
+      // Try to parse filename from Content-Disposition
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=(['"]?)([^'"\n]*\.[^'"\n]+)\1/);
+        if (filenameMatch && filenameMatch[2]) {
+          filename = filenameMatch[2];
+        } else {
+          // If no filename with extension found, try to get extension from content-type
+          const extension = getExtensionFromContentType(contentType);
+          filename = `${filename}${extension}`;
+        }
+      } else {
+        // No Content-Disposition, use content-type to determine extension
+        const extension = getExtensionFromContentType(contentType);
+        filename = `${filename}${extension}`;
+      }
+
+      return { blob, contentType, filename };
     },
     getTransferEdr: (transferId: string) => apiRequest<{ success: boolean; edr: any; cached: boolean }>(
       `/api/phase6/transfer-edr/${transferId}`,
