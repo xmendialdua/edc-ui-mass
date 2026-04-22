@@ -187,5 +187,13 @@ export const api = {
       `/api/phase6/transfer-edr/${transferId}`,
       { method: 'GET' }
     ),
+    getTransferStatus: (transferId: string) => apiRequest<{ 
+      success: boolean; 
+      transfer: any;
+      error?: string;
+    }>(
+      `/api/phase6/transfer-status/${transferId}`,
+      { method: 'GET' }
+    ),
   },
 };
