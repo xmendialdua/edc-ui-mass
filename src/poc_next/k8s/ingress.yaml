@@ -4,16 +4,53 @@ metadata:
   name: poc-next-frontend
   namespace: poc-next
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    # No usar rewrite-target para que Next.js reciba las rutas tal cual
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # Configurar timeouts para el backend
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
 spec:
   ingressClassName: nginx
   rules:
-  - host: poc-next.51.178.94.25.nip.io
+  - host: ds-management.51.178.94.25.nip.io
     http:
       paths:
-      - path: /
+      # Ruta para el backend API
+      - path: /api
         pathType: Prefix
+        backend:
+          service:
+            name: poc-next-backend
+            port:
+              number: 5001
+      # Rutas para las páginas del frontend
+      - path: /data-publication
+        pathType: Prefix
+        backend:
+          service:
+            name: poc-next-frontend
+            port:
+              number: 3001
+      # Ruta para partner-data
+      - path: /partner-data
+        pathType: Prefix
+        backend:
+          service:
+            name: poc-next-frontend
+            port:
+              number: 3001
+      # Ruta para assets estáticos de Next.js (_next, favicon, etc.)
+      - path: /_next
+        pathType: Prefix
+        backend:
+          service:
+            name: poc-next-frontend
+            port:
+              number: 3001
+      # Favicon y otros assets en root
+      - path: /favicon.ico
+        pathType: Exact
         backend:
           service:
             name: poc-next-frontend
