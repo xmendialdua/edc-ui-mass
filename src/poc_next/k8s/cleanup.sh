@@ -2,7 +2,7 @@
 
 # Cleanup script for POC Next Kubernetes deployment
 
-NAMESPACE="poc-next"
+NAMESPACE="ds-management-ui"
 
 # Colors for output
 RED='\033[0;31m'

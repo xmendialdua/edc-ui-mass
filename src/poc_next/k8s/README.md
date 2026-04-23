@@ -69,7 +69,7 @@ chmod +x deploy.sh
 ```
 
 Este script:
-1. Crea el namespace `poc-next` si no existe
+1. Crea el namespace `ds-management-ui` si no existe
 2. Aplica los manifiestos de Kubernetes en orden
 3. Espera a que los deployments estén listos
 4. Muestra la URL de acceso
@@ -80,19 +80,19 @@ Si prefieres desplegar manualmente:
 
 ```bash
 # Crear namespace
-kubectl create namespace poc-next
+kubectl create namespace ds-management-ui
 
 # Aplicar manifiestos
-kubectl apply -f rbac.yaml -n poc-next
-kubectl apply -f configmap.yaml -n poc-next
-kubectl apply -f deployment.yaml -n poc-next
-kubectl apply -f service.yaml -n poc-next
-kubectl apply -f ingress.yaml -n poc-next
+kubectl apply -f rbac.yaml -n ds-management-ui
+kubectl apply -f configmap.yaml -n ds-management-ui
+kubectl apply -f deployment.yaml -n ds-management-ui
+kubectl apply -f service.yaml -n ds-management-ui
+kubectl apply -f ingress.yaml -n ds-management-ui
 
 # Verificar estado
-kubectl get pods -n poc-next
-kubectl rollout status deployment/poc-next-backend -n poc-next
-kubectl rollout status deployment/poc-next-frontend -n poc-next
+kubectl get pods -n ds-management-ui
+kubectl rollout status deployment/poc-next-backend -n ds-management-ui
+kubectl rollout status deployment/poc-next-frontend -n ds-management-ui
 ```
 
 ## Acceso a la Aplicación

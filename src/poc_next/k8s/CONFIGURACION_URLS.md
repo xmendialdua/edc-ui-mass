@@ -139,7 +139,7 @@ cd k8s
 ```
 
 Este script:
-1. Crea el namespace `poc-next`
+1. Crea el namespace `ds-management-ui`
 2. Aplica RBAC, ConfigMap y Secrets
 3. Despliega backend y frontend
 4. Configura el Ingress con las rutas correctas
@@ -149,14 +149,14 @@ Este script:
 
 ```bash
 # Ver pods
-kubectl get pods -n poc-next
+kubectl get pods -n ds-management-ui
 
 # Ver ingress
-kubectl get ingress -n poc-next
+kubectl get ingress -n ds-management-ui
 
 # Ver logs
-kubectl logs -f deployment/poc-next-frontend -n poc-next
-kubectl logs -f deployment/poc-next-backend -n poc-next
+kubectl logs -f deployment/poc-next-frontend -n ds-management-ui
+kubectl logs -f deployment/poc-next-backend -n ds-management-ui
 ```
 
 ## 🔍 Troubleshooting
@@ -168,10 +168,10 @@ kubectl logs -f deployment/poc-next-backend -n poc-next
 **Solución**:
 ```bash
 # Verificar configuración del Ingress
-kubectl describe ingress poc-next-frontend -n poc-next
+kubectl describe ingress poc-next-frontend -n ds-management-ui
 
 # Verificar que los paths estén configurados
-kubectl get ingress poc-next-frontend -n poc-next -o yaml
+kubectl get ingress poc-next-frontend -n ds-management-ui -o yaml
 ```
 
 ### Frontend no puede llamar al backend
@@ -181,13 +181,13 @@ kubectl get ingress poc-next-frontend -n poc-next -o yaml
 **Solución**:
 ```bash
 # 1. Verificar variable de entorno en el pod
-kubectl exec -n poc-next deployment/poc-next-frontend -- env | grep NEXT_PUBLIC_API_URL
+kubectl exec -n ds-management-ui deployment/poc-next-frontend -- env | grep NEXT_PUBLIC_API_URL
 
 # 2. Debería mostrar: NEXT_PUBLIC_API_URL=http://ds-management.51.178.94.25.nip.io
 
 # 3. Si no es correcta, reconstruir y redesplegar:
 ./build-k8s.sh
-cd k8s && kubectl delete deployment poc-next-frontend -n poc-next
+cd k8s && kubectl delete deployment poc-next-frontend -n ds-management-ui
 ./deploy.sh
 ```
 
@@ -198,7 +198,7 @@ cd k8s && kubectl delete deployment poc-next-frontend -n poc-next
 **Solución**: Verificar que el Ingress tenga la ruta `/_next` configurada:
 
 ```bash
-kubectl get ingress poc-next-frontend -n poc-next -o yaml | grep -A 5 "_next"
+kubectl get ingress poc-next-frontend -n ds-management-ui -o yaml | grep -A 5 "_next"
 ```
 
 ## 📊 Comparación de Entornos

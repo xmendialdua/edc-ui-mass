@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: poc-next-frontend
-  namespace: poc-next
+  namespace: ds-management-ui
   annotations:
     # No usar rewrite-target para que Next.js reciba las rutas tal cual
     nginx.ingress.kubernetes.io/ssl-redirect: "false"

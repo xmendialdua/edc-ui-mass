@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: poc-next-config
-  namespace: poc-next
+  namespace: ds-management-ui
 data:
   # Backend Configuration
   APP_HOST: "0.0.0.0"
@@ -32,7 +32,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: poc-next-secrets
-  namespace: poc-next
+  namespace: ds-management-ui
 type: Opaque
 stringData:
   MASS_API_KEY: "mass-api-key-change-in-production"

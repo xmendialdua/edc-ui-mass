@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set namespace
-NAMESPACE="poc-next"
+NAMESPACE="ds-management-ui"
 
 # Set image names and tags
 BACKEND_IMAGE="xmendialdua/poc-next-backend"

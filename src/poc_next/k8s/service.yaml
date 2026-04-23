@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: poc-next-backend
-  namespace: poc-next
+  namespace: ds-management-ui
   labels:
     app: poc-next-backend
 spec:
@@ -19,7 +19,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: poc-next-frontend
-  namespace: poc-next
+  namespace: ds-management-ui
   labels:
     app: poc-next-frontend
 spec:
