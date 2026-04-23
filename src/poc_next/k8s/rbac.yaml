@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: poc-next-sa
+  namespace: poc-next
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: poc-next-pod-reader
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/log"]
+  verbs: ["get", "watch", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: poc-next-pod-reader-binding
+subjects:
+- kind: ServiceAccount
+  name: poc-next-sa
+  namespace: poc-next
+roleRef:
+  kind: ClusterRole
+  name: poc-next-pod-reader
+  apiGroup: rbac.authorization.k8s.io

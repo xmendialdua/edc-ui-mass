@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: poc-next-backend
+  namespace: poc-next
+  labels:
+    app: poc-next-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: poc-next-backend
+  template:
+    metadata:
+      labels:
+        app: poc-next-backend
+    spec:
+      serviceAccountName: poc-next-sa
+      containers:
+      - name: backend
+        image: xmendialdua/poc-next-backend:latest
+        ports:
+        - containerPort: 5001
+        envFrom:
+        - configMapRef:
+            name: poc-next-config
+        - secretRef:
+            name: poc-next-secrets
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5001
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: poc-next-frontend
+  namespace: poc-next
+  labels:
+    app: poc-next-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: poc-next-frontend
+  template:
+    metadata:
+      labels:
+        app: poc-next-frontend
+    spec:
+      serviceAccountName: poc-next-sa
+      containers:
+      - name: frontend
+        image: xmendialdua/poc-next-frontend:latest
+        ports:
+        - containerPort: 3001
+        env:
+        - name: NEXT_PUBLIC_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: poc-next-config
+              key: NEXT_PUBLIC_API_URL
+        - name: NEXT_PUBLIC_APP_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: poc-next-config
+              key: NEXT_PUBLIC_APP_NAME
+        - name: NEXT_PUBLIC_APP_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: poc-next-config
+              key: NEXT_PUBLIC_APP_VERSION
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3001
+          initialDelaySeconds: 5
+          periodSeconds: 5

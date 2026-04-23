@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: poc-next-backend
+    ports:
+      - "5001:5001"
+    environment:
+      # Application
+      APP_HOST: "0.0.0.0"
+      APP_PORT: "5001"
+      LOG_LEVEL: "INFO"
+      
+      # SSL Configuration - Disable SSL verification for self-signed certs
+      PYTHONHTTPSVERIFY: "0"
+      CURL_CA_BUNDLE: ""
+      REQUESTS_CA_BUNDLE: ""
+      SSL_CERT_FILE: ""
+      
+      # MASS Connector (Provider)
+      MASS_MANAGEMENT_URL: "https://edc-mass-control.51.178.94.25.nip.io/management"
+      MASS_API_KEY: "mass-api-key-change-in-production"
+      MASS_BPN: "BPNL00000000MASS"
+      MASS_DSP: "https://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp"
+      
+      # IKLN Connector (Consumer)
+      IKLN_MANAGEMENT_URL: "https://edc-ikln-control.51.178.94.25.nip.io/management"
+      IKLN_API_KEY: "ikln-api-key-change-in-production"
+      IKLN_BPN: "BPNL00000002IKLN"
+      IKLN_DSP: "https://edc-ikln-control.51.178.94.25.nip.io/api/v1/dsp"
+      
+      # Sample Data
+      PDF_URL: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - poc-next-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Build-time argument para Next.js
+        NEXT_PUBLIC_API_URL: "http://localhost:5001"
+    container_name: poc-next-frontend
+    ports:
+      - "3001:3001"
+    environment:
+      # Runtime environment (para referencia, pero Next.js usa el build-time)
+      NEXT_PUBLIC_API_URL: "http://localhost:5001"
+      NEXT_PUBLIC_APP_NAME: "POC Next Dashboard"
+      NEXT_PUBLIC_APP_VERSION: "0.1.0"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - poc-next-network
+
+networks:
+  poc-next-network:
+    driver: bridge
