@@ -250,4 +250,140 @@ export const api = {
       { method: 'GET' }
     ),
   },
+
+  /**
+   * SharePoint: File access via Microsoft Graph API
+   */
+  sharepoint: {
+    /**
+     * Health check for SharePoint service
+     */
+    healthCheck: (accessToken: string) => apiRequest<{ 
+      status: string; 
+      service: string; 
+      has_default_drive_id: boolean 
+    }>(
+      '/api/sharepoint/health',
+      { 
+        method: 'GET',
+        headers: { Authorization: `Bearer ${accessToken}` }
+      }
+    ),
+
+    /**
+     * List files from SharePoint drive
+     */
+    listFiles: (accessToken: string, driveId?: string, folderId?: string) => {
+      const params = new URLSearchParams();
+      if (driveId) params.append('drive_id', driveId);
+      if (folderId) params.append('folder_id', folderId);
+      
+      return apiRequest<{ 
+        items: Array<{
+          id: string;
+          name: string;
+          webUrl: string;
+          size?: number;
+          lastModified?: string;
+          isFolder: boolean;
+          folder?: { childCount: number };
+        }>;
+        count: number;
+      }>(
+        `/api/sharepoint/files${params.toString() ? '?' + params.toString() : ''}`,
+        { 
+          method: 'GET',
+          headers: { Authorization: `Bearer ${accessToken}` }
+        }
+      );
+    },
+
+    /**
+     * List files from SharePoint by site URL
+     */
+    listFilesBySiteUrl: (accessToken: string, siteUrl: string, folderPath?: string) => {
+      const params = new URLSearchParams({ site_url: siteUrl });
+      if (folderPath) params.append('folder_path', folderPath);
+      
+      return apiRequest<{ 
+        items: Array<{
+          id: string;
+          name: string;
+          webUrl: string;
+          size?: number;
+          lastModified?: string;
+          isFolder: boolean;
+          folder?: { childCount: number };
+        }>;
+        count: number;
+      }>(
+        `/api/sharepoint/files/by-site-url?${params.toString()}`,
+        { 
+          method: 'GET',
+          headers: { Authorization: `Bearer ${accessToken}` }
+        }
+      );
+    },
+
+    /**
+     * Download a file from SharePoint
+     */
+    downloadFile: async (accessToken: string, fileId: string, driveId?: string): Promise<{ blob: Blob; filename: string }> => {
+      const params = new URLSearchParams();
+      if (driveId) params.append('drive_id', driveId);
+      
+      const response = await fetch(
+        `${API_BASE_URL}/api/sharepoint/download/${fileId}${params.toString() ? '?' + params.toString() : ''}`,
+        {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${accessToken}` }
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.detail || `API Error: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('Content-Disposition') || '';
+      
+      // Extract filename from Content-Disposition header
+      let filename = `sharepoint-file-${fileId}`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=(['"]?)([^'"\n]*)\1/);
+        if (filenameMatch && filenameMatch[2]) {
+          filename = filenameMatch[2];
+        }
+      }
+
+      return { blob, filename };
+    },
+
+    /**
+     * Get file metadata
+     */
+    getFileMetadata: (accessToken: string, fileId: string, driveId?: string) => {
+      const params = new URLSearchParams();
+      if (driveId) params.append('drive_id', driveId);
+      
+      return apiRequest<{
+        id: string;
+        name: string;
+        webUrl: string;
+        size?: number;
+        lastModified?: string;
+        isFolder: boolean;
+        folder?: { childCount: number };
+      }>(
+        `/api/sharepoint/file/${fileId}/metadata${params.toString() ? '?' + params.toString() : ''}`,
+        { 
+          method: 'GET',
+          headers: { Authorization: `Bearer ${accessToken}` }
+        }
+      );
+    },
+  },
 };

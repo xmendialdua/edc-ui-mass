@@ -121,13 +121,13 @@ if check_port 5001; then
     fi
 fi
 
-# Verificar puerto 3001 (Frontend)
-if check_port 3001; then
-    echo -e "${YELLOW}⚠️  Puerto 3001 (Frontend) ya está en uso${NC}"
+# Verificar puerto 3020 (Frontend)
+if check_port 3020; then
+    echo -e "${YELLOW}⚠️  Puerto 3020 (Frontend) ya está en uso${NC}"
     read -p "¿Deseas detener el proceso actual? (s/N): " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Ss]$ ]]; then
-        PID=$(lsof -t -i:3001)
+        PID=$(lsof -t -i:3020)
         kill $PID 2>/dev/null || true
         sleep 1
         echo -e "${GREEN}✓${NC} Proceso detenido"
@@ -216,7 +216,7 @@ else
 fi
 
 # Iniciar frontend en background
-echo -e "${GREEN}✓${NC} Iniciando servidor frontend en puerto 3001..."
+echo -e "${GREEN}✓${NC} Iniciando servidor frontend en puerto 3020..."
 pnpm dev > ../frontend.log 2>&1 &
 FRONTEND_PID=$!
 echo $FRONTEND_PID > ../.frontend.pid
@@ -224,9 +224,9 @@ echo $FRONTEND_PID > ../.frontend.pid
 # Esperar a que el frontend esté listo
 echo -n "   Esperando a que el frontend esté listo"
 for i in {1..15}; do
-    if curl -s http://localhost:3001 > /dev/null 2>&1; then
+    if curl -s http://localhost:3020 > /dev/null 2>&1; then
         echo ""
-        echo -e "${GREEN}✓${NC} Frontend operativo en http://localhost:3001"
+        echo -e "${GREEN}✓${NC} Frontend operativo en http://localhost:3020"
         break
     fi
     echo -n "."
@@ -256,8 +256,9 @@ echo -e "   ${GREEN}●${NC} Backend API:        http://localhost:5001"
 echo -e "   ${GREEN}●${NC} Health Check:       http://localhost:5001/health"
 echo -e "   ${GREEN}●${NC} API Docs:           http://localhost:5001/docs"
 echo ""
-echo -e "   ${GREEN}●${NC} Data Publication:   http://localhost:3001/data-publication"
-echo -e "   ${GREEN}●${NC} Partner Data:       http://localhost:3001/partner-data"
+echo -e "   ${GREEN}●${NC} Data Publication:   http://localhost:3020/data-publication"
+echo -e "   ${GREEN}●${NC} Partner Data:       http://localhost:3020/partner-data"
+echo -e "   ${GREEN}●${NC} SharePoint Data:    http://localhost:3020/sharepoint-data"
 echo ""
 echo -e "${BLUE}📝 Logs:${NC}"
 echo -e "   Backend:  tail -f backend.log"

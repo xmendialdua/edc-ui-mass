@@ -17,6 +17,7 @@ from api.routes import (
     phase4_router,
     phase5_router,
     phase6_router,
+    sharepoint_router,
 )
 from config import settings
 
@@ -97,6 +98,7 @@ app.include_router(phase3_router)
 app.include_router(phase4_router)
 app.include_router(phase5_router)
 app.include_router(phase6_router)
+app.include_router(sharepoint_router)
 
 
 @app.get("/")
