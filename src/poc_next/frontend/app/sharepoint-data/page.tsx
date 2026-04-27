@@ -25,7 +25,7 @@ export default function SharePointDataPage() {
   const [detailedError, setDetailedError] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string>("");
   const [folderPath, setFolderPath] = useState<string[]>([]);
-  const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connected" | "error">("disconnected");
+  const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connected" | "error" | "authenticating">("disconnected");
 
   // SharePoint Site URL from environment
   const siteUrl = process.env.NEXT_PUBLIC_SHAREPOINT_SITE_URL || "";
