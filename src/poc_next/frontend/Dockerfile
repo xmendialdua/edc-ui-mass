@@ -11,9 +11,9 @@ WORKDIR /app
 # Copy package files
 COPY package.json pnpm-lock.yaml* ./
 
-# Install dependencies using pnpm
+# Install dependencies using pnpm (no frozen lockfile for Docker build)
 RUN corepack enable pnpm && \
-    pnpm install --frozen-lockfile
+    pnpm install --no-frozen-lockfile
 
 # Rebuild the source code only when needed
 FROM base AS builder
