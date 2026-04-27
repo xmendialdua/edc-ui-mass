@@ -333,7 +333,7 @@ export const api = {
       if (driveId) params.append('drive_id', driveId);
       
       const response = await fetch(
-        `${API_BASE_URL}/api/sharepoint/download/${fileId}${params.toString() ? '?' + params.toString() : ''}`,
+        `${API_BASE_URL}/api/sharepoint/download/${encodeURIComponent(fileId)}${params.toString() ? '?' + params.toString() : ''}`,
         {
           method: 'GET',
           headers: { Authorization: `Bearer ${accessToken}` }
@@ -351,11 +351,18 @@ export const api = {
       const contentDisposition = response.headers.get('Content-Disposition') || '';
       
       // Extract filename from Content-Disposition header
-      let filename = `sharepoint-file-${fileId}`;
+      let filename = 'downloaded-file';
       if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=(['"]?)([^'"\n]*)\1/);
-        if (filenameMatch && filenameMatch[2]) {
-          filename = filenameMatch[2];
+        // Try RFC 5987 format first: filename*=UTF-8''filename
+        const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;\n]+)/);
+        if (utf8Match && utf8Match[1]) {
+          filename = decodeURIComponent(utf8Match[1]);
+        } else {
+          // Try standard format: filename="filename" or filename=filename
+          const standardMatch = contentDisposition.match(/filename=(["']?)(.+?)\1(?:;|$)/);
+          if (standardMatch && standardMatch[2]) {
+            filename = standardMatch[2];
+          }
         }
       }
 

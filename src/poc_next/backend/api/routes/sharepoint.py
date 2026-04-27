@@ -204,7 +204,7 @@ async def download_file(
     Download a file from SharePoint.
     
     Args:
-        file_id: ID of the file to download
+        file_id: ID of the file to download (can be composite format: drive_id|item_id)
         authorization: Bearer token for Microsoft Graph API
         drive_id: Optional SharePoint drive ID (uses default if not provided)
         
@@ -216,16 +216,29 @@ async def download_file(
         
         logger.info(f"Downloading file_id={file_id}, drive_id={drive_id}")
         
+        # Parse composite file_id if present (format: drive_id|item_id)
+        if '|' in file_id:
+            parsed_drive_id, item_id = file_id.split('|', 1)
+            actual_drive_id = parsed_drive_id
+        else:
+            # Use provided drive_id or fall back to default
+            actual_drive_id = drive_id or gateway.default_drive_id
+            item_id = file_id
+        
         file_content, filename = gateway.download_file(
-            file_id=file_id,
-            drive_id=drive_id
+            drive_id=actual_drive_id,
+            item_id=item_id
         )
+        
+        # Encode filename for Content-Disposition header (RFC 5987)
+        from urllib.parse import quote
+        encoded_filename = quote(filename)
         
         return StreamingResponse(
             iter([file_content]),
             media_type="application/octet-stream",
             headers={
-                "Content-Disposition": f'attachment; filename="{filename}"'
+                "Content-Disposition": f"attachment; filename=\"{filename}\"; filename*=UTF-8''{encoded_filename}"
             }
         )
         

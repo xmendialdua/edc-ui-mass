@@ -14,7 +14,7 @@ Environment Variables:
 
 import os
 from dataclasses import dataclass
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime
 import requests
 from enum import Enum
@@ -261,7 +261,12 @@ class SharePointGateway:
             files_data = files_response.json()
             
             items = files_data.get('value', [])
-            return [self._parse_drive_item(item) for item in items]
+            # Include drive_id in the file id for later download
+            files = [self._parse_drive_item(item) for item in items]
+            for file in files:
+                # Format: drive_id|item_id
+                file.id = f"{drive_id}|{file.id}"
+            return files
             
         except requests.HTTPError as error:
             print(f"Error fetching SharePoint files by site URL: {error}")
@@ -272,7 +277,7 @@ class SharePointGateway:
         self,
         drive_id: str,
         item_id: str
-    ) -> bytes:
+    ) -> Tuple[bytes, str]:
         """
         Download a file from SharePoint
         
@@ -281,18 +286,25 @@ class SharePointGateway:
             item_id: File item ID
             
         Returns:
-            File content as bytes
+            Tuple of (file_content, filename)
             
         Raises:
             requests.HTTPError: If the API request fails
         """
         try:
-            endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{drive_id}/items/{item_id}/content"
+            # First get file metadata to get the filename
+            metadata_endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{drive_id}/items/{item_id}"
+            metadata_response = self.session.get(metadata_endpoint)
+            metadata_response.raise_for_status()
+            metadata = metadata_response.json()
+            filename = metadata.get('name', 'download')
             
-            response = self.session.get(endpoint)
+            # Then download the content
+            content_endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{drive_id}/items/{item_id}/content"
+            response = self.session.get(content_endpoint)
             response.raise_for_status()
             
-            return response.content
+            return response.content, filename
             
         except requests.HTTPError as error:
             print(f"Error downloading file: {error}")

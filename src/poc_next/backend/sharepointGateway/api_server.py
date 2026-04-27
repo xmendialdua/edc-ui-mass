@@ -34,7 +34,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 import logging
 
-from SharePointGateway import SharePointGateway, SharePointFile
+from poc_next.backend.sharepointGateway.SharePointGateway import SharePointGateway, SharePointFile
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -61,6 +61,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition", "Content-Type"],  # Allow frontend to read these headers
 )
 
 
@@ -394,26 +395,24 @@ async def download_file(
     try:
         gateway = get_gateway(authorization)
         
-        # First get metadata to get the filename
-        file_metadata = gateway.get_file_metadata(
+        # Download file (now returns content and filename)
+        file_content, filename = gateway.download_file(
             drive_id=drive_id,
             item_id=item_id
         )
         
-        # Download file
-        file_content = gateway.download_file(
-            drive_id=drive_id,
-            item_id=item_id
-        )
+        logger.info(f"Downloaded file {filename}")
         
-        logger.info(f"Downloaded file {file_metadata.name}")
+        # Encode filename for Content-Disposition header (RFC 5987)
+        from urllib.parse import quote
+        encoded_filename = quote(filename)
         
         # Return as streaming response
         return StreamingResponse(
             iter([file_content]),
             media_type="application/octet-stream",
             headers={
-                "Content-Disposition": f'attachment; filename="{file_metadata.name}"'
+                "Content-Disposition": f"attachment; filename=\"{filename}\"; filename*=UTF-8''{encoded_filename}"
             }
         )
         
