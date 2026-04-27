@@ -85,13 +85,33 @@ spec:
             configMapKeyRef:
               name: poc-next-config
               key: NEXT_PUBLIC_APP_VERSION
+        - name: NEXT_PUBLIC_AZURE_CLIENT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: poc-next-config
+              key: NEXT_PUBLIC_AZURE_CLIENT_ID
+        - name: NEXT_PUBLIC_AZURE_TENANT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: poc-next-config
+              key: NEXT_PUBLIC_AZURE_TENANT_ID
+        - name: NEXT_PUBLIC_AZURE_REDIRECT_URI
+          valueFrom:
+            configMapKeyRef:
+              name: poc-next-config
+              key: NEXT_PUBLIC_AZURE_REDIRECT_URI
+        - name: NEXT_PUBLIC_SHAREPOINT_SITE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: poc-next-config
+              key: NEXT_PUBLIC_SHAREPOINT_SITE_URL
         resources:
           limits:
-            cpu: "500m"
+            cpu: "300m"
             memory: "512Mi"
           requests:
-            cpu: "100m"
-            memory: "256Mi"
+            cpu: "50m"
+            memory: "128Mi"
         livenessProbe:
           httpGet:
             path: /data-publication
