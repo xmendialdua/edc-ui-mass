@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import logging
 
+from config import settings
 from sharepointGateway.SharePointGateway import SharePointGateway, SharePointFile
 
 logger = logging.getLogger(__name__)
@@ -71,8 +72,8 @@ def get_gateway(authorization: Optional[str] = None) -> SharePointGateway:
             detail="Access token is empty"
         )
     
-    # Get default drive ID from environment
-    default_drive_id = os.getenv("SHAREPOINT_DRIVE_ID")
+    # Get default drive ID from settings
+    default_drive_id = settings.sharepoint_drive_id
     
     return SharePointGateway(
         access_token=access_token,
@@ -86,7 +87,7 @@ async def health_check():
     return {
         "status": "ok",
         "service": "sharepoint-gateway",
-        "has_default_drive_id": bool(os.getenv("SHAREPOINT_DRIVE_ID"))
+        "has_default_drive_id": bool(settings.sharepoint_drive_id)
     }
 
 
@@ -114,7 +115,7 @@ async def list_files(
         
         files = gateway.get_sharepoint_files(
             drive_id=drive_id,
-            folder_id=folder_id
+            item_id=folder_id  # Note: item_id is the parameter name in SharePointGateway
         )
         
         items = [
@@ -146,7 +147,7 @@ async def list_files(
 async def list_files_by_site_url(
     authorization: Optional[str] = Header(None),
     site_url: str = Query(..., description="SharePoint site URL"),
-    folder_path: Optional[str] = Query(None, description="Folder path within site")
+    folder_id: Optional[str] = Query(None, description="Folder ID to list (root if not provided)")
 ):
     """
     List files from SharePoint by site URL.
@@ -154,7 +155,7 @@ async def list_files_by_site_url(
     Args:
         authorization: Bearer token for Microsoft Graph API
         site_url: SharePoint site URL (e.g., https://company.sharepoint.com/sites/sitename)
-        folder_path: Optional folder path within the site
+        folder_id: Optional folder ID to list contents of specific folder
         
     Returns:
         List of files and folders
@@ -162,11 +163,11 @@ async def list_files_by_site_url(
     try:
         gateway = get_gateway(authorization)
         
-        logger.info(f"Listing files from site_url={site_url}, folder_path={folder_path}")
+        logger.info(f"Listing files from site_url={site_url}, folder_id={folder_id}")
         
-        # For now, only list root folder (item_id navigation can be added later)
         files = gateway.get_sharepoint_files_by_site_url(
-            site_url=site_url
+            site_url=site_url,
+            item_id=folder_id
         )
         
         items = [
@@ -296,4 +297,58 @@ async def get_file_metadata(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get file metadata: {str(e)}"
+        )
+
+
+@router.get("/debug/drives")
+async def debug_list_drives(
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Debug endpoint: List all drives accessible to the user.
+    
+    Args:
+        authorization: Bearer token for Microsoft Graph API
+        
+    Returns:
+        List of available drives with their IDs
+    """
+    try:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(
+                status_code=401,
+                detail="Authorization header required"
+            )
+        
+        access_token = authorization.replace("Bearer ", "").strip()
+        
+        import requests
+        response = requests.get(
+            "https://graph.microsoft.com/v1.0/me/drives",
+            headers={"Authorization": f"Bearer {access_token}"}
+        )
+        response.raise_for_status()
+        
+        drives_data = response.json()
+        drives = []
+        for drive in drives_data.get("value", []):
+            drives.append({
+                "id": drive.get("id"),
+                "name": drive.get("name"),
+                "driveType": drive.get("driveType"),
+                "webUrl": drive.get("webUrl"),
+                "owner": drive.get("owner", {}).get("user", {}).get("displayName", "Unknown")
+            })
+        
+        return {
+            "drives": drives,
+            "count": len(drives),
+            "configured_drive_id": settings.sharepoint_drive_id
+        }
+        
+    except Exception as e:
+        logger.error(f"Error listing drives: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to list drives: {str(e)}"
         )

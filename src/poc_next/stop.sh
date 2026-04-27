@@ -91,10 +91,10 @@ echo ""
 echo -e "${BLUE}🎨 Deteniendo Frontend...${NC}"
 stop_by_pid ".frontend.pid" "Frontend"
 # Intentar por puerto si el PID no funcionó
-if ! lsof -Pi :3001 -sTCP:LISTEN -t >/dev/null 2>&1; then
-    echo -e "${GREEN}✓${NC} Puerto 3001 liberado"
+if ! lsof -Pi :3020 -sTCP:LISTEN -t >/dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC} Puerto 3020 liberado"
 else
-    stop_by_port 3001 "Frontend"
+    stop_by_port 3020 "Frontend"
 fi
 echo ""
 
@@ -108,8 +108,8 @@ if [ ! -z "$UVICORN_PIDS" ]; then
     echo "$UVICORN_PIDS" | xargs kill -9 2>/dev/null || true
 fi
 
-# Buscar y matar procesos de next-server con puerto 3001
-NEXT_PIDS=$(ps aux | grep "[n]ext-server.*3001" | awk '{print $2}')
+# Buscar y matar procesos de next-server con puerto 3020
+NEXT_PIDS=$(ps aux | grep "[n]ext-server.*3020" | awk '{print $2}')
 if [ ! -z "$NEXT_PIDS" ]; then
     echo -e "${YELLOW}   Deteniendo procesos next-server...${NC}"
     echo "$NEXT_PIDS" | xargs kill -9 2>/dev/null || true
@@ -137,9 +137,9 @@ else
     echo -e "   ${GREEN}✓${NC} Puerto 5001 (Backend): Libre"
 fi
 
-if lsof -Pi :3001 -sTCP:LISTEN -t >/dev/null 2>&1; then
-    echo -e "   ${RED}✗${NC} Puerto 3001 (Frontend): AÚN EN USO"
+if lsof -Pi :3020 -sTCP:LISTEN -t >/dev/null 2>&1; then
+    echo -e "   ${RED}✗${NC} Puerto 3020 (Frontend): AÚN EN USO"
 else
-    echo -e "   ${GREEN}✓${NC} Puerto 3001 (Frontend): Libre"
+    echo -e "   ${GREEN}✓${NC} Puerto 3020 (Frontend): Libre"
 fi
 echo ""

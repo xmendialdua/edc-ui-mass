@@ -146,29 +146,29 @@ class SharePointGateway:
         Get files and folders from a SharePoint drive
         
         Args:
-            drive_id: SharePoint drive ID (optional, uses default if not provided)
+            drive_id: SharePoint drive ID (optional, uses user's default drive if not provided)
             item_id: Folder item ID for navigation (optional, uses root if not provided)
             
         Returns:
             List of SharePointFile objects representing files and folders
             
         Raises:
-            ValueError: If drive ID is not configured
             requests.HTTPError: If the API request fails
         """
-        target_drive_id = drive_id or self.default_drive_id
-        
-        if not target_drive_id:
-            raise ValueError('SharePoint Drive ID not configured')
-        
         try:
             # Build endpoint URL
-            if item_id:
-                # Get children of a specific folder
-                endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{target_drive_id}/items/{item_id}/children"
+            if drive_id:
+                # Use specific drive
+                if item_id:
+                    endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{drive_id}/items/{item_id}/children"
+                else:
+                    endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{drive_id}/root/children"
             else:
-                # Get root items
-                endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{target_drive_id}/root/children"
+                # Use user's default drive (OneDrive or primary SharePoint)
+                if item_id:
+                    endpoint = f"{self.GRAPH_API_BASE_URL}/me/drive/items/{item_id}/children"
+                else:
+                    endpoint = f"{self.GRAPH_API_BASE_URL}/me/drive/root/children"
             
             # Make API request
             response = self.session.get(endpoint)

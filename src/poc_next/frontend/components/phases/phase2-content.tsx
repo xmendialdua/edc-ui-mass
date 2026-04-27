@@ -3,7 +3,7 @@
 import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
-import { Package, Plus, RefreshCw, Trash2, Upload, ChevronDown, ChevronUp } from 'lucide-react';
+import { Package, Plus, RefreshCw, Trash2, Upload, ChevronDown, ChevronUp, FolderOpen, File, ChevronRight, Home } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -21,6 +21,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useMsal } from "@azure/msal-react";
+import { InteractionRequiredAuthError } from "@azure/msal-browser";
+import { loginRequest } from "@/lib/authConfig";
 
 interface Asset {
   '@id': string;
@@ -39,6 +42,7 @@ interface Phase2ContentProps {
 }
 
 const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref }, ref) => {
+  const { instance, accounts } = useMsal();
   const [loading, setLoading] = useState<string | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
@@ -46,11 +50,25 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newAssetId, setNewAssetId] = useState('');
   const [assetDescription, setAssetDescription] = useState('');
-  const [assetUrlType, setAssetUrlType] = useState<'pdf' | 'csv' | 'custom'>('pdf');
+  const [assetUrlType, setAssetUrlType] = useState<'pdf' | 'csv' | 'custom' | 'sharepoint-file' | 'sharepoint-folder'>('pdf');
   const [customUrl, setCustomUrl] = useState('');
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [selectedPartners, setSelectedPartners] = useState<Set<string>>(new Set());
   const [policies, setPolicies] = useState<any[]>([]);
+  const [showSharePointPicker, setShowSharePointPicker] = useState(false);
+  const [sharePointUrl, setSharePointUrl] = useState('');
+  const [sharePointItemName, setSharePointItemName] = useState('');
+  
+  // SharePoint states
+  const [sharePointAccessToken, setSharePointAccessToken] = useState('');
+  const [sharePointFiles, setSharePointFiles] = useState<any[]>([]);
+  const [sharePointLoading, setSharePointLoading] = useState(false);
+  const [sharePointError, setSharePointError] = useState<string | null>(null);
+  const [sharePointFolderPath, setSharePointFolderPath] = useState<string[]>([]);
+  const [sharePointFolderIds, setSharePointFolderIds] = useState<string[]>([]);
+  
+  // SharePoint site URL
+  const SHAREPOINT_SITE_URL = 'https://ikerlan.sharepoint.com/sites/IKDataSpace';
 
   // Lista de partners disponibles (hardcoded)
   function getAvailablePartners() {
@@ -88,6 +106,138 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
       onLog(message);
     }
   };
+
+  // ==================== SharePoint Functions ====================
+  
+  const handleSharePointLogin = async () => {
+    if (accounts.length === 0) {
+      try {
+        const response = await instance.loginPopup(loginRequest);
+        if (response.accessToken) {
+          setSharePointAccessToken(response.accessToken);
+          await loadSharePointFiles(response.accessToken);
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        setSharePointError('Error al iniciar sesión en Azure AD');
+      }
+    } else {
+      const request = {
+        ...loginRequest,
+        account: accounts[0]
+      };
+
+      try {
+        const response = await instance.acquireTokenSilent(request);
+        setSharePointAccessToken(response.accessToken);
+        await loadSharePointFiles(response.accessToken);
+      } catch (error) {
+        if (error instanceof InteractionRequiredAuthError) {
+          try {
+            const response = await instance.acquireTokenPopup(request);
+            setSharePointAccessToken(response.accessToken);
+            await loadSharePointFiles(response.accessToken);
+          } catch (popupError) {
+            console.error('Popup error:', popupError);
+            setSharePointError('Error al obtener token de acceso');
+          }
+        } else {
+          console.error('Token error:', error);
+          setSharePointError('Error al obtener token de acceso');
+        }
+      }
+    }
+  };
+
+  const loadSharePointFiles = async (token: string, folderId?: string) => {
+    setSharePointLoading(true);
+    setSharePointError(null);
+    
+    try {
+      const result = await api.sharepoint.listFilesBySiteUrl(
+        token,
+        SHAREPOINT_SITE_URL,
+        folderId
+      );
+      
+      if (result.items) {
+        const mode = assetUrlType === 'sharepoint-folder' ? 'folder' : 'file';
+        const filteredFiles = mode === 'folder' 
+          ? result.items.filter((f: any) => f.isFolder)
+          : result.items;
+        
+        setSharePointFiles(filteredFiles);
+      } else {
+        setSharePointError('Error al cargar archivos');
+      }
+    } catch (err: any) {
+      console.error('Error loading files:', err);
+      setSharePointError(`Error al cargar archivos: ${err.message || 'Error desconocido'}`);
+    } finally {
+      setSharePointLoading(false);
+    }
+  };
+
+  const handleSharePointFolderClick = async (folder: any) => {
+    if (folder.isFolder) {
+      setSharePointFolderPath([...sharePointFolderPath, folder.name]);
+      setSharePointFolderIds([...sharePointFolderIds, folder.id]);
+      
+      // Extract item_id from composite format "drive_id|item_id"
+      const itemId = folder.id.includes('|') ? folder.id.split('|')[1] : folder.id;
+      await loadSharePointFiles(sharePointAccessToken, itemId);
+    }
+  };
+
+  const handleSharePointBreadcrumbClick = async (index: number) => {
+    const newPath = sharePointFolderPath.slice(0, index);
+    const newIds = sharePointFolderIds.slice(0, index);
+    setSharePointFolderPath(newPath);
+    setSharePointFolderIds(newIds);
+    
+    if (index === 0) {
+      await loadSharePointFiles(sharePointAccessToken);
+    } else {
+      const folderId = newIds[newIds.length - 1];
+      // Extract item_id from composite format
+      const itemId = folderId.includes('|') ? folderId.split('|')[1] : folderId;
+      await loadSharePointFiles(sharePointAccessToken, itemId);
+    }
+  };
+
+  const handleSharePointItemSelect = (item: any) => {
+    setSharePointUrl(item.webUrl);
+    setSharePointItemName(item.name);
+    setShowSharePointPicker(false);
+    setSharePointFiles([]);
+    setSharePointFolderPath([]);
+    setSharePointFolderIds([]);
+  };
+
+  const handleSharePointToggle = () => {
+    if (!showSharePointPicker) {
+      setShowSharePointPicker(true);
+      if (!sharePointAccessToken) {
+        handleSharePointLogin();
+      } else {
+        loadSharePointFiles(sharePointAccessToken);
+      }
+    } else {
+      setShowSharePointPicker(false);
+      setSharePointFiles([]);
+      setSharePointFolderPath([]);
+      setSharePointFolderIds([]);
+    }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (!bytes) return '-';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // ==============================================
 
   async function loadAssets() {
     setLoading('list');
@@ -242,6 +392,12 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
       assetUrl = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
     } else if (assetUrlType === 'csv') {
       assetUrl = 'https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv';
+    } else if (assetUrlType === 'sharepoint-file' || assetUrlType === 'sharepoint-folder') {
+      assetUrl = sharePointUrl;
+      if (!assetUrl) {
+        alert('Por favor selecciona un archivo o carpeta de SharePoint');
+        return;
+      }
     } else {
       assetUrl = customUrl.trim();
       if (!assetUrl) {
@@ -268,6 +424,8 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
       setAssetDescription('');
       setAssetUrlType('pdf');
       setCustomUrl('');
+      setSharePointUrl('');
+      setSharePointItemName('');
       setTimeout(() => loadAssets(), 1000);
     } catch (error) {
       log(`❌ Error al crear asset: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -789,7 +947,15 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                 </label>
                 <select
                   value={assetUrlType}
-                  onChange={(e) => setAssetUrlType(e.target.value as 'pdf' | 'csv' | 'custom')}
+                  onChange={(e) => {
+                    const newType = e.target.value as 'pdf' | 'csv' | 'custom' | 'sharepoint-file' | 'sharepoint-folder';
+                    setAssetUrlType(newType);
+                    // Limpiar URL de SharePoint si cambia de tipo
+                    if (newType !== 'sharepoint-file' && newType !== 'sharepoint-folder') {
+                      setSharePointUrl('');
+                      setSharePointItemName('');
+                    }
+                  }}
                   style={{
                     width: '100%',
                     padding: '8px 12px',
@@ -802,6 +968,8 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                   <option value="pdf">📄 PDF de prueba</option>
                   <option value="csv">📊 CSV de prueba</option>
                   <option value="custom">✏️ URL personalizada</option>
+                  <option value="sharepoint-file">📄 Documento de SharePoint</option>
+                  <option value="sharepoint-folder">📁 Carpeta de SharePoint</option>
                 </select>
               </div>
 
@@ -860,6 +1028,296 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                   <p style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
                     Introduce la URL completa del recurso
                   </p>
+                </div>
+              )}
+
+              {/* Selector de SharePoint */}
+              {(assetUrlType === 'sharepoint-file' || assetUrlType === 'sharepoint-folder') && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>
+                    {assetUrlType === 'sharepoint-file' ? 'Archivo de SharePoint' : 'Carpeta de SharePoint'}
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      value={sharePointItemName || 'Ningún elemento seleccionado'}
+                      readOnly
+                      placeholder={assetUrlType === 'sharepoint-file' ? 'Selecciona un archivo' : 'Selecciona una carpeta'}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px',
+                        fontSize: '14px',
+                        backgroundColor: '#f5f5f5',
+                        color: sharePointItemName ? '#333' : '#999',
+                        cursor: 'not-allowed'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSharePointToggle}
+                      style={{
+                        padding: '8px 16px',
+                        background: showSharePointPicker 
+                          ? 'linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)'
+                          : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'scale(1.05)';
+                        e.currentTarget.style.boxShadow = showSharePointPicker 
+                          ? '0 4px 12px rgba(244, 63, 94, 0.4)'
+                          : '0 4px 12px rgba(102, 126, 234, 0.4)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      {showSharePointPicker ? (
+                        <>
+                          <ChevronUp size={16} />
+                          Cerrar
+                        </>
+                      ) : (
+                        <>
+                          <FolderOpen size={16} />
+                          {assetUrlType === 'sharepoint-file' ? 'Seleccionar Archivo' : 'Seleccionar Carpeta'}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  {sharePointUrl && (
+                    <p style={{ fontSize: '11px', color: '#666', marginTop: '6px', wordBreak: 'break-all' }}>
+                      URL: {sharePointUrl}
+                    </p>
+                  )}
+                  
+                  {/* SharePoint Browser Panel */}
+                  {showSharePointPicker && (
+                    <div style={{
+                      marginTop: '12px',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                      backgroundColor: '#f9fafb'
+                    }}>
+                      {/* Breadcrumb Navigation */}
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '8px',
+                        padding: '12px',
+                        background: '#fff',
+                        borderBottom: '1px solid #e5e7eb',
+                        fontSize: '14px',
+                        flexWrap: 'wrap'
+                      }}>
+                        <button
+                          onClick={() => handleSharePointBreadcrumbClick(0)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '4px 8px',
+                            background: sharePointFolderPath.length === 0 ? '#3b82f6' : 'transparent',
+                            color: sharePointFolderPath.length === 0 ? 'white' : '#3b82f6',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '14px'
+                          }}
+                        >
+                          <Home size={16} />
+                          IKDataSpace
+                        </button>
+                        
+                        {sharePointFolderPath.map((folder, index) => (
+                          <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <ChevronRight size={16} color="#9ca3af" />
+                            <button
+                              onClick={() => handleSharePointBreadcrumbClick(index + 1)}
+                              style={{
+                                padding: '4px 8px',
+                                background: index === sharePointFolderPath.length - 1 ? '#3b82f6' : 'transparent',
+                                color: index === sharePointFolderPath.length - 1 ? 'white' : '#3b82f6',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '14px'
+                              }}
+                            >
+                              {folder}
+                            </button>
+                          </div>
+                        ))}
+
+                        {sharePointAccessToken && (
+                          <button
+                            onClick={() => {
+                              const currentFolderId = sharePointFolderIds[sharePointFolderIds.length - 1];
+                              // Extract item_id from composite format
+                              const itemId = currentFolderId ? 
+                                (currentFolderId.includes('|') ? currentFolderId.split('|')[1] : currentFolderId) : 
+                                undefined;
+                              loadSharePointFiles(sharePointAccessToken, itemId);
+                            }}
+                            style={{
+                              marginLeft: 'auto',
+                              padding: '4px 8px',
+                              background: 'transparent',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                            disabled={sharePointLoading}
+                          >
+                            <RefreshCw size={14} className={sharePointLoading ? 'animate-spin' : ''} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Error Message */}
+                      {sharePointError && (
+                        <div style={{
+                          padding: '12px',
+                          background: '#fef2f2',
+                          borderBottom: '1px solid #fca5a5',
+                          color: '#dc2626',
+                          fontSize: '14px'
+                        }}>
+                          {sharePointError}
+                        </div>
+                      )}
+
+                      {/* Loading State */}
+                      {sharePointLoading && (
+                        <div style={{ 
+                          padding: '40px', 
+                          textAlign: 'center',
+                          background: '#fff'
+                        }}>
+                          <RefreshCw size={24} color="#3b82f6" className="animate-spin" style={{ margin: '0 auto' }} />
+                          <p style={{ color: '#6b7280', marginTop: '12px' }}>Cargando archivos...</p>
+                        </div>
+                      )}
+
+                      {/* Files List */}
+                      {!sharePointLoading && !sharePointError && sharePointFiles.length > 0 && (
+                        <div style={{
+                          maxHeight: '400px',
+                          overflowY: 'auto',
+                          background: '#fff'
+                        }}>
+                          {sharePointFiles.map((file) => (
+                            <div
+                              key={file.id}
+                              onClick={() => {
+                                if (file.isFolder) {
+                                  if (assetUrlType === 'sharepoint-folder') {
+                                    // Can select folder
+                                    handleSharePointItemSelect(file);
+                                  } else {
+                                    // Navigate into folder
+                                    handleSharePointFolderClick(file);
+                                  }
+                                } else {
+                                  // Select file
+                                  handleSharePointItemSelect(file);
+                                }
+                              }}
+                              style={{
+                                padding: '12px',
+                                borderBottom: '1px solid #f3f4f6',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                transition: 'background 0.2s'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = '#f3f4f6';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = '#fff';
+                              }}
+                            >
+                              {file.isFolder ? (
+                                <FolderOpen size={20} color="#f59e0b" />
+                              ) : (
+                                <File size={20} color="#6b7280" />
+                              )}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{
+                                  fontSize: '14px',
+                                  fontWeight: '500',
+                                  color: '#111827',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  {file.name}
+                                </div>
+                                {!file.isFolder && file.size && (
+                                  <div style={{
+                                    fontSize: '12px',
+                                    color: '#6b7280',
+                                    marginTop: '2px'
+                                  }}>
+                                    {formatFileSize(file.size)}
+                                  </div>
+                                )}
+                              </div>
+                              {file.isFolder && assetUrlType === 'sharepoint-file' && (
+                                <ChevronRight size={16} color="#9ca3af" />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* No Files */}
+                      {!sharePointLoading && !sharePointError && sharePointFiles.length === 0 && sharePointAccessToken && (
+                        <div style={{ 
+                          padding: '40px', 
+                          textAlign: 'center',
+                          background: '#fff',
+                          color: '#6b7280'
+                        }}>
+                          <p>No hay {assetUrlType === 'sharepoint-folder' ? 'carpetas' : 'archivos'} en esta ubicación</p>
+                        </div>
+                      )}
+
+                      {/* Authentication Required */}
+                      {!sharePointAccessToken && !sharePointLoading && (
+                        <div style={{ 
+                          padding: '40px', 
+                          textAlign: 'center',
+                          background: '#fff'
+                        }}>
+                          <RefreshCw size={32} color="#3b82f6" className="animate-spin" style={{ margin: '0 auto 12px' }} />
+                          <p style={{ color: '#6b7280', marginBottom: '8px' }}>Autenticando con Azure AD...</p>
+                          <p style={{ fontSize: '12px', color: '#9ca3af' }}>
+                            Si aparece una ventana popup, por favor autoriza el acceso
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

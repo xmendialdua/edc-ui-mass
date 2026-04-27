@@ -301,9 +301,9 @@ export const api = {
     /**
      * List files from SharePoint by site URL
      */
-    listFilesBySiteUrl: (accessToken: string, siteUrl: string, folderPath?: string) => {
+    listFilesBySiteUrl: (accessToken: string, siteUrl: string, folderId?: string) => {
       const params = new URLSearchParams({ site_url: siteUrl });
-      if (folderPath) params.append('folder_path', folderPath);
+      if (folderId) params.append('folder_id', folderId);
       
       return apiRequest<{ 
         items: Array<{
@@ -392,5 +392,26 @@ export const api = {
         }
       );
     },
+
+    /**
+     * Debug: List all available drives
+     */
+    debugDrives: (accessToken: string) => apiRequest<{
+      drives: Array<{
+        id: string;
+        name: string;
+        driveType: string;
+        webUrl: string;
+        owner: string;
+      }>;
+      count: number;
+      configured_drive_id: string | null;
+    }>(
+      '/api/sharepoint/debug/drives',
+      { 
+        method: 'GET',
+        headers: { Authorization: `Bearer ${accessToken}` }
+      }
+    ),
   },
 };

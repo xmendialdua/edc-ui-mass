@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(Path(__file__).parent / ".env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
     )
@@ -41,6 +41,9 @@ class Settings(BaseSettings):
 
     # --- Sample Data ---
     pdf_url: str = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+
+    # --- SharePoint Configuration ---
+    sharepoint_drive_id: str | None = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
