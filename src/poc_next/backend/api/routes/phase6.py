@@ -709,44 +709,89 @@ async def download_file(request: DownloadFileRequest):
         token = request.token
         endpoint = request.endpoint
 
-        if not token:
-            ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
-            try:
+        ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
+        mass_client = EdcManagementClient(settings.mass_management_url, settings.mass_api_key)
+        
+        try:
+            if not token:
                 edr_data = await ikln_client.get_edr_for_transfer(request.transferId)
                 if edr_data:
                     token = edr_data.get("authorization")
                     endpoint = edr_data.get("endpoint")
-            finally:
-                await ikln_client.close()
 
-        if not token or not endpoint:
-            raise HTTPException(status_code=400, detail="Token or endpoint not available")
+            if not token or not endpoint:
+                raise HTTPException(status_code=400, detail="Token or endpoint not available")
 
-        # Log request details for debugging
-        logger.info(f"🔍 Downloading from endpoint: {endpoint}")
-        logger.info(f"🔍 Using token: {token[:50]}..." if len(token) > 50 else f"🔍 Using token: {token}")
-        print(f"🔍 Download request - Endpoint: {endpoint}")
-        print(f"🔍 Download request - Token length: {len(token)} chars")
+            # Get the transfer to extract assetId
+            transfer = await ikln_client.get_transfer(request.transferId)
+            asset_id = transfer.get("assetId", "")
+            
+            # Get original filename from asset
+            original_filename = "data.dat"
+            if asset_id:
+                try:
+                    # Get asset from MASS connector (provider)
+                    asset = await mass_client.get_asset(asset_id)
+                    if asset:
+                        # Try to extract filename from asset properties
+                        # Option 1: Check if there's a name property
+                        asset_name = asset.get("properties", {}).get("name", "")
+                        
+                        # Option 2: Try to extract from baseUrl
+                        base_url = asset.get("dataAddress", {}).get("baseUrl", "")
+                        if base_url:
+                            # Extract filename from URL
+                            from urllib.parse import urlparse, unquote
+                            parsed_url = urlparse(base_url)
+                            path = unquote(parsed_url.path)
+                            if path:
+                                url_filename = path.split("/")[-1]
+                                if url_filename and "." in url_filename:
+                                    original_filename = url_filename
+                        
+                        # If we got a name but no filename from URL, use the name as fallback
+                        if original_filename == "data.dat" and asset_name:
+                            original_filename = asset_name.replace(" ", "_") + ".dat"
+                        
+                        logger.info(f"📄 Extracted filename: {original_filename} from asset {asset_id}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not extract filename from asset: {str(e)}")
 
-        # Make request to data plane
-        async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
-            response = await client.get(
-                endpoint,
-                headers={
-                    "Authorization": token
-                }
-            )
-            response.raise_for_status()
+            # Log request details for debugging
+            logger.info(f"🔍 Downloading from endpoint: {endpoint}")
+            logger.info(f"🔍 Using token: {token[:50]}..." if len(token) > 50 else f"🔍 Using token: {token}")
+            logger.info(f"📄 Original filename: {original_filename}")
+            print(f"🔍 Download request - Endpoint: {endpoint}")
+            print(f"🔍 Download request - Token length: {len(token)} chars")
+            print(f"📄 Original filename: {original_filename}")
 
-            # Return the file content
-            from fastapi.responses import Response
-            return Response(
-                content=response.content,
-                media_type=response.headers.get("content-type", "application/octet-stream"),
-                headers={
-                    "Content-Disposition": response.headers.get("content-disposition", "attachment; filename=data.dat")
-                }
-            )
+            # Make request to data plane
+            async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
+                response = await client.get(
+                    endpoint,
+                    headers={
+                        "Authorization": token
+                    }
+                )
+                response.raise_for_status()
+
+                # Use extracted filename in Content-Disposition
+                content_disposition = response.headers.get("content-disposition")
+                if not content_disposition or "filename" not in content_disposition.lower():
+                    content_disposition = f'attachment; filename="{original_filename}"'
+
+                # Return the file content
+                from fastapi.responses import Response
+                return Response(
+                    content=response.content,
+                    media_type=response.headers.get("content-type", "application/octet-stream"),
+                    headers={
+                        "Content-Disposition": content_disposition
+                    }
+                )
+        finally:
+            await ikln_client.close()
+            await mass_client.close()
 
     except httpx.HTTPStatusError as e:
         error_detail = f"Data plane error: Status {e.response.status_code}, Body: {e.response.text}, URL: {endpoint}"

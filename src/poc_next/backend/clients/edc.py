@@ -115,6 +115,25 @@ class EdcManagementClient:
         resp.raise_for_status()
         return resp.json()
 
+    async def get_asset(self, asset_id: str) -> Optional[Dict[str, Any]]:
+        """Get a specific asset by ID.
+
+        Args:
+            asset_id: Asset identifier.
+
+        Returns:
+            Asset definition or None if not found.
+        """
+        resp = await self._client.get(
+            f"{self.base_url}/v3/assets/{asset_id}",
+            headers=self._headers(),
+        )
+        if resp.status_code == 404:
+            logger.warning("Asset not found: %s", asset_id)
+            return None
+        resp.raise_for_status()
+        return resp.json()
+
     async def delete_asset(self, asset_id: str) -> None:
         """Delete an asset by ID.
 
