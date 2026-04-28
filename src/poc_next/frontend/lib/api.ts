@@ -326,6 +326,29 @@ export const api = {
     },
 
     /**
+     * Get pre-authenticated download URL for a SharePoint file
+     */
+    getDownloadUrl: (accessToken: string, driveId: string, itemId: string) => {
+      return apiRequest<{ 
+        download_url: string;
+        success: boolean;
+      }>(
+        '/api/sharepoint/get-download-url',
+        {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}` 
+          },
+          body: JSON.stringify({
+            drive_id: driveId,
+            item_id: itemId
+          })
+        }
+      );
+    },
+
+    /**
      * Download a file from SharePoint
      */
     downloadFile: async (accessToken: string, fileId: string, driveId?: string): Promise<{ blob: Blob; filename: string }> => {

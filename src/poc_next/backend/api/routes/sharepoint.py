@@ -352,3 +352,63 @@ async def debug_list_drives(
             status_code=500,
             detail=f"Failed to list drives: {str(e)}"
         )
+
+
+class GetDownloadUrlRequest(BaseModel):
+    """Request model for getting a download URL."""
+    drive_id: str
+    item_id: str
+
+
+class GetDownloadUrlResponse(BaseModel):
+    """Response model for download URL."""
+    download_url: str
+    success: bool
+
+
+@router.post("/get-download-url", response_model=GetDownloadUrlResponse)
+async def get_download_url(
+    request: GetDownloadUrlRequest,
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Get a pre-authenticated download URL for a SharePoint file.
+    
+    This endpoint uses Microsoft Graph API to obtain a temporary download URL
+    that can be accessed without authentication. The URL is valid for ~1 hour
+    and is suitable for use in EDC Data Plane transfers.
+    
+    Args:
+        request: Request containing drive_id and item_id
+        authorization: Bearer token for Microsoft Graph API
+        
+    Returns:
+        Pre-authenticated download URL
+    """
+    try:
+        logger.info(f"📥 Getting download URL:")
+        logger.info(f"   drive_id: {request.drive_id}")
+        logger.info(f"   item_id: {request.item_id}")
+        
+        gateway = get_gateway(authorization)
+        
+        download_url = gateway.get_download_url(
+            drive_id=request.drive_id,
+            item_id=request.item_id
+        )
+        
+        logger.info(f"✅ Successfully obtained download URL")
+        
+        return GetDownloadUrlResponse(
+            download_url=download_url,
+            success=True
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting download URL: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get download URL: {str(e)}"
+        )

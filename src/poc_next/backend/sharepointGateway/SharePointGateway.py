@@ -311,6 +311,45 @@ class SharePointGateway:
             print(f"Response: {error.response.text if error.response else 'No response'}")
             raise
     
+    def get_download_url(
+        self,
+        drive_id: str,
+        item_id: str
+    ) -> str:
+        """
+        Get a pre-authenticated download URL for a SharePoint file.
+        This URL is temporary (valid for ~1 hour) and can be accessed without authentication.
+        
+        Args:
+            drive_id: SharePoint drive ID
+            item_id: File item ID
+            
+        Returns:
+            Pre-authenticated download URL that works without additional authentication
+            
+        Raises:
+            requests.HTTPError: If the API request fails
+        """
+        try:
+            endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{drive_id}/items/{item_id}"
+            
+            # Add ?select to get the downloadUrl property
+            response = self.session.get(f"{endpoint}?select=id,name,@microsoft.graph.downloadUrl")
+            response.raise_for_status()
+            
+            data = response.json()
+            download_url = data.get('@microsoft.graph.downloadUrl')
+            
+            if not download_url:
+                raise ValueError("No download URL available for this item")
+            
+            return download_url
+            
+        except requests.HTTPError as error:
+            print(f"Error getting download URL: {error}")
+            print(f"Response: {error.response.text if error.response else 'No response'}")
+            raise
+    
     def download_file_to_path(
         self,
         drive_id: str,

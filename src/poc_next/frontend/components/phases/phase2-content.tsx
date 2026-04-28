@@ -205,9 +205,48 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
     }
   };
 
-  const handleSharePointItemSelect = (item: any) => {
-    setSharePointUrl(item.webUrl);
-    setSharePointItemName(item.name);
+  const handleSharePointItemSelect = async (item: any) => {
+    try {
+      // Extract drive_id and item_id from composite ID format
+      const [driveId, itemId] = item.id.includes('|') 
+        ? item.id.split('|') 
+        : [null, item.id];
+      
+      console.log('[SharePoint] Item seleccionado:', { 
+        name: item.name, 
+        id: item.id, 
+        driveId, 
+        itemId, 
+        isFolder: item.isFolder 
+      });
+      
+      if (!driveId || !itemId) {
+        log('❌ Error: No se pudo extraer drive_id o item_id del archivo seleccionado');
+        return;
+      }
+
+      log(`🔗 Obteniendo URL de descarga para: ${item.name}...`);
+
+      // Get pre-authenticated download URL
+      const response = await api.sharepoint.getDownloadUrl(
+        sharePointAccessToken!,
+        driveId,
+        itemId
+      );
+
+      if (response.success && response.download_url) {
+        setSharePointUrl(response.download_url);
+        setSharePointItemName(item.name);
+        log(`✅ URL de descarga obtenida exitosamente`);
+      } else {
+        log('❌ Error: No se pudo obtener la URL de descarga');
+        return;
+      }
+    } catch (error) {
+      log(`❌ Error al obtener URL de descarga: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return;
+    }
+
     setShowSharePointPicker(false);
     setSharePointFiles([]);
     setSharePointFolderPath([]);
