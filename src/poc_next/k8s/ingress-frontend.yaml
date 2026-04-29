@@ -1,0 +1,65 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: poc-next-frontend
+  namespace: ds-management-ui
+  annotations:
+    # NO rewrite-target: las rutas se pasan tal cual a Next.js
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+      - ds-management.51.178.94.25.nip.io
+    secretName: ds-management-tls
+  rules:
+  - host: ds-management.51.178.94.25.nip.io
+    http:
+      paths:
+      # Assets estáticos de Next.js (JS, CSS, fonts, etc.)
+      # CRÍTICO: Este path debe estar ANTES que las rutas de aplicación
+      # para que los archivos /_next/static/... se sirvan correctamente
+      - path: /_next
+        pathType: Prefix
+        backend:
+          service:
+            name: poc-next-frontend
+            port:
+              number: 3001
+      
+      # Favicon y otros assets en root
+      - path: /favicon.ico
+        pathType: Exact
+        backend:
+          service:
+            name: poc-next-frontend
+            port:
+              number: 3001
+      
+      # Rutas de aplicación Next.js
+      # Data Publication: Flujo completo de publicación de assets
+      - path: /data-publication
+        pathType: Prefix
+        backend:
+          service:
+            name: poc-next-frontend
+            port:
+              number: 3001
+      
+      # Partner Data: Consumo de datos de partners (negotiation + transfer)
+      - path: /partner-data
+        pathType: Prefix
+        backend:
+          service:
+            name: poc-next-frontend
+            port:
+              number: 3001
+      
+      # SharePoint Data: Integración con SharePoint corporativo
+      - path: /sharepoint-data
+        pathType: Prefix
+        backend:
+          service:
+            name: poc-next-frontend
+            port:
+              number: 3001

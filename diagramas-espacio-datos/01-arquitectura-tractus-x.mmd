@@ -1,0 +1,58 @@
+graph TB
+    subgraph "ESPACIO DE DATOS TRACTUS-X"
+        subgraph "ORGANIZACIÓN PROVEEDOR"
+            P[🏭 Proveedor de Datos]
+            PDA[DataApp API<br/>Provider]
+            PEDC[EDC Connector<br/>Provider]
+            PDB[(Base de Datos<br/>Provider)]
+            
+            P --> PDA
+            PDA --> PEDC
+            PDA --> PDB
+        end
+        
+        subgraph "CAPA DE CONFIANZA"
+            IAM[🔐 Identity & Access<br/>Management]
+            REG[📋 Catálogo de<br/>Participantes]
+            POLICY[📜 Marco de<br/>Políticas]
+        end
+        
+        subgraph "ORGANIZACIÓN CONSUMIDOR"
+            C[🏢 Consumidor de Datos]
+            CDA[DataApp API<br/>Consumer]
+            CEDC[EDC Connector<br/>Consumer]
+            CDB[(Base de Datos<br/>Consumer)]
+            
+            C --> CDA
+            CDA --> CEDC
+            CDA --> CDB
+        end
+    end
+    
+    %% Flujo de descubrimiento
+    CEDC -->|1. Consulta Catálogo| PEDC
+    PEDC -->|2. Publica Assets| CEDC
+    
+    %% Validación de identidad
+    PEDC -.->|Verifica Identidad| IAM
+    CEDC -.->|Autentica| IAM
+    
+    %% Negociación de contrato
+    CEDC -->|3. Solicita Contrato| PEDC
+    PEDC -.->|Valida Políticas| POLICY
+    PEDC -->|4. Acuerdo de Contrato| CEDC
+    
+    %% Transferencia de datos
+    PEDC ==>|5. Transferencia Segura| CEDC
+    
+    %% Registro de participantes
+    REG -.->|Registro| PEDC
+    REG -.->|Registro| CEDC
+    
+    style P fill:#e1f5ff
+    style C fill:#fff4e1
+    style PEDC fill:#a8e6cf
+    style CEDC fill:#ffd3b6
+    style IAM fill:#ffaaa5
+    style REG fill:#d4a5ff
+    style POLICY fill:#fff9a5

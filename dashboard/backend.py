@@ -1319,6 +1319,84 @@ def create_contract_policy():
     return jsonify({"success": True, "logs": results})
 
 
+@app.route('/api/phase3/create-contract-policy-membership-only', methods=['POST'])
+def create_contract_policy_membership_only():
+    """Crea la Contract Policy simplificada (solo Membership) compatible con wallet-stub"""
+    results = []
+    
+    policy_id = "contract-policy-membership-only"
+    
+    results.append(log_message(f"📜 Creando Contract Policy Simplificada: '{policy_id}'...", "info"))
+    results.append(log_message(f"ℹ️ Contract Policy: Controla DERECHOS DE USO del asset", "info"))
+    results.append(log_message(f"✅ Política simplificada: Solo requiere MembershipCredential", "success"))
+    results.append(log_message(f"✅ Compatible con wallet-stub (sin FrameworkAgreement ni UsagePurpose)", "success"))
+    
+    # Política simplificada: solo Membership
+    # Compatible con wallet-stub que solo emite MembershipCredential
+    policy_payload = {
+        "@context": [
+            "https://w3id.org/catenax/2025/9/policy/odrl.jsonld",
+            "https://w3id.org/catenax/2025/9/policy/context.jsonld",
+            {
+                "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
+            }
+        ],
+        "@type": "PolicyDefinition",
+        "@id": policy_id,
+        "policy": {
+            "@type": "Set",
+            "permission": [{
+                "action": "use",
+                "constraint": {
+                    "and": [
+                        {
+                            "leftOperand": "Membership",
+                            "operator": "eq",
+                            "rightOperand": "active"
+                        }
+                    ]
+                }
+            }],
+            "prohibition": [],
+            "obligation": []
+        }
+    }
+    
+    results.append(log_message("📄 Payload de la política:", "info"))
+    results.append(json.dumps(policy_payload, indent=2))
+    
+    try:
+        response = requests.post(
+            f"{MASS_API}/v3/policydefinitions",
+            headers={
+                "X-Api-Key": MASS_API_KEY,
+                "Content-Type": "application/json"
+            },
+            json=policy_payload,
+            verify=False,
+            timeout=10
+        )
+        
+        results.append(log_message(f"📡 HTTP {response.status_code}", "info"))
+        
+        if response.status_code in [200, 201]:
+            results.append(log_message("✅ Contract Policy Simplificada creada exitosamente", "success"))
+            results.append(json.dumps(response.json(), indent=2))
+            return jsonify({"success": True, "logs": results, "policyId": policy_id})
+        elif response.status_code == 409:
+            results.append(log_message("⚠️ Policy ya existe (409 Conflict)", "warning"))
+            results.append(log_message("La política ya está registrada en el EDC", "warning"))
+            return jsonify({"success": False, "error": "POLICY_EXISTS", "logs": results, "policyId": policy_id})
+        else:
+            results.append(log_message(f"❌ Error HTTP {response.status_code}", "error"))
+            results.append(response.text)
+            return jsonify({"success": False, "logs": results})
+            
+    except Exception as e:
+        results.append(log_message(f"❌ Error: {str(e)}", "error"))
+        return jsonify({"success": False, "logs": results})
+
+
 @app.route('/api/phase3/list-policies', methods=['POST'])
 def list_policies():
     """Lista todas las políticas en MASS"""

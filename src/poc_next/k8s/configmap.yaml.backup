@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: poc-next-config
+  namespace: ds-management-ui
+data:
+  # Backend Configuration
+  APP_HOST: "0.0.0.0"
+  APP_PORT: "5001"
+  LOG_LEVEL: "INFO"
+  
+  # MASS Connector (Provider)
+  MASS_MANAGEMENT_URL: "https://edc-mass-control.51.178.94.25.nip.io/management"
+  MASS_BPN: "BPNL00000000MASS"
+  MASS_DSP: "https://edc-mass-control.51.178.94.25.nip.io/api/v1/dsp"
+  
+  # IKLN Connector (Consumer)
+  IKLN_MANAGEMENT_URL: "https://edc-ikln-control.51.178.94.25.nip.io/management"
+  IKLN_BPN: "BPNL00000002IKLN"
+  IKLN_DSP: "https://edc-ikln-control.51.178.94.25.nip.io/api/v1/dsp"
+  
+  # Sample Data
+  PDF_URL: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+  
+  # Frontend Configuration
+  # Usar rutas relativas - el Ingress rutea /api/* al backend
+  NEXT_PUBLIC_API_URL: ""
+  NEXT_PUBLIC_APP_NAME: "POC Next Dashboard"
+  NEXT_PUBLIC_APP_VERSION: "0.1.0"
+  
+  # Azure AD Configuration (SharePoint Integration)
+  NEXT_PUBLIC_AZURE_CLIENT_ID: "a1fc2076-f046-4a0f-90e7-4601aeb5b856"
+  NEXT_PUBLIC_AZURE_TENANT_ID: "910ac815-f855-4a08-bf29-90b46552cf11"
+  NEXT_PUBLIC_AZURE_REDIRECT_URI: "http://ds-management.51.178.94.25.nip.io"
+  
+  # SharePoint Configuration
+  NEXT_PUBLIC_SHAREPOINT_SITE_URL: "https://ikerlan.sharepoint.com/sites/IKDataSpace"
+  SHAREPOINT_DRIVE_ID: "db572124-e392-4921-b1f7-7c2d73b328c2"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: poc-next-secrets
+  namespace: ds-management-ui
+type: Opaque
+stringData:
+  MASS_API_KEY: "mass-api-key-change-in-production"
+  IKLN_API_KEY: "ikln-api-key-change-in-production"

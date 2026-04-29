@@ -4,7 +4,28 @@
  * This module provides typed functions to interact with the FastAPI backend.
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+export function getApiBaseUrl(): string {
+  const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+
+  // Si hay configuración explícita, usarla
+  if (configuredApiUrl) {
+    return configuredApiUrl.endsWith('/')
+      ? configuredApiUrl.slice(0, -1)
+      : configuredApiUrl;
+  }
+
+  // Sin configuración: usar rutas relativas
+  // - Local: Next.js proxy reenvía /api a localhost:5001
+  // - OVH: Ingress enruta /api al backend service
+  if (typeof window !== 'undefined') {
+    return '';
+  }
+
+  // En servidor (SSR): fallback a localhost para desarrollo
+  return 'http://localhost:5001';
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 /**
  * Generic API request function
@@ -326,7 +347,7 @@ export const api = {
     },
 
     /**
-     * Get pre-authenticated download URL for a SharePoint file
+     * Get pre-authenticated temporary download URL for a SharePoint file (valid ~1 hour)
      */
     getDownloadUrl: (accessToken: string, driveId: string, itemId: string) => {
       return apiRequest<{ 
@@ -343,6 +364,31 @@ export const api = {
           body: JSON.stringify({
             drive_id: driveId,
             item_id: itemId
+          })
+        }
+      );
+    },
+
+    /**
+     * Create a public sharing link with direct download capability (valid ~1 year)
+     */
+    createSharingLink: (accessToken: string, driveId: string, itemId: string, expirationDays: number = 365) => {
+      return apiRequest<{ 
+        download_url: string;
+        success: boolean;
+        message?: string;
+      }>(
+        '/api/sharepoint/create-sharing-link',
+        {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}` 
+          },
+          body: JSON.stringify({
+            drive_id: driveId,
+            item_id: itemId,
+            expiration_days: expirationDays
           })
         }
       );

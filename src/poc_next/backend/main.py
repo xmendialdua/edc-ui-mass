@@ -19,6 +19,7 @@ from api.routes import (
     phase6_router,
     sharepoint_router,
 )
+from api.routes import sharepoint_proxy
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -86,6 +87,7 @@ app.add_middleware(
         "http://127.0.0.1:3020",
         "http://localhost:3001",  # Legacy port
         "http://127.0.0.1:3001",
+        "https://ds-management.51.178.94.25.nip.io",  # Production HTTPS
         "*",  # For development - restrict in production
     ],
     allow_credentials=True,
@@ -102,6 +104,7 @@ app.include_router(phase4_router)
 app.include_router(phase5_router)
 app.include_router(phase6_router)
 app.include_router(sharepoint_router)
+app.include_router(sharepoint_proxy.router, prefix="/api")  # SharePoint proxy for EDC downloads
 
 
 @app.get("/")

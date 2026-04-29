@@ -1,0 +1,86 @@
+graph TB
+    subgraph "🏢 RED CORPORATIVA MONDRAGON ASSEMBLY"
+        SP[📁 SharePoint<br/>Documentación Técnica]
+    end
+    
+    subgraph "☁️ CLOUD OVH - Kubernetes Cluster (51.178.94.25)"
+        subgraph CS["🌐 CORE SERVICES"]
+            direction LR
+            PORTAL[🏠 Portal Tractus-X<br/>Gestión del Espacio]
+            IATP[🔐 IATP<br/>Identity Access Trust Protocol]
+            
+            PORTAL -.->|Autentica via| IATP
+        end
+        
+        subgraph ROW1["   "]
+            direction LR
+            ADMINUSER[👤 Gestor Mondragon<br/>Publica Documentos]
+            
+            subgraph PI["📊 PROVIDER INTERFACE"]
+                PUBDASH[Publication Dashboard<br/>UI Gestión Provider]
+            end
+            
+            subgraph MASS["🏭 EDC CONNECTOR - MONDRAGON ASSEMBLY"]
+                direction TB
+                MASSCP[Control Plane<br/>BPNL00000000MASS]
+                MASSDP[Data Plane]
+                MASSCP --> MASSDP
+            end
+            
+            subgraph IKLN["🏢 EDC CONNECTOR - IKERLAN"]
+                direction TB
+                IKLNCP[Control Plane<br/>BPNL00000002IKLN]
+                IKLNDP[Data Plane]
+                IKLNCP --> IKLNDP
+            end
+            
+            subgraph CI["🌐 CONSUMER INTERFACE"]
+                QUERYCATALOG[Data Space Query Catalog<br/>UI Consulta Consumer]
+            end
+            
+            CONSUMERUSER[👤 Usuario Cliente<br/>Descarga Documentos]
+        end
+        
+    end
+    
+    %% Conexión SharePoint a Data Plane Mondragon
+    SP ==>|VPN/Túnel Seguro<br/>Acceso a Documentos| MASSDP
+    
+    %% Conexiones de usuarios a interfaces
+    ADMINUSER -->|Acceso Web HTTPS| PUBDASH
+    CONSUMERUSER -->|Acceso Web HTTPS| QUERYCATALOG
+    
+    %% Conexión Publication Dashboard a conector Provider
+    PUBDASH -->|Management API<br/>Publica Assets| MASSCP
+    
+    %% Conexión Query Catalog a conectores Consumer
+    QUERYCATALOG -->|Management API<br/>Consulta Catálogo| IKLNCP
+    
+    %% Validación con IATP
+    MASSCP -.->|Autentica y Autoriza| IATP
+    IKLNCP -.->|Autentica y Autoriza| IATP
+    
+    %% Registro en Portal
+    PORTAL -.->|Registra Partners<br/>Gestiona BPNs| MASSCP
+    PORTAL -.->|Registra Partners<br/>Gestiona BPNs| IKLNCP
+    
+    %% Flujo de intercambio de datos entre conectores
+    IKLNCP -->|1. Consulta Catálogo<br/>DSP Protocol| MASSCP
+    MASSCP -->|2. Retorna Assets Disponibles| IKLNCP
+    IKLNCP -->|3. Negocia Contrato| MASSCP
+    MASSCP -->|4. Acuerdo de Contrato| IKLNCP
+    MASSDP ==>|5. Transferencia de Documento<br/>HTTP DSP| IKLNDP
+    
+    %% Estilos
+    style SP fill:#fff9c4,stroke:#f57f17,stroke-width:4px
+    style PORTAL fill:#e1bee7,stroke:#6a1b9a,stroke-width:3px
+    style IATP fill:#ffcdd2,stroke:#c62828,stroke-width:3px
+    style PUBDASH fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
+    style QUERYCATALOG fill:#ffab91,stroke:#d84315,stroke-width:3px
+    style MASSCP fill:#a5d6a7,stroke:#2e7d32,stroke-width:2px
+    style MASSDP fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style IKLNCP fill:#ffccbc,stroke:#d84315,stroke-width:2px
+    style IKLNDP fill:#ffab91,stroke:#d84315,stroke-width:2px
+    style ADMINUSER fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style CONSUMERUSER fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    style ROW1 fill:none,stroke:none

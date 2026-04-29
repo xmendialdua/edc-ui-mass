@@ -5,11 +5,11 @@ const nextConfig = {
   // Configure for development with backend on different port
   async rewrites() {
     return [
-      // Optional: proxy API calls to backend if needed
-      // {
-      //   source: '/api/:path*',
-      //   destination: 'http://localhost:5001/api/:path*',
-      // },
+      // Proxy API calls to backend (only in development)
+      {
+        source: '/api/:path*',
+        destination: 'http://localhost:5001/api/:path*',
+      },
     ]
   },
   

@@ -4,9 +4,9 @@
 
 La aplicación POC Next se despliega en OVH bajo el dominio `ds-management.51.178.94.25.nip.io` con las siguientes rutas:
 
-- **Data Publication**: http://ds-management.51.178.94.25.nip.io/data-publication
-- **Partner Data**: http://ds-management.51.178.94.25.nip.io/partner-data
-- **Backend API**: http://ds-management.51.178.94.25.nip.io/api (uso interno)
+- **Data Publication**: https://ds-management.51.178.94.25.nip.io/data-publication
+- **Partner Data**: https://ds-management.51.178.94.25.nip.io/partner-data
+- **Backend API**: https://ds-management.51.178.94.25.nip.io/api (uso interno)
 
 ## 🏗️ Arquitectura de Routing
 
@@ -88,7 +88,7 @@ spec:
 #### ConfigMap (k8s/configmap.yaml)
 
 ```yaml
-NEXT_PUBLIC_API_URL: "http://ds-management.51.178.94.25.nip.io"
+NEXT_PUBLIC_API_URL: "https://ds-management.51.178.94.25.nip.io"
 ```
 
 **Por qué esta URL**:
@@ -123,13 +123,13 @@ Usa el script específico para Kubernetes:
 
 Este script:
 - Construye el backend sin cambios
-- Construye el frontend con `NEXT_PUBLIC_API_URL=http://ds-management.51.178.94.25.nip.io`
+- Construye el frontend con `NEXT_PUBLIC_API_URL=https://ds-management.51.178.94.25.nip.io`
 - Publica ambas imágenes a Docker Hub
 - Las imágenes estarán listas para K8s
 
 **Diferencia con `build.sh`**:
 - `build.sh` → Construye con `http://localhost:5001` (para pruebas locales)
-- `build-k8s.sh` → Construye con `http://ds-management.51.178.94.25.nip.io` (para OVH)
+- `build-k8s.sh` → Construye con `https://ds-management.51.178.94.25.nip.io` (para OVH)
 
 ### Paso 2: Deploy en Kubernetes
 
@@ -183,7 +183,7 @@ kubectl get ingress poc-next-frontend -n ds-management-ui -o yaml
 # 1. Verificar variable de entorno en el pod
 kubectl exec -n ds-management-ui deployment/poc-next-frontend -- env | grep NEXT_PUBLIC_API_URL
 
-# 2. Debería mostrar: NEXT_PUBLIC_API_URL=http://ds-management.51.178.94.25.nip.io
+# 2. Debería mostrar: NEXT_PUBLIC_API_URL=https://ds-management.51.178.94.25.nip.io
 
 # 3. Si no es correcta, reconstruir y redesplegar:
 ./build-k8s.sh
@@ -206,11 +206,11 @@ kubectl get ingress poc-next-frontend -n ds-management-ui -o yaml | grep -A 5 "_
 | Aspecto | Local (Docker Compose) | Kubernetes (OVH) |
 |---------|----------------------|------------------|
 | **Dominio** | localhost | ds-management.51.178.94.25.nip.io |
-| **Frontend URLs** | http://localhost:3001/data-publication<br>http://localhost:3001/partner-data | http://ds-management.51.178.94.25.nip.io/data-publication<br>http://ds-management.51.178.94.25.nip.io/partner-data |
-| **Backend API** | http://localhost:5001 | http://ds-management.51.178.94.25.nip.io/api |
+| **Frontend URLs** | http://localhost:3001/data-publication<br>http://localhost:3001/partner-data | https://ds-management.51.178.94.25.nip.io/data-publication<br>https://ds-management.51.178.94.25.nip.io/partner-data |
+| **Backend API** | http://localhost:5001 | https://ds-management.51.178.94.25.nip.io/api |
 | **Build Script** | `./build.sh` o `./test-docker.sh` | `./build-k8s.sh` |
 | **Deploy Script** | `docker-compose up -d` | `cd k8s && ./deploy.sh` |
-| **API_URL en Frontend** | http://localhost:5001 | http://ds-management.51.178.94.25.nip.io |
+| **API_URL en Frontend** | http://localhost:5001 | https://ds-management.51.178.94.25.nip.io |
 
 ## 🎯 Checklist de Configuración
 
@@ -218,7 +218,7 @@ Antes de desplegar en OVH, verifica:
 
 - [ ] `k8s/ingress.yaml` tiene host: `ds-management.51.178.94.25.nip.io`
 - [ ] `k8s/ingress.yaml` tiene paths: `/api`, `/data-publication`, `/partner-data`, `/_next`
-- [ ] `k8s/configmap.yaml` tiene `NEXT_PUBLIC_API_URL: "http://ds-management.51.178.94.25.nip.io"`
+- [ ] `k8s/configmap.yaml` tiene `NEXT_PUBLIC_API_URL: "https://ds-management.51.178.94.25.nip.io"`
 - [ ] Has ejecutado `./build-k8s.sh` (no `./build.sh`)
 - [ ] Las imágenes están publicadas en Docker Hub
 - [ ] El Ingress Controller está instalado en el cluster

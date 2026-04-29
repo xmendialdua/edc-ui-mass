@@ -54,7 +54,7 @@ import { FlowerClientLogsDialog } from "./dataapps/flower-client-logs-dialog"
 import { MLflowDialog } from "./dataapps/mlflow-dialog"
 
 // Importar la configuración centralizada
-import { connectorDefaults } from "@/edc-config"
+import { connectorDefaults, getApiKeyForConnector } from "@/edc-config"
 
 // Importar la función para obtener el ID del conector
 import { connectorCatalog } from "@/edc-config"
@@ -811,14 +811,18 @@ export default function ConsumerPage() {
 
       if (apiMode === "live") {
         const API_PROXY_URL = getApiProxyUrl()
+        const connectorAddress = getConnectorAddress()
+        const apiKey = getApiKeyForConnector(connectorAddress)
+        
         console.log(`Making EDRs request to: ${API_PROXY_URL}/v3/edrs/request`)
+        console.log(`Using API key for connector ${connectorAddress}: ${apiKey}`)
 
         const edrsResponse = await fetch(`${API_PROXY_URL}/v3/edrs/request`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-API-KEY": "password",
-            "X-Connector-Address": getConnectorAddress(),
+            "X-API-KEY": apiKey,
+            "X-Connector-Address": connectorAddress,
           },
           body: JSON.stringify({
             "@context": ["https://w3id.org/edc/connector/management/v0.0.1"],
@@ -857,8 +861,8 @@ export default function ConsumerPage() {
             method: "GET",
             headers: {
               "Content-Type": "application/json",
-              "X-API-KEY": "password",
-              "X-Connector-Address": getConnectorAddress(),
+              "X-API-KEY": apiKey,
+              "X-Connector-Address": connectorAddress,
             },
           },
         ).then((res) => {

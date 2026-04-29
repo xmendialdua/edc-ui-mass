@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Espacio de Datos - Tractus-X | IFLEX</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+            padding: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .diagram-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .diagram-section:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.2);
+        }
+        
+        .diagram-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        .diagram-title {
+            font-size: 1.8em;
+            color: #333;
+        }
+        
+        .diagram-number {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+        
+        .diagram-description {
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+            line-height: 1.6;
+        }
+        
+        .diagram-content {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 10px;
+            overflow-x: auto;
+        }
+        
+        .btn-download {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            margin-top: 15px;
+        }
+        
+        .btn-download:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        
+        footer {
+            text-align: center;
+            color: white;
+            margin-top: 40px;
+            padding: 20px;
+            opacity: 0.8;
+        }
+        
+        .key-points {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .key-points h2 {
+            margin-bottom: 20px;
+            font-size: 2em;
+        }
+        
+        .key-points ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .key-points li {
+            padding: 10px 0;
+            padding-left: 30px;
+            position: relative;
+            font-size: 1.1em;
+            line-height: 1.6;
+        }
+        
+        .key-points li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+            font-size: 1.3em;
+        }
+        
+        @media print {
+            body {
+                background: white;
+            }
+            .btn-download, .btn-group {
+                display: none;
+            }
+            .diagram-section {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌐 Espacio de Datos con Tractus-X</h1>
+            <div class="subtitle">Implementación IFLEX - Presentación del Proyecto</div>
+        </header>
+        
+        <div class="key-points">
+            <h2>📋 ¿Qué es un Espacio de Datos?</h2>
+            <ul>
+                <li><strong>Soberanía de Datos:</strong> Mantienes el control total sobre tus datos en todo momento</li>
+                <li><strong>Confianza Verificada:</strong> Identidades validadas mediante SSI (Self-Sovereign Identity)</li>
+                <li><strong>Políticas Inteligentes:</strong> Contratos que definen cómo, cuándo y quién puede usar los datos</li>
+                <li><strong>Interoperabilidad:</strong> Estándares comunes para compartir datos entre organizaciones</li>
+                <li><strong>Tractus-X:</strong> Implementación open-source del estándar Catena-X usando Eclipse Dataspace Components (EDC)</li>
+            </ul>
+        </div>
+
+        <!-- Diagrama 1 -->
+        <div class="diagram-section">
+            <div class="diagram-header">
+                <h2 class="diagram-title">Arquitectura de Espacio de Datos</h2>
+                <div class="diagram-number">1</div>
+            </div>
+            <p class="diagram-description">
+                Arquitectura completa mostrando los componentes principales: organizaciones Provider y Consumer, 
+                conectores EDC, y la capa de confianza que gestiona identidades, políticas y registro de participantes.
+            </p>
+            <div class="diagram-content">
+                <div class="mermaid">
+graph TB
+    subgraph "ESPACIO DE DATOS TRACTUS-X"
+        subgraph "ORGANIZACIÓN PROVEEDOR"
+            P[🏭 Proveedor de Datos]
+            PDA[DataApp API<br/>Provider]
+            PEDC[EDC Connector<br/>Provider]
+            PDB[(Base de Datos<br/>Provider)]
+            
+            P --> PDA
+            PDA --> PEDC
+            PDA --> PDB
+        end
+        
+        subgraph "CAPA DE CONFIANZA"
+            IAM[🔐 Identity & Access<br/>Management]
+            REG[📋 Catálogo de<br/>Participantes]
+            POLICY[📜 Marco de<br/>Políticas]
+        end
+        
+        subgraph "ORGANIZACIÓN CONSUMIDOR"
+            C[🏢 Consumidor de Datos]
+            CDA[DataApp API<br/>Consumer]
+            CEDC[EDC Connector<br/>Consumer]
+            CDB[(Base de Datos<br/>Consumer)]
+            
+            C --> CDA
+            CDA --> CEDC
+            CDA --> CDB
+        end
+    end
+    
+    CEDC -->|1. Consulta Catálogo| PEDC
+    PEDC -->|2. Publica Assets| CEDC
+    
+    PEDC -.->|Verifica Identidad| IAM
+    CEDC -.->|Autentica| IAM
+    
+    CEDC -->|3. Solicita Contrato| PEDC
+    PEDC -.->|Valida Políticas| POLICY
+    PEDC -->|4. Acuerdo de Contrato| CEDC
+    
+    PEDC ==>|5. Transferencia Segura| CEDC
+    
+    REG -.->|Registro| PEDC
+    REG -.->|Registro| CEDC
+    
+    style P fill:#e1f5ff
+    style C fill:#fff4e1
+    style PEDC fill:#a8e6cf
+    style CEDC fill:#ffd3b6
+    style IAM fill:#ffaaa5
+    style REG fill:#d4a5ff
+    style POLICY fill:#fff9a5
+                </div>
+            </div>
+        </div>
+
+        <!-- Diagrama 2 -->
+        <div class="diagram-section">
+            <div class="diagram-header">
+                <h2 class="diagram-title">Flujo de Intercambio de Datos</h2>
+                <div class="diagram-number">2</div>
+            </div>
+            <p class="diagram-description">
+                Secuencia detallada de las 4 fases del intercambio de datos: Descubrimiento de recursos, 
+                Autenticación de participantes, Negociación de contrato y Transferencia segura de datos.
+            </p>
+            <div class="diagram-content">
+                <div class="mermaid">
+sequenceDiagram
+    participant C as 🏢 Consumidor
+    participant CEDC as EDC Connector<br/>Consumer
+    participant IAM as 🔐 IAM/SSI
+    participant PEDC as EDC Connector<br/>Provider
+    participant P as 🏭 Proveedor
+    
+    Note over C,P: FASE 1: DESCUBRIMIENTO
+    C->>CEDC: Buscar datos disponibles
+    CEDC->>PEDC: Consultar catálogo
+    PEDC->>CEDC: Listado de Assets
+    CEDC->>C: Mostrar datos disponibles
+    
+    Note over C,P: FASE 2: AUTENTICACIÓN
+    CEDC->>IAM: Validar identidad
+    IAM->>CEDC: Credencial verificada
+    PEDC->>IAM: Validar identidad
+    IAM->>PEDC: Credencial verificada
+    
+    Note over C,P: FASE 3: NEGOCIACIÓN
+    C->>CEDC: Solicitar acceso a datos
+    CEDC->>PEDC: Iniciar negociación
+    PEDC->>PEDC: Evaluar políticas
+    PEDC->>CEDC: Propuesta de contrato
+    CEDC->>C: Términos del contrato
+    C->>CEDC: Aceptar contrato
+    CEDC->>PEDC: Confirmar acuerdo
+    PEDC->>CEDC: Contrato firmado
+    
+    Note over C,P: FASE 4: TRANSFERENCIA
+    CEDC->>PEDC: Solicitar transferencia
+    PEDC->>P: Obtener datos
+    P->>PEDC: Datos preparados
+    PEDC->>CEDC: Transferencia segura
+    CEDC->>C: Datos disponibles
+    
+    Note over C,P: ✅ Intercambio completado con soberanía de datos
+                </div>
+            </div>
+        </div>
+
+        <!-- Diagrama 3 -->
+        <div class="diagram-section">
+            <div class="diagram-header">
+                <h2 class="diagram-title">Implementación Real IFLEX</h2>
+                <div class="diagram-number">3</div>
+            </div>
+            <p class="diagram-description">
+                Despliegue específico del proyecto IFLEX en Kubernetes (OVH Cloud) mostrando Provider Kit (MLflow, Flower), 
+                Consumer Kit (ModelAPI), conectores EDC, interfaz web y gestión de infraestructura con Terraform.
+            </p>
+            <div class="diagram-content">
+                <div class="mermaid">
+graph LR
+    subgraph "IMPLEMENTACIÓN TRACTUS-X - IFLEX"
+        subgraph "PROVIDER KIT"
+            PML[MLflow Server<br/>Bitnami]
+            PFS[Flower Server<br/>Entrenamiento FL]
+            PAPI[DataApp API<br/>Provider]
+            
+            PML --> PAPI
+            PFS --> PAPI
+        end
+        
+        subgraph "EDC PROVIDER"
+            PEDCC[Control Plane<br/>Connector]
+            PEDCD[Data Plane<br/>Connector]
+            PIAM[SSI/DIM Wallet]
+            
+            PEDCC --> PEDCD
+            PIAM -.->|Auth| PEDCC
+        end
+        
+        subgraph "UI DASHBOARD"
+            UI[🖥️ Interfaz Web<br/>Next.js]
+            UIAPI[API Proxy]
+            
+            UI --> UIAPI
+        end
+        
+        subgraph "EDC CONSUMER"
+            CEDCC[Control Plane<br/>Connector]
+            CEDCD[Data Plane<br/>Connector]
+            CIAM[SSI/DIM Wallet]
+            
+            CEDCC --> CEDCD
+            CIAM -.->|Auth| CEDCC
+        end
+        
+        subgraph "CONSUMER KIT"
+            CAPI[DataApp API<br/>Consumer]
+            CML[ModelAPI<br/>Servicio ML]
+            
+            CAPI --> CML
+        end
+        
+        subgraph "INFRAESTRUCTURA"
+            K8S[☸️ Kubernetes<br/>OVH Cloud]
+            TF[Terraform<br/>IaC]
+            CRTS[🔒 Certificados<br/>TLS/SSL]
+            
+            TF -.->|Provisiona| K8S
+            CRTS -.->|Seguridad| K8S
+        end
+    end
+    
+    PAPI --> PEDCC
+    PEDCD -.->|Transfer| CEDCD
+    CEDCC --> CAPI
+    
+    UI --> PEDCC
+    UI --> CEDCC
+    
+    K8S -->|Despliega| PEDCC
+    K8S -->|Despliega| CEDCC
+    K8S -->|Despliega| UI
+    K8S -->|Despliega| PAPI
+    K8S -->|Despliega| CAPI
+    
+    style PML fill:#e3f2fd
+    style PFS fill:#e8f5e9
+    style UI fill:#fff3e0
+    style K8S fill:#f3e5f5
+    style PEDCC fill:#c8e6c9
+    style CEDCC fill:#ffccbc
+    style CRTS fill:#ffebee
+                </div>
+            </div>
+        </div>
+
+        <!-- Diagrama 4 -->
+        <div class="diagram-section">
+            <div class="diagram-header">
+                <h2 class="diagram-title">Concepto y Valor del Espacio de Datos</h2>
+                <div class="diagram-number">4</div>
+            </div>
+            <p class="diagram-description">
+                Comparativa conceptual mostrando principios fundamentales (soberanía, confianza, políticas), 
+                beneficios clave (colaboración, monetización, innovación) y diferencias con soluciones tradicionales.
+            </p>
+            <div class="diagram-content">
+                <div class="mermaid">
+graph TD
+    subgraph "¿QUÉ ES UN ESPACIO DE DATOS?"
+        ED[💡 Espacio de Datos<br/>Data Space]
+    end
+    
+    subgraph "PRINCIPIOS CLAVE"
+        SOB[🛡️ SOBERANÍA<br/>Control total sobre tus datos]
+        INT[🔗 INTEROPERABILIDAD<br/>Estándares comunes]
+        CONF[🔐 CONFIANZA<br/>Identidad verificada]
+        POL[📜 POLÍTICAS<br/>Reglas de uso claras]
+    end
+    
+    subgraph "BENEFICIOS"
+        COL[🤝 Colaboración Segura<br/>entre organizaciones]
+        MON[💰 Monetización<br/>de datos]
+        INN[🚀 Innovación<br/>ecosistema abierto]
+        CUM[✅ Cumplimiento<br/>GDPR/regulaciones]
+    end
+    
+    subgraph "VS SOLUCIONES TRADICIONALES"
+        TRAD[❌ APIs Tradicionales<br/>- Pérdida de control<br/>- Sin trazabilidad<br/>- Confianza limitada]
+        DS[✅ Data Space<br/>+ Control permanente<br/>+ Contratos inteligentes<br/>+ Auditoría completa]
+    end
+    
+    ED --> SOB
+    ED --> INT
+    ED --> CONF
+    ED --> POL
+    
+    SOB --> COL
+    INT --> COL
+    CONF --> COL
+    POL --> COL
+    
+    COL --> MON
+    COL --> INN
+    COL --> CUM
+    
+    TRAD -.->|Evolución| DS
+    
+    style ED fill:#4a90e2,color:#fff
+    style SOB fill:#f5a623
+    style INT fill:#7ed321
+    style CONF fill:#d0021b,color:#fff
+    style POL fill:#9013fe,color:#fff
+    style COL fill:#50e3c2
+    style MON fill:#b8e986
+    style INN fill:#ffd700
+    style CUM fill:#bd10e0,color:#fff
+    style DS fill:#417505,color:#fff
+    style TRAD fill:#9b9b9b,color:#fff
+                </div>
+            </div>
+        </div>
+
+        <div class="btn-group">
+            <button class="btn-download" onclick="window.print()">🖨️ Imprimir Presentación</button>
+            <button class="btn-download" onclick="downloadAllDiagrams()">💾 Descargar Todos los Diagramas</button>
+        </div>
+
+        <footer>
+            <p>Generado para el proyecto IFLEX - Marzo 2026</p>
+            <p>Tractus-X Data Space Implementation</p>
+        </footer>
+    </div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            securityLevel: 'loose',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+
+        function downloadAllDiagrams() {
+            alert('Los archivos .mmd individuales están disponibles en la carpeta "diagramas-espacio-datos". Puedes usarlos en herramientas como draw.io, Mermaid Live Editor, o incluirlos en tu presentación.');
+        }
+    </script>
+</body>
+</html>

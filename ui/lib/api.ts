@@ -857,30 +857,33 @@ export async function initiateTransfer(
       throw new Error("counterPartyAddress es requerido para la transferencia")
     }
 
-    // Crear el payload base con los campos obligatorios
+    // Crear el payload base con los campos obligatorios (formato v3)
     const transferRequest: any = {
       "@context": {
-        "@vocab": "https://w3id.org/edc/v0.0.1/ns/",
+        "edc": "https://w3id.org/edc/v0.0.1/ns/",
       },
       "@type": "TransferRequest",
       assetId: assetId,
       counterPartyAddress: counterPartyAddress,
-      connectorId: counterPartyId,
+      counterPartyId: counterPartyId, // Cambiado de connectorId a counterPartyId para v3
       contractId: contractId,
       protocol: "dataspace-protocol-http",
       transferType: transferType,
+      privateProperties: {},
     }
 
     // Configurar dataDestination según el tipo de transferencia
     if (transferType === "HttpData-PUSH" && serverAddress) {
       console.log(`Configurando destino de datos PUSH con URL base: ${serverAddress}`)
       transferRequest.dataDestination = {
+        "@type": "DataAddress",
         type: "HttpData",
         baseUrl: serverAddress,
       }
     } else if (transferType === "HttpData-PULL") {
       console.log("Configurando destino de datos PULL con HttpProxy")
       transferRequest.dataDestination = {
+        "@type": "DataAddress",
         type: "HttpProxy",
       }
     }
@@ -888,7 +891,7 @@ export async function initiateTransfer(
     // Log del payload completo para depuración
     console.log("Payload de solicitud de transferencia:", JSON.stringify(transferRequest, null, 2))
 
-    const response = await fetchFromApi("/v2/transferprocesses", {
+    const response = await fetchFromApi("/v3/transferprocesses", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

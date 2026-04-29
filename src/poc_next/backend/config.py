@@ -44,6 +44,12 @@ class Settings(BaseSettings):
 
     # --- SharePoint Configuration ---
     sharepoint_drive_id: str | None = None
+    
+    # --- SharePoint Proxy Configuration (for EDC Downloads) ---
+    sharepoint_proxy_client_id: str | None = None
+    sharepoint_proxy_client_secret: str | None = None
+    sharepoint_proxy_tenant_id: str | None = None
+    sharepoint_proxy_base_url: str = "http://localhost:5001"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

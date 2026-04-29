@@ -17,7 +17,7 @@ export const msalConfig: Configuration = {
   },
   cache: {
     cacheLocation: 'sessionStorage',
-    storeAuthStateInCookie: false,
+    storeAuthStateInCookie: false, // Not required when crypto.subtle available (HTTPS + localhost)
   },
 };
 

@@ -69,8 +69,11 @@ echo -e "${GREEN}✓ Deployments applied${NC}"
 kubectl apply -f service.yaml -n $NAMESPACE
 echo -e "${GREEN}✓ Services applied${NC}"
 
-kubectl apply -f ingress.yaml -n $NAMESPACE
-echo -e "${GREEN}✓ Ingress applied${NC}"
+kubectl apply -f ingress-backend.yaml -n $NAMESPACE
+echo -e "${GREEN}✓ Backend Ingress applied${NC}"
+
+kubectl apply -f ingress-frontend.yaml -n $NAMESPACE
+echo -e "${GREEN}✓ Frontend Ingress applied${NC}"
 
 echo ""
 
@@ -93,10 +96,10 @@ echo -e "${GREEN}   ✅ POC Next deployed successfully!                  ${NC}"
 echo -e "${GREEN}═══════════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "${BLUE}Access the application at:${NC}"
-echo -e "  Data Publication: ${GREEN}http://ds-management.51.178.94.25.nip.io/data-publication${NC}"
-echo -e "  Partner Data:     ${GREEN}http://ds-management.51.178.94.25.nip.io/partner-data${NC}"
-echo -e "  Sharepoint Data:  ${GREEN}http://ds-management.51.178.94.25.nip.io/sharepoint-data${NC}"
-echo -e "  Backend API:      ${GREEN}http://ds-management.51.178.94.25.nip.io/api${NC}"
+echo -e "  Data Publication: ${GREEN}https://ds-management.51.178.94.25.nip.io/data-publication${NC}"
+echo -e "  Partner Data:     ${GREEN}https://ds-management.51.178.94.25.nip.io/partner-data${NC}"
+echo -e "  Sharepoint Data:  ${GREEN}https://ds-management.51.178.94.25.nip.io/sharepoint-data${NC}"
+echo -e "  Backend API:      ${GREEN}https://ds-management.51.178.94.25.nip.io/api${NC}"
 echo ""
 echo -e "${BLUE}Check status with:${NC}"
 echo -e "  kubectl get pods -n $NAMESPACE"

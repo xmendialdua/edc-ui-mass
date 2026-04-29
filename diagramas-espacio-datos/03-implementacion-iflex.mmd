@@ -1,0 +1,73 @@
+graph LR
+    subgraph "IMPLEMENTACIÓN TRACTUS-X - IFLEX"
+        subgraph "PROVIDER KIT"
+            PML[MLflow Server<br/>Bitnami]
+            PFS[Flower Server<br/>Entrenamiento FL]
+            PAPI[DataApp API<br/>Provider]
+            
+            PML --> PAPI
+            PFS --> PAPI
+        end
+        
+        subgraph "EDC PROVIDER"
+            PEDCC[Control Plane<br/>Connector]
+            PEDCD[Data Plane<br/>Connector]
+            PIAM[SSI/DIM Wallet]
+            
+            PEDCC --> PEDCD
+            PIAM -.->|Auth| PEDCC
+        end
+        
+        subgraph "UI DASHBOARD"
+            UI[🖥️ Interfaz Web<br/>Next.js]
+            UIAPI[API Proxy]
+            
+            UI --> UIAPI
+        end
+        
+        subgraph "EDC CONSUMER"
+            CEDCC[Control Plane<br/>Connector]
+            CEDCD[Data Plane<br/>Connector]
+            CIAM[SSI/DIM Wallet]
+            
+            CEDCC --> CEDCD
+            CIAM -.->|Auth| CEDCC
+        end
+        
+        subgraph "CONSUMER KIT"
+            CAPI[DataApp API<br/>Consumer]
+            CML[ModelAPI<br/>Servicio ML]
+            
+            CAPI --> CML
+        end
+        
+        subgraph "INFRAESTRUCTURA"
+            K8S[☸️ Kubernetes<br/>OVH Cloud]
+            TF[Terraform<br/>IaC]
+            CRTS[🔒 Certificados<br/>TLS/SSL]
+            
+            TF -.->|Provisiona| K8S
+            CRTS -.->|Seguridad| K8S
+        end
+    end
+    
+    PAPI --> PEDCC
+    PEDCD -.->|Transfer| CEDCD
+    CEDCC --> CAPI
+    
+    UI --> PEDCC
+    UI --> CEDCC
+    
+    K8S -->|Despliega| PEDCC
+    K8S -->|Despliega| CEDCC
+    K8S -->|Despliega| UI
+    K8S -->|Despliega| PAPI
+    K8S -->|Despliega| CAPI
+    
+    style PML fill:#e3f2fd
+    style PFS fill:#e8f5e9
+    style UI fill:#fff3e0
+    style K8S fill:#f3e5f5
+    style PEDCC fill:#c8e6c9
+    style CEDCC fill:#ffccbc
+    style CRTS fill:#ffebee

@@ -178,7 +178,7 @@
         .panel-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 20px 25px;
+            padding: 2px 25px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -262,18 +262,21 @@
         }
 
         .btn-delete {
-            background: #dc3545;
-            color: white;
+            background: transparent;
+            color: #dc3545;
             padding: 6px 10px;
             border-radius: 4px;
             border: none;
             cursor: pointer;
             font-size: 16px;
             transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .btn-delete:hover {
-            background: #c82333;
+            color: #c82333;
             transform: scale(1.1);
         }
 
@@ -408,6 +411,86 @@
             justify-content: space-between;
             align-items: center;
             min-width: 40px;
+        }
+
+        /* Asset Card Expandable Panel */
+        .asset-card-content {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .asset-card-expanded-panel {
+            padding: 12px 16px;
+            border-top: 1px solid #e0e0e0;
+            background: #fafafa;
+            display: none;
+        }
+
+        .asset-card-expanded-panel.active {
+            display: block;
+        }
+
+        .asset-card-chevron {
+            transition: transform 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .asset-card-chevron.rotated {
+            transform: rotate(180deg);
+        }
+
+        .data-address-container {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+        }
+
+        .data-address-title {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .data-address-content {
+            background: #f5f5f5;
+            padding: 8px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            overflow-x: auto;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        /* Panel header with refresh icon */
+        .panel-title-with-refresh {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .refresh-icon {
+            cursor: pointer;
+            opacity: 0.8;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .refresh-icon:hover {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        .refresh-icon.spinning {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
         /* Contract Card */
@@ -1046,9 +1129,16 @@
             <!-- Assets Panel -->
             <div class="panel">
                 <div class="panel-header">
-                    <div class="panel-title">
-                        <span>📦</span>
-                        <span>Assets Publicables</span>
+                    <div class="panel-title-with-refresh">
+                        <div class="panel-title">
+                            <span>📦</span>
+                            <span>Assets Publicables</span>
+                        </div>
+                        <span class="refresh-icon" onclick="refreshAssets()" title="Actualizar lista de assets">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                            </svg>
+                        </span>
                     </div>
                     <div class="filter-section" style="margin-bottom: 0;">
                         <span class="filter-label" style="color: white; font-size: 13px;">Filtrar:</span>
@@ -1059,11 +1149,8 @@
                 </div>
                 <div class="panel-body">
                     <div class="actions-bar">
-                        <button class="btn btn-success" onclick="showCreateAssetModal()">
+                        <button class="btn btn-success" onclick="console.log('🖱️ Button clicked!'); showCreateAssetModal();">
                             <span>📦</span> Crear Nuevo Asset
-                        </button>
-                        <button class="btn btn-info" onclick="loadAssets()">
-                            <span>🔄</span> Actualizar Lista
                         </button>
                         <button class="btn btn-primary" onclick="publishSelectedAssets()" id="btn-publish-assets">
                             <span>🚀</span> Publicar Seleccionados
@@ -1177,6 +1264,19 @@
                     <input type="text" id="asset-name" class="form-control" placeholder="Ej: pdf-dummy-mass-ikln">
                     <div class="helper-text">Solo letras minúsculas, números y guiones</div>
                 </div>
+                <div class="form-group" style="margin-top: 20px;">
+                    <label for="asset-url-select">URL del Asset:</label>
+                    <select id="asset-url-select" class="form-control" onchange="handleUrlSelection()">
+                        <option value="https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf">📄 PDF de prueba (dummy.pdf)</option>
+                        <option value="https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv">📊 Dataset de vinos (winequality-red.csv)</option>
+                        <option value="custom">✏️ URL personalizada...</option>
+                    </select>
+                </div>
+                <div class="form-group" id="custom-url-group" style="margin-top: 15px; display: none;">
+                    <label for="asset-url-custom">URL Personalizada:</label>
+                    <input type="text" id="asset-url-custom" class="form-control" placeholder="https://ejemplo.com/archivo.csv">
+                    <div class="helper-text">Introduce la URL completa del recurso</div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeCreateAssetModal()">
@@ -1226,6 +1326,7 @@
         let allPolicies = [];
         let selectedAssetIds = [];
         let contractPolicyGeneralCreated = false;  // Track if general contract policy exists
+        let expandedAssetId = null;  // Track which asset card is expanded
         
         // Partners list - hardcoded with function for future scalability
         function getAvailablePartners() {
@@ -1260,6 +1361,16 @@
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Page loaded, initializing...');
+            
+            // Verify modal exists
+            const modal = document.getElementById('create-asset-modal');
+            if (modal) {
+                console.log('✅ Modal element found:', modal);
+            } else {
+                console.error('❌ Modal element NOT FOUND!');
+            }
+            
             populatePartnerFilters();
             checkMassConnectorStatus();
             loadAssets();
@@ -1441,6 +1552,7 @@
             const assetType = asset['@type'] || 'Asset';
             const description = asset.properties?.description || 'Sin descripción';
             const baseUrl = asset.dataAddress?.baseUrl || asset.dataAddress?.url || 'N/A';
+            const dataAddress = asset.dataAddress || { baseUrl: baseUrl, type: 'HttpData' };
             
             const card = document.createElement('div');
             card.className = 'asset-card';
@@ -1453,22 +1565,79 @@
             
             card.innerHTML = `
                 <div class="asset-card-header">
-                    <div class="asset-card-info" title="URL: ${baseUrl}">
-                        <div class="asset-card-title">${assetType}</div>
-                        <div class="asset-card-id">${assetId}</div>
-                        <div class="asset-card-description">${description}</div>
-                        ${partnersHtml}
+                    <div class="asset-card-info asset-card-content" title="URL: ${baseUrl}" onclick="toggleAssetExpansion('${assetId}')">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div style="flex: 1;">
+                                <div class="asset-card-title">${assetType}</div>
+                                <div class="asset-card-id">${assetId}</div>
+                                <div class="asset-card-description">${description}</div>
+                                ${partnersHtml}
+                            </div>
+                            <svg class="asset-card-chevron" id="chevron-${assetId}" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #999; margin-left: 8px;">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </div>
                     </div>
                     <div class="asset-card-actions">
-                        <input type="checkbox" class="asset-checkbox" id="check-${assetId}" onchange="updateSelectedAssets()">
-                        <button class="btn-delete" onclick="deleteAsset('${assetId}')" title="Eliminar asset">
-                            🗑️
+                        <input type="checkbox" class="asset-checkbox" id="check-${assetId}" onchange="updateSelectedAssets()" onclick="event.stopPropagation()">
+                        <button class="btn-delete" onclick="deleteAsset('${assetId}'); event.stopPropagation();" title="Eliminar asset">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 6h18"></path>
+                                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                            </svg>
                         </button>
+                    </div>
+                </div>
+                <div class="asset-card-expanded-panel" id="panel-${assetId}">
+                    <div class="data-address-container">
+                        <div class="data-address-title">📍 Data Address</div>
+                        <div class="data-address-content">
+                            <pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word;">${JSON.stringify(dataAddress, null, 2)}</pre>
+                        </div>
                     </div>
                 </div>
             `;
             
             return card;
+        }
+        
+        // Toggle asset expansion
+        function toggleAssetExpansion(assetId) {
+            const panel = document.getElementById(`panel-${assetId}`);
+            const chevron = document.getElementById(`chevron-${assetId}`);
+            
+            // If this asset is already expanded, collapse it
+            if (expandedAssetId === assetId) {
+                panel.classList.remove('active');
+                chevron.classList.remove('rotated');
+                expandedAssetId = null;
+            } else {
+                // Collapse previously expanded asset
+                if (expandedAssetId) {
+                    const prevPanel = document.getElementById(`panel-${expandedAssetId}`);
+                    const prevChevron = document.getElementById(`chevron-${expandedAssetId}`);
+                    if (prevPanel) prevPanel.classList.remove('active');
+                    if (prevChevron) prevChevron.classList.remove('rotated');
+                }
+                
+                // Expand this asset
+                panel.classList.add('active');
+                chevron.classList.add('rotated');
+                expandedAssetId = assetId;
+            }
+        }
+        
+        // Refresh assets with animation
+        function refreshAssets() {
+            const refreshIcon = document.querySelector('.refresh-icon');
+            refreshIcon.classList.add('spinning');
+            
+            loadAssets().finally(() => {
+                setTimeout(() => {
+                    refreshIcon.classList.remove('spinning');
+                }, 500);
+            });
         }
 
         // Get partners for an asset (based on contracts)
@@ -1652,7 +1821,11 @@
                         </div>
                     </div>
                     <button class="btn-delete" onclick="deleteContract('${contractId}')" title="Eliminar contrato">
-                        🗑️
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 6h18"></path>
+                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                        </svg>
                     </button>
                 </div>
             `;
@@ -1787,10 +1960,42 @@
         }
 
         // Modal: Create Asset
+        function handleUrlSelection() {
+            const select = document.getElementById('asset-url-select');
+            const customUrlGroup = document.getElementById('custom-url-group');
+            
+            if (select.value === 'custom') {
+                customUrlGroup.style.display = 'block';
+                document.getElementById('asset-url-custom').focus();
+            } else {
+                customUrlGroup.style.display = 'none';
+            }
+        }
+
         function showCreateAssetModal() {
-            document.getElementById('create-asset-modal').classList.add('active');
-            document.getElementById('asset-name').value = '';
-            document.getElementById('asset-name').focus();
+            console.log('🔍 showCreateAssetModal called');
+            try {
+                const modal = document.getElementById('create-asset-modal');
+                console.log('Modal element:', modal);
+                
+                if (!modal) {
+                    console.error('❌ Modal element not found!');
+                    alert('Error: No se encuentra el modal. Revisa la consola del navegador.');
+                    return;
+                }
+                
+                modal.classList.add('active');
+                document.getElementById('asset-name').value = '';
+                document.getElementById('asset-url-select').value = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
+                document.getElementById('asset-url-custom').value = '';
+                document.getElementById('custom-url-group').style.display = 'none';
+                document.getElementById('asset-name').focus();
+                
+                console.log('✅ Modal shown successfully');
+            } catch (error) {
+                console.error('❌ Error in showCreateAssetModal:', error);
+                alert('Error al abrir el modal: ' + error.message);
+            }
         }
 
         function closeCreateAssetModal() {
@@ -1812,10 +2017,30 @@
                 alert('El nombre del asset no es válido');
                 return;
             }
+
+            // Get URL
+            const urlSelect = document.getElementById('asset-url-select');
+            let assetUrl;
+            
+            if (urlSelect.value === 'custom') {
+                assetUrl = document.getElementById('asset-url-custom').value.trim();
+                if (!assetUrl) {
+                    alert('Por favor introduce una URL personalizada');
+                    return;
+                }
+                // Basic URL validation
+                if (!assetUrl.startsWith('http://') && !assetUrl.startsWith('https://')) {
+                    alert('La URL debe comenzar con http:// o https://');
+                    return;
+                }
+            } else {
+                assetUrl = urlSelect.value;
+            }
             
             closeCreateAssetModal();
             
             addLog(`📦 Creando asset '${assetName}'...`);
+            addLog(`🔗 URL: ${assetUrl}`);
             
             // Check if asset already exists
             if (allAssets.find(a => a['@id'] === assetName)) {
@@ -1824,7 +2049,10 @@
                 return;
             }
             
-            const result = await callAPI('/phase2/create-asset', 'POST', { assetId: assetName });
+            const result = await callAPI('/phase2/create-asset', 'POST', { 
+                assetId: assetName,
+                url: assetUrl
+            });
             
             if (result.logs) {
                 result.logs.forEach(log => addLog(log));

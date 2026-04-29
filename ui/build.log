@@ -1,0 +1,167 @@
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon  1.111MB
+Step 1/33 : FROM node:18-alpine AS base
+ ---> ee77c6cd7c18
+Step 2/33 : FROM base AS deps
+ ---> ee77c6cd7c18
+Step 3/33 : WORKDIR /app
+ ---> Using cache
+ ---> 6083d2bfa993
+Step 4/33 : COPY package.json ./
+ ---> Using cache
+ ---> cd80bab1c9ea
+Step 5/33 : COPY pnpm-lock.yaml* ./
+ ---> Using cache
+ ---> 6f74b3005c4a
+Step 6/33 : RUN npm install -g pnpm && pnpm install --no-frozen-lockfile
+ ---> Using cache
+ ---> 482d0258b48e
+Step 7/33 : FROM base AS builder
+ ---> ee77c6cd7c18
+Step 8/33 : WORKDIR /app
+ ---> Using cache
+ ---> 6083d2bfa993
+Step 9/33 : COPY . .
+ ---> 4e80a663ac4e
+Step 10/33 : COPY --from=deps /app/node_modules ./node_modules
+ ---> 254128e6aad9
+Step 11/33 : ENV NEXT_PUBLIC_API_URL=http://provider-qna/cp/api/management
+ ---> Running in 8e4f49434ea9
+ ---> Removed intermediate container 8e4f49434ea9
+ ---> 9afb3e241e4a
+Step 12/33 : ENV NEXT_PUBLIC_KUBERNETES_ENABLED=true
+ ---> Running in b58eaf04b65c
+ ---> Removed intermediate container b58eaf04b65c
+ ---> ea7a8252a633
+Step 13/33 : ENV NODE_ENV=production
+ ---> Running in 32d388bccf87
+ ---> Removed intermediate container 32d388bccf87
+ ---> 71d9d18f1a66
+Step 14/33 : ENV NEXT_TELEMETRY_DISABLED=1
+ ---> Running in 56fce87cea01
+ ---> Removed intermediate container 56fce87cea01
+ ---> b550384fea68
+Step 15/33 : RUN npm install -g pnpm
+ ---> Running in 71370a0396ba
+
+added 1 package in 2s
+
+1 package is looking for funding
+  run `npm fund` for details
+[91mnpm notice
+npm notice New major version of npm available! 10.8.2 -> 11.11.1
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.1
+npm notice To update run: npm install -g npm@11.11.1
+npm notice
+[0m ---> Removed intermediate container 71370a0396ba
+ ---> 70db83a62416
+Step 16/33 : RUN pnpm run build
+ ---> Running in 45f13975eb68
+
+> my-v0-project@0.1.0 build /app
+> next build
+
+   ▲ Next.js 15.2.4
+   - Experiments (use with caution):
+     ✓ webpackBuildWorker
+     ✓ parallelServerCompiles
+     ✓ parallelServerBuildTraces
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 26.0s
+   Skipping validation of types
+   Skipping linting
+   Collecting page data ...
+   Generating static pages (0/9) ...
+   Generating static pages (2/9) 
+   Generating static pages (4/9) 
+   Generating static pages (6/9) 
+ ✓ Generating static pages (9/9)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS
+┌ ○ /                                      158 B         101 kB
+├ ○ /_not-found                            976 B         102 kB
+├ ƒ /api-proxy/[...path]                   158 B         101 kB
+├ ○ /api-test                             2.6 kB         139 kB
+├ ƒ /api/dataapp-proxy                     158 B         101 kB
+├ ƒ /api/kubernetes/pods                   158 B         101 kB
+├ ƒ /api/kubernetes/pods/[name]/logs       158 B         101 kB
+├ ƒ /connector-proxy/[...path]             158 B         101 kB
+├ ƒ /dataapp-proxy/[...path]               158 B         101 kB
+├ ○ /edc-consumer                        33.6 kB         218 kB
+└ ○ /edc-provider                        11.8 kB         191 kB
++ First Load JS shared by all             101 kB
+  ├ chunks/255-4d31ff0e546f2a9c.js       45.9 kB
+  ├ chunks/e7327965-c116897d13464485.js  53.2 kB
+  └ other shared chunks (total)          1.92 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+ ---> Removed intermediate container 45f13975eb68
+ ---> b093410cf62e
+Step 17/33 : FROM base AS runner
+ ---> ee77c6cd7c18
+Step 18/33 : WORKDIR /app
+ ---> Using cache
+ ---> 6083d2bfa993
+Step 19/33 : ENV NODE_ENV=production
+ ---> Using cache
+ ---> c4636af893d4
+Step 20/33 : ENV NEXT_TELEMETRY_DISABLED=1
+ ---> Using cache
+ ---> fcca7cc1e8b0
+Step 21/33 : RUN addgroup --system --gid 1001 nodejs
+ ---> Using cache
+ ---> e029c6692212
+Step 22/33 : RUN adduser --system --uid 1001 nextjs
+ ---> Using cache
+ ---> 1812685bd669
+Step 23/33 : COPY --from=builder /app/public ./public
+ ---> Using cache
+ ---> 2673df06d1eb
+Step 24/33 : COPY --from=builder /app/package.json ./package.json
+ ---> Using cache
+ ---> ebabcb8cc1b0
+Step 25/33 : COPY --from=builder /app/node_modules ./node_modules
+ ---> Using cache
+ ---> ee1d5f6d94bf
+Step 26/33 : COPY --from=builder /app/.next ./.next
+ ---> 2eb0eefde8d8
+Step 27/33 : USER nextjs
+ ---> Running in 5ebc3aaf21d3
+ ---> Removed intermediate container 5ebc3aaf21d3
+ ---> d809a01fd66c
+Step 28/33 : EXPOSE 3000
+ ---> Running in 47a673c0301c
+ ---> Removed intermediate container 47a673c0301c
+ ---> cbe9fb5dd479
+Step 29/33 : ENV PORT=3000
+ ---> Running in 79649842228c
+ ---> Removed intermediate container 79649842228c
+ ---> 23d7a2834f52
+Step 30/33 : ENV HOSTNAME="0.0.0.0"
+ ---> Running in 628b41cf1381
+ ---> Removed intermediate container 628b41cf1381
+ ---> af35bddacdac
+Step 31/33 : ENV NEXT_PUBLIC_API_URL=http://provider-qna/cp/api/management
+ ---> Running in 031870ea5b9e
+ ---> Removed intermediate container 031870ea5b9e
+ ---> 8b95fe6fe642
+Step 32/33 : ENV NEXT_PUBLIC_KUBERNETES_ENABLED=true
+ ---> Running in 5a8fa05253c4
+ ---> Removed intermediate container 5a8fa05253c4
+ ---> 319e1cea557f
+Step 33/33 : CMD ["npm", "run", "start"]
+ ---> Running in c00a0d1dcc2e
+ ---> Removed intermediate container c00a0d1dcc2e
+ ---> 200124fe529d
+Successfully built 200124fe529d
+Successfully tagged xmendialdua/edc-mngmt-ui:latest
+Successfully tagged xmendialdua/edc-mngmt-ui:1107

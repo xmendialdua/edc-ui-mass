@@ -80,6 +80,15 @@ import {
 // Importar el diálogo para añadir documentos
 import { AddDocumentDialog } from "./components/add-document-dialog"
 
+// Importar el panel de logs y las funciones del flujo de publicación
+import { LogPanel } from "./components/log-panel"
+import {
+  createDocumentAsset,
+  publishDocumentToPartner,
+  type LogEntry,
+  PUBLIC_PDF_URL,
+} from "@/lib/publish-flow"
+
 // Connector fijo para EDC-MASS
 const EDC_MASS_CONNECTOR = "https://edc-mass-control.51.178.94.25.nip.io/management"
 
@@ -162,6 +171,9 @@ export default function PublishDataPage() {
   // Estado para filtro por cliente
   const [companyFilter, setCompanyFilter] = useState<Company | "all">("all")
 
+  // Estado para el panel de logs
+  const [logs, setLogs] = useState<LogEntry[]>([])
+
   // Lista de empresas disponibles para compartir
   const availableCompanies: Company[] = ["Ikerlan", "Ederlan", "Gestamp", "Bexen"]
 
@@ -171,18 +183,68 @@ export default function PublishDataPage() {
     setDocuments(docs)
   }, [])
 
-  // Función para añadir un nuevo documento
-  const handleAddDocument = (name: string) => {
-    const newDoc = addDocument(name)
-    setDocuments(getDocuments())
-    showSuccessMessage(`Document "${name}" added successfully`)
+  // Función callback para añadir logs
+  const addLog = (entry: LogEntry) => {
+    setLogs((prevLogs) => [...prevLogs, entry])
   }
 
-  // Función para compartir un documento con una empresa
-  const shareDocumentWith = (docId: string, company: Company) => {
-    updateDocumentSharing(docId, company)
-    setDocuments(getDocuments())
-    showSuccessMessage(`Document shared with ${company}`)
+  // Función para añadir un nuevo documento y crear el asset en EDC
+  const handleAddDocument = async (name: string, url: string) => {
+    try {
+      // Añadir log inicial
+      addLog({
+        timestamp: new Date(),
+        type: "info",
+        message: `Añadiendo documento "${name}"...`,
+      })
+
+      // Añadir el documento al storage local
+      const newDoc = addDocument(name, url)
+      setDocuments(getDocuments())
+
+      // Crear el asset en el conector EDC
+      await createDocumentAsset(name, url, addLog)
+
+      showSuccessMessage(`Document "${name}" added successfully`)
+    } catch (error: any) {
+      addLog({
+        timestamp: new Date(),
+        type: "error",
+        message: `Error añadiendo documento: ${error.message}`,
+      })
+      setError(`Failed to add document: ${error.message}`)
+      setTimeout(() => setError(null), 5000)
+    }
+  }
+
+  // Función para compartir un documento con una empresa y crear política + contrato
+  const shareDocumentWith = async (docId: string, company: Company) => {
+    try {
+      const doc = documents.find((d) => d.id === docId)
+      if (!doc) {
+        throw new Error("Document not found")
+      }
+
+      // Actualizar el estado local del documento
+      updateDocumentSharing(docId, company)
+      setDocuments(getDocuments())
+
+      // Ejecutar el flujo completo de publicación: crear política y contrato
+      await publishDocumentToPartner(doc.name, doc.url, company, addLog)
+
+      showSuccessMessage(`Document published to ${company}`)
+      
+      // Refrescar datos para mostrar los nuevos assets/políticas/contratos
+      await fetchData()
+    } catch (error: any) {
+      addLog({
+        timestamp: new Date(),
+        type: "error",
+        message: `Error al publicar documento: ${error.message}`,
+      })
+      setError(`Failed to share document: ${error.message}`)
+      setTimeout(() => setError(null), 5000)
+    }
   }
 
   // Función para dejar de compartir un documento
@@ -951,16 +1013,21 @@ export default function PublishDataPage() {
               return (
                 <div
                   key={doc.id}
-                  className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-lime-300 transition-colors"
+                  className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-lime-300 transition-colors"
                 >
                   <div className="p-2 bg-gray-100 rounded">
                     <FileText className="h-5 w-5 text-gray-600" />
                   </div>
-                  <span className="font-medium text-gray-700 flex-1">{doc.name}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-700">{doc.name}</div>
+                    <div className="text-xs text-gray-500 mt-1 truncate" title={doc.url}>
+                      {doc.url}
+                    </div>
+                  </div>
                   {isShared ? (
                     <Button
                       onClick={() => unshareDocument(doc.id)}
-                      className="bg-lime-600 hover:bg-lime-700 text-white flex items-center gap-2"
+                      className="bg-lime-600 hover:bg-lime-700 text-white flex items-center gap-2 shrink-0"
                     >
                       <Share2 className="h-4 w-4" />
                       {doc.sharedWith}
@@ -968,7 +1035,7 @@ export default function PublishDataPage() {
                   ) : (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button className="bg-gray-400 hover:bg-gray-500 text-white flex items-center gap-2">
+                        <Button className="bg-gray-400 hover:bg-gray-500 text-white flex items-center gap-2 shrink-0">
                           <Share2 className="h-4 w-4" />
                           Share
                         </Button>
@@ -995,6 +1062,12 @@ export default function PublishDataPage() {
               {companyFilter === "all" ? "No documents available." : `No documents shared with ${companyFilter}.`}
             </p>
           )}
+          
+          {/* Log Panel */}
+          <div className="mt-6">
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Operations Log</h3>
+            <LogPanel logs={logs} maxHeight="300px" />
+          </div>
         </div>
 
         {loading ? (

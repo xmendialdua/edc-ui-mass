@@ -2,12 +2,11 @@
 
 import os
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, Header, Query
+from fastapi import APIRouter, HTTPException, Header, Query, Body
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import logging
 
-from config import settings
 from sharepointGateway.SharePointGateway import SharePointGateway, SharePointFile
 
 logger = logging.getLogger(__name__)
@@ -72,8 +71,8 @@ def get_gateway(authorization: Optional[str] = None) -> SharePointGateway:
             detail="Access token is empty"
         )
     
-    # Get default drive ID from settings
-    default_drive_id = settings.sharepoint_drive_id
+    # Get default drive ID from environment
+    default_drive_id = os.getenv("SHAREPOINT_DRIVE_ID")
     
     return SharePointGateway(
         access_token=access_token,
@@ -87,7 +86,7 @@ async def health_check():
     return {
         "status": "ok",
         "service": "sharepoint-gateway",
-        "has_default_drive_id": bool(settings.sharepoint_drive_id)
+        "has_default_drive_id": bool(os.getenv("SHAREPOINT_DRIVE_ID"))
     }
 
 
@@ -115,7 +114,7 @@ async def list_files(
         
         files = gateway.get_sharepoint_files(
             drive_id=drive_id,
-            item_id=folder_id  # Note: item_id is the parameter name in SharePointGateway
+            folder_id=folder_id
         )
         
         items = [
@@ -147,7 +146,7 @@ async def list_files(
 async def list_files_by_site_url(
     authorization: Optional[str] = Header(None),
     site_url: str = Query(..., description="SharePoint site URL"),
-    folder_id: Optional[str] = Query(None, description="Folder ID to list (root if not provided)")
+    folder_path: Optional[str] = Query(None, description="Folder path within site")
 ):
     """
     List files from SharePoint by site URL.
@@ -155,7 +154,7 @@ async def list_files_by_site_url(
     Args:
         authorization: Bearer token for Microsoft Graph API
         site_url: SharePoint site URL (e.g., https://company.sharepoint.com/sites/sitename)
-        folder_id: Optional folder ID to list contents of specific folder
+        folder_path: Optional folder path within the site
         
     Returns:
         List of files and folders
@@ -163,11 +162,11 @@ async def list_files_by_site_url(
     try:
         gateway = get_gateway(authorization)
         
-        logger.info(f"Listing files from site_url={site_url}, folder_id={folder_id}")
+        logger.info(f"Listing files from site_url={site_url}, folder_path={folder_path}")
         
+        # For now, only list root folder (item_id navigation can be added later)
         files = gateway.get_sharepoint_files_by_site_url(
-            site_url=site_url,
-            item_id=folder_id
+            site_url=site_url
         )
         
         items = [
@@ -205,7 +204,7 @@ async def download_file(
     Download a file from SharePoint.
     
     Args:
-        file_id: ID of the file to download (can be composite format: drive_id|item_id)
+        file_id: ID of the file to download
         authorization: Bearer token for Microsoft Graph API
         drive_id: Optional SharePoint drive ID (uses default if not provided)
         
@@ -217,29 +216,16 @@ async def download_file(
         
         logger.info(f"Downloading file_id={file_id}, drive_id={drive_id}")
         
-        # Parse composite file_id if present (format: drive_id|item_id)
-        if '|' in file_id:
-            parsed_drive_id, item_id = file_id.split('|', 1)
-            actual_drive_id = parsed_drive_id
-        else:
-            # Use provided drive_id or fall back to default
-            actual_drive_id = drive_id or gateway.default_drive_id
-            item_id = file_id
-        
         file_content, filename = gateway.download_file(
-            drive_id=actual_drive_id,
-            item_id=item_id
+            file_id=file_id,
+            drive_id=drive_id
         )
-        
-        # Encode filename for Content-Disposition header (RFC 5987)
-        from urllib.parse import quote
-        encoded_filename = quote(filename)
         
         return StreamingResponse(
             iter([file_content]),
             media_type="application/octet-stream",
             headers={
-                "Content-Disposition": f"attachment; filename=\"{filename}\"; filename*=UTF-8''{encoded_filename}"
+                "Content-Disposition": f'attachment; filename="{filename}"'
             }
         )
         
@@ -300,70 +286,32 @@ async def get_file_metadata(
         )
 
 
-@router.get("/debug/drives")
-async def debug_list_drives(
-    authorization: Optional[str] = Header(None)
-):
-    """
-    Debug endpoint: List all drives accessible to the user.
-    
-    Args:
-        authorization: Bearer token for Microsoft Graph API
-        
-    Returns:
-        List of available drives with their IDs
-    """
-    try:
-        if not authorization or not authorization.startswith("Bearer "):
-            raise HTTPException(
-                status_code=401,
-                detail="Authorization header required"
-            )
-        
-        access_token = authorization.replace("Bearer ", "").strip()
-        
-        import requests
-        response = requests.get(
-            "https://graph.microsoft.com/v1.0/me/drives",
-            headers={"Authorization": f"Bearer {access_token}"}
-        )
-        response.raise_for_status()
-        
-        drives_data = response.json()
-        drives = []
-        for drive in drives_data.get("value", []):
-            drives.append({
-                "id": drive.get("id"),
-                "name": drive.get("name"),
-                "driveType": drive.get("driveType"),
-                "webUrl": drive.get("webUrl"),
-                "owner": drive.get("owner", {}).get("user", {}).get("displayName", "Unknown")
-            })
-        
-        return {
-            "drives": drives,
-            "count": len(drives),
-            "configured_drive_id": settings.sharepoint_drive_id
-        }
-        
-    except Exception as e:
-        logger.error(f"Error listing drives: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to list drives: {str(e)}"
-        )
-
+# --- New endpoints for sharing links ---
 
 class GetDownloadUrlRequest(BaseModel):
-    """Request model for getting a download URL."""
+    """Request model for get-download-url endpoint."""
     drive_id: str
     item_id: str
 
 
 class GetDownloadUrlResponse(BaseModel):
-    """Response model for download URL."""
-    download_url: str
+    """Response model for get-download-url endpoint."""
     success: bool
+    download_url: str
+
+
+class CreateSharingLinkRequest(BaseModel):
+    """Request model for create-sharing-link endpoint."""
+    drive_id: str
+    item_id: str
+    expiration_days: int = 365
+
+
+class CreateSharingLinkResponse(BaseModel):
+    """Response model for create-sharing-link endpoint."""
+    success: bool
+    download_url: str
+    message: Optional[str] = None
 
 
 @router.post("/get-download-url", response_model=GetDownloadUrlResponse)
@@ -372,36 +320,33 @@ async def get_download_url(
     authorization: Optional[str] = Header(None)
 ):
     """
-    Get a pre-authenticated download URL for a SharePoint file.
+    Get pre-authenticated temporary download URL for a SharePoint file.
     
-    This endpoint uses Microsoft Graph API to obtain a temporary download URL
-    that can be accessed without authentication. The URL is valid for ~1 hour
-    and is suitable for use in EDC Data Plane transfers.
+    This URL is valid for ~1 hour and can be accessed without authentication.
+    Useful for quick testing but NOT recommended for production.
     
     Args:
-        request: Request containing drive_id and item_id
+        request: Request with drive_id and item_id
         authorization: Bearer token for Microsoft Graph API
         
     Returns:
-        Pre-authenticated download URL
+        Temporary download URL (valid ~1 hour)
     """
     try:
-        logger.info(f"📥 Getting download URL:")
-        logger.info(f"   drive_id: {request.drive_id}")
-        logger.info(f"   item_id: {request.item_id}")
-        
         gateway = get_gateway(authorization)
+        
+        logger.info(f"Getting temporary download URL for drive={request.drive_id[:8]}..., item={request.item_id[:8]}...")
         
         download_url = gateway.get_download_url(
             drive_id=request.drive_id,
             item_id=request.item_id
         )
         
-        logger.info(f"✅ Successfully obtained download URL")
+        logger.info(f"✅ Temporary download URL obtained (valid ~1 hour)")
         
         return GetDownloadUrlResponse(
-            download_url=download_url,
-            success=True
+            success=True,
+            download_url=download_url
         )
         
     except HTTPException:
@@ -411,4 +356,69 @@ async def get_download_url(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get download URL: {str(e)}"
+        )
+
+
+@router.post("/create-sharing-link", response_model=CreateSharingLinkResponse)
+async def create_sharing_link(
+    request: CreateSharingLinkRequest,
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Create a public sharing link with direct download capability.
+    
+    This creates a permanent (or long-lived) public link that:
+    - Does NOT require authentication
+    - Can be used directly by EDC DataPlane
+    - Downloads file content directly (binary)
+    - Is valid for specified expiration period (default: 365 days)
+    
+    The link is public - anyone with the URL can download the file.
+    
+    Args:
+        request: Request with drive_id, item_id, and expiration_days
+        authorization: Bearer token for Microsoft Graph API
+        
+    Returns:
+        Public download URL (valid for expiration_days)
+        
+    Note:
+        Requires Sites.ReadWrite.All permission in Azure AD
+    """
+    try:
+        gateway = get_gateway(authorization)
+        
+        logger.info(f"Creating public sharing link for drive={request.drive_id[:8]}..., item={request.item_id[:8]}...")
+        logger.info(f"Expiration: {request.expiration_days} days")
+        
+        download_url = gateway.create_public_download_link(
+            drive_id=request.drive_id,
+            item_id=request.item_id,
+            expiration_days=request.expiration_days
+        )
+        
+        logger.info(f"✅ Public sharing link created successfully")
+        logger.info(f"   URL: {download_url[:80]}...")
+        
+        return CreateSharingLinkResponse(
+            success=True,
+            download_url=download_url,
+            message=f"Public link created (expires in {request.expiration_days} days)"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error creating sharing link: {str(e)}")
+        
+        # Check for permission error
+        if "AccessDenied" in str(e) or "Forbidden" in str(e):
+            raise HTTPException(
+                status_code=403,
+                detail="Failed to create sharing link. Ensure Azure AD app has Sites.ReadWrite.All permission with Admin Consent."
+            )
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create sharing link: {str(e)}"
         )

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '@/components/ui/button';
-import { api } from '@/lib/api';
+import { api, getApiBaseUrl } from '@/lib/api';
 import { Package, Plus, RefreshCw, Trash2, Upload, ChevronDown, ChevronUp, FolderOpen, File, ChevronRight, Home } from 'lucide-react';
 import {
   Dialog,
@@ -58,6 +58,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
   const [showSharePointPicker, setShowSharePointPicker] = useState(false);
   const [sharePointUrl, setSharePointUrl] = useState('');
   const [sharePointItemName, setSharePointItemName] = useState('');
+  const [linkType, setLinkType] = useState<'temporary' | 'sharing' | 'proxy'>('sharing'); // Default: sharing link
   
   // SharePoint states
   const [sharePointAccessToken, setSharePointAccessToken] = useState('');
@@ -217,33 +218,78 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
         id: item.id, 
         driveId, 
         itemId, 
-        isFolder: item.isFolder 
+        isFolder: item.isFolder,
+        webUrl: item.webUrl
       });
-      
+
       if (!driveId || !itemId) {
         log('❌ Error: No se pudo extraer drive_id o item_id del archivo seleccionado');
         return;
       }
 
-      log(`🔗 Obteniendo URL de descarga para: ${item.name}...`);
+      if (linkType === 'temporary') {
+        // Opción 1: Usar link temporal de Microsoft Graph (válido 1 hora)
+        log(`🔗 Obteniendo link temporal para: ${item.name}...`);
 
-      // Get pre-authenticated download URL
-      const response = await api.sharepoint.getDownloadUrl(
-        sharePointAccessToken!,
-        driveId,
-        itemId
-      );
+        // Get pre-authenticated download URL
+        const response = await api.sharepoint.getDownloadUrl(
+          sharePointAccessToken!,
+          driveId,
+          itemId
+        );
 
-      if (response.success && response.download_url) {
-        setSharePointUrl(response.download_url);
-        setSharePointItemName(item.name);
-        log(`✅ URL de descarga obtenida exitosamente`);
+        if (response.success && response.download_url) {
+          setSharePointUrl(response.download_url);
+          setSharePointItemName(item.name);
+          log(`✅ Link temporal obtenido (válido 1 hora)`);
+          log(`⚠️  No válido para producción - el link expira`);
+        } else {
+          log('❌ Error: No se pudo obtener el link temporal');
+          return;
+        }
+      } else if (linkType === 'sharing') {
+        // Opción 2: Crear sharing link público permanente (válido 1 año)
+        log(`🔗 Creando sharing link público para: ${item.name}...`);
+
+        // Create public sharing link with direct download capability
+        const response = await api.sharepoint.createSharingLink(
+          sharePointAccessToken!,
+          driveId,
+          itemId,
+          365 // 1 year expiration
+        );
+
+        if (response.success && response.download_url) {
+          setSharePointUrl(response.download_url);
+          setSharePointItemName(item.name);
+          log(`✅ Sharing link público creado (expira en 1 año)`);
+          log(`🌐 URL pública - accesible sin autenticación`);
+          log(`✅ Compatible con EDC DataPlane - descarga directa`);
+        } else {
+          log('❌ Error: No se pudo crear el sharing link');
+          return;
+        }
       } else {
-        log('❌ Error: No se pudo obtener la URL de descarga');
-        return;
+        // Opción 3: Usar URL del proxy (requiere despliegue en Kubernetes)
+        // Codificar drive_id|item_id en base64 URL-safe
+        const fileInfo = `${driveId}|${itemId}`;
+        const encoded = btoa(fileInfo); // Base64 encode
+        
+        // Generar URL del proxy
+        const proxyUrl = `${getApiBaseUrl()}/api/sharepoint-proxy/download/${encoded}`;
+
+        log(`🔗 Generando URL de proxy para: ${item.name}`);
+        log(`📍 Drive ID: ${driveId.substring(0, 8)}...`);
+        log(`📍 Item ID: ${itemId.substring(0, 8)}...`);
+        log(`📍 URL proxy: ${proxyUrl}`);
+        
+        setSharePointUrl(proxyUrl);  // Usar URL del proxy en lugar de SharePoint directa
+        setSharePointItemName(item.name);
+        log(`✅ URL del proxy configurada`);
+        log(`⚠️  Requiere despliegue del proxy en Kubernetes`);
       }
     } catch (error) {
-      log(`❌ Error al obtener URL de descarga: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      log(`❌ Error al procesar archivo: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return;
     }
 
@@ -1360,6 +1406,164 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                 </div>
               )}
 
+              {/* Radio buttons para tipo de URL de SharePoint */}
+              {(assetUrlType === 'sharepoint-file' || assetUrlType === 'sharepoint-folder') && (
+                <div style={{
+                  marginTop: '16px',
+                  padding: '12px',
+                  backgroundColor: '#f8f9fa',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px'
+                }}>
+                  <div style={{ marginBottom: '8px' }}>
+                    <label style={{ 
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      color: '#333',
+                      display: 'block',
+                      marginBottom: '8px'
+                    }}>
+                      Tipo de URL para el Asset:
+                    </label>
+                  </div>
+
+                  {/* Opción 1: Link temporal (1 hora) */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '12px' }}>
+                    <input
+                      type="radio"
+                      id="link-temporary"
+                      name="linkType"
+                      value="temporary"
+                      checked={linkType === 'temporary'}
+                      onChange={(e) => setLinkType('temporary')}
+                      style={{
+                        width: '18px',
+                        height: '18px',
+                        cursor: 'pointer',
+                        marginTop: '2px',
+                        accentColor: '#667eea'
+                      }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <label 
+                        htmlFor="link-temporary" 
+                        style={{ 
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: linkType === 'temporary' ? '600' : '400',
+                          color: '#333',
+                          display: 'block',
+                          marginBottom: '4px'
+                        }}
+                      >
+                        🕐 Link temporal (Microsoft Graph)
+                      </label>
+                      <p style={{ 
+                        fontSize: '12px', 
+                        color: '#666',
+                        margin: 0,
+                        lineHeight: '1.4'
+                      }}>
+                        URL válida durante 1 hora. <span style={{ color: '#dc2626' }}>⚠️ No válido para producción</span> - el link expira rápidamente.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Opción 2: Sharing Link Público (recomendado) */}
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'flex-start', 
+                    gap: '10px', 
+                    marginBottom: '12px',
+                    padding: '8px',
+                    backgroundColor: linkType === 'sharing' ? '#eff6ff' : 'transparent',
+                    borderRadius: '4px',
+                    border: linkType === 'sharing' ? '1px solid #3b82f6' : '1px solid transparent'
+                  }}>
+                    <input
+                      type="radio"
+                      id="link-sharing"
+                      name="linkType"
+                      value="sharing"
+                      checked={linkType === 'sharing'}
+                      onChange={(e) => setLinkType('sharing')}
+                      style={{
+                        width: '18px',
+                        height: '18px',
+                        cursor: 'pointer',
+                        marginTop: '2px',
+                        accentColor: '#667eea'
+                      }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <label 
+                        htmlFor="link-sharing" 
+                        style={{ 
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: linkType === 'sharing' ? '600' : '400',
+                          color: '#333',
+                          display: 'block',
+                          marginBottom: '4px'
+                        }}
+                      >
+                        🌐 Sharing Link Público <span style={{ color: '#059669', fontSize: '12px' }}>✓ Recomendado</span>
+                      </label>
+                      <p style={{ 
+                        fontSize: '12px', 
+                        color: '#666',
+                        margin: 0,
+                        lineHeight: '1.4'
+                      }}>
+                        URL pública válida durante <strong>1 año</strong>. Compatible con EDC DataPlane - descarga directa sin autenticación. <span style={{ color: '#059669' }}>✓ Ideal para producción</span>.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Opción 3: Proxy (requiere despliegue en Kubernetes) */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                    <input
+                      type="radio"
+                      id="link-proxy"
+                      name="linkType"
+                      value="proxy"
+                      checked={linkType === 'proxy'}
+                      onChange={(e) => setLinkType('proxy')}
+                      style={{
+                        width: '18px',
+                        height: '18px',
+                        cursor: 'pointer',
+                        marginTop: '2px',
+                        accentColor: '#667eea'
+                      }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <label 
+                        htmlFor="link-proxy" 
+                        style={{ 
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: linkType === 'proxy' ? '600' : '400',
+                          color: '#333',
+                          display: 'block',
+                          marginBottom: '4px'
+                        }}
+                      >
+                        🔒 Proxy Autenticado
+                      </label>
+                      <p style={{ 
+                        fontSize: '12px', 
+                        color: '#666',
+                        margin: 0,
+                        lineHeight: '1.4'
+                      }}>
+                        URL interna del proxy. <span style={{ color: '#dc2626' }}>⚠️ Requiere despliegue en Kubernetes</span>. Mayor control y seguridad.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Footer buttons */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
                 <button
@@ -1369,6 +1573,9 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                     setAssetDescription('');
                     setAssetUrlType('pdf');
                     setCustomUrl('');
+                    setSharePointUrl('');
+                    setSharePointItemName('');
+                    setLinkType('sharing'); // Reset to recommended option
                   }}
                   style={{
                     padding: '8px 16px',

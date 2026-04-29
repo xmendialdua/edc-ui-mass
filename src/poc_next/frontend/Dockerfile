@@ -24,7 +24,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Accept build arguments for all NEXT_PUBLIC_* variables
-ARG NEXT_PUBLIC_API_URL=http://localhost:5001
+ARG NEXT_PUBLIC_API_URL=""
 ARG NEXT_PUBLIC_APP_NAME="POC Next Dashboard"
 ARG NEXT_PUBLIC_APP_VERSION="0.1.0"
 ARG NEXT_PUBLIC_AZURE_CLIENT_ID=""

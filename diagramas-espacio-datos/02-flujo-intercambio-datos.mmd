@@ -1,0 +1,37 @@
+sequenceDiagram
+    participant C as 🏢 Consumidor
+    participant CEDC as EDC Connector<br/>Consumer
+    participant IAM as 🔐 IAM/SSI
+    participant PEDC as EDC Connector<br/>Provider
+    participant P as 🏭 Proveedor
+    
+    Note over C,P: FASE 1: DESCUBRIMIENTO
+    C->>CEDC: Buscar datos disponibles
+    CEDC->>PEDC: Consultar catálogo
+    PEDC->>CEDC: Listado de Assets
+    CEDC->>C: Mostrar datos disponibles
+    
+    Note over C,P: FASE 2: AUTENTICACIÓN
+    CEDC->>IAM: Validar identidad
+    IAM->>CEDC: Credencial verificada
+    PEDC->>IAM: Validar identidad
+    IAM->>PEDC: Credencial verificada
+    
+    Note over C,P: FASE 3: NEGOCIACIÓN
+    C->>CEDC: Solicitar acceso a datos
+    CEDC->>PEDC: Iniciar negociación
+    PEDC->>PEDC: Evaluar políticas
+    PEDC->>CEDC: Propuesta de contrato
+    CEDC->>C: Términos del contrato
+    C->>CEDC: Aceptar contrato
+    CEDC->>PEDC: Confirmar acuerdo
+    PEDC->>CEDC: Contrato firmado
+    
+    Note over C,P: FASE 4: TRANSFERENCIA
+    CEDC->>PEDC: Solicitar transferencia
+    PEDC->>P: Obtener datos
+    P->>PEDC: Datos preparados
+    PEDC->>CEDC: Transferencia segura
+    CEDC->>C: Datos disponibles
+    
+    Note over C,P: ✅ Intercambio completado con soberanía de datos

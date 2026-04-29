@@ -1,5 +1,6 @@
 /**
  * Layout for SharePoint Data Browser
+ * Authentication is provided by the root layout
  */
 
 export const metadata = {

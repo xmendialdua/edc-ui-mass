@@ -57,6 +57,7 @@ app.add_middleware(
         "http://localhost:3020",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3020",
+        "https://ds-management.51.178.94.25.nip.io",  # Production HTTPS
     ],
     allow_credentials=True,
     allow_methods=["*"],

@@ -1,0 +1,16 @@
+src/poc/venv
+src/poc/__pycache__
+src/poc/api/__pycache__
+src/poc/api/routes/__pycache__
+src/poc/clients/__pycache__
+src/poc/services/__pycache__
+src/poc_next/backend/venv
+src/poc_next/frontend/venv
+src/poc_next/backend.log
+src/poc_next/frontend.log
+src/poc_next/.backend.pid
+src/poc_next/.frontend.pid
+
+# Environment files with secrets
+*.env
+!*.env.example

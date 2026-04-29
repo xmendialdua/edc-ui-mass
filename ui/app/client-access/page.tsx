@@ -173,40 +173,6 @@ export default function ClientAccessPage() {
 
       {/* Main Content */}
       <div className="flex-1 p-6 pt-24 pb-20">
-        {/* Botones de login rápido - superior derecha */}
-        {!isLoggedIn && (
-          <div className="fixed top-20 right-6 z-40 flex flex-col gap-2 w-48">
-            <Button
-              onClick={() => handleQuickLogin("Ikerlan")}
-              size="sm"
-              className="bg-lime-600 hover:bg-lime-700 text-white"
-            >
-              Log In as Ikerlan
-            </Button>
-            <Button
-              onClick={() => handleQuickLogin("Ederlan")}
-              size="sm"
-              className="bg-lime-600 hover:bg-lime-700 text-white"
-            >
-              Log In as Ederlan
-            </Button>
-            <Button
-              onClick={() => handleQuickLogin("Gestamp")}
-              size="sm"
-              className="bg-lime-600 hover:bg-lime-700 text-white"
-            >
-              Log In as Gestamp
-            </Button>
-            <Button
-              onClick={() => handleQuickLogin("Bexen")}
-              size="sm"
-              className="bg-lime-600 hover:bg-lime-700 text-white"
-            >
-              Log In as Bexen
-            </Button>
-          </div>
-        )}
-
         {/* Success message */}
         {successMessage && (
           <div className="mb-6 p-4 bg-lime-50 border border-lime-200 text-lime-700 rounded-md flex items-center">
@@ -226,6 +192,47 @@ export default function ClientAccessPage() {
         {!isLoggedIn ? (
           // Login Form
           <div className="max-w-md mx-auto mt-20">
+            {/* Logo de Ikerlan centrado */}
+            <div className="flex justify-center mb-6">
+              <div className="h-16 w-48 relative">
+                <Image
+                  src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Ikerlan_BRTA_V2-kEfpkdzKLTDdzKZuFRUfTexpzGyQMk.png"
+                  alt="Ikerlan Logo"
+                  fill
+                  style={{ objectFit: "contain" }}
+                  priority
+                />
+              </div>
+            </div>
+
+            {/* Botones de login rápido */}
+            <div className="flex flex-col gap-3 mb-6">
+              <Button
+                onClick={() => handleQuickLogin("Ikerlan")}
+                className="w-full bg-lime-600 hover:bg-lime-700 text-white"
+              >
+                Log In as Ikerlan
+              </Button>
+              <Button
+                onClick={() => handleQuickLogin("Ederlan")}
+                className="w-full bg-lime-600 hover:bg-lime-700 text-white"
+              >
+                Log In as Ederlan
+              </Button>
+              <Button
+                onClick={() => handleQuickLogin("Gestamp")}
+                className="w-full bg-lime-600 hover:bg-lime-700 text-white"
+              >
+                Log In as Gestamp
+              </Button>
+              <Button
+                onClick={() => handleQuickLogin("Bexen")}
+                className="w-full bg-lime-600 hover:bg-lime-700 text-white"
+              >
+                Log In as Bexen
+              </Button>
+            </div>
+
             <Card className="border-t-4 border-t-lime-500">
               <CardHeader>
                 <CardTitle className="text-2xl text-center">Sign In</CardTitle>

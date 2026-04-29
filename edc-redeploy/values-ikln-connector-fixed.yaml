@@ -1,0 +1,127 @@
+# #############################################################################
+# Configuración EDC Ikerlan - CORREGIDA para IATP
+# BPN: BPNL00000002IKLN
+# CAMBIOS CRÍTICOS:
+# - DID apunta al DSP endpoint del conector (no al wallet)
+# - EDC_IAM_DID_WEB_USE_HTTPS: true (para HTTPS)
+# #############################################################################
+---
+
+tractusx-connector:
+  nameOverride: ikln-edc
+  participant:
+    id: BPNL00000002IKLN
+  customCaCerts:
+    tractus-x-ca.crt: |
+      -----BEGIN CERTIFICATE-----
+      MIIDZjCCAk6gAwIBAgIQQ1Ar6jsciDa8xi9p5lJI5jANBgkqhkiG9w0BAQsFADBN
+      MQswCQYDVQQGEwJERTETMBEGA1UECBMKU29tZS1TdGF0ZTELMAkGA1UEChMCQ1gx
+      HDAaBgNVBAMTEzUxLjE3OC45NC4yNS5uaXAuaW8wHhcNMjYwMjEzMTExODEzWhcN
+      MjYwNTE0MTExODEzWjBNMQswCQYDVQQGEwJERTETMBEGA1UECBMKU29tZS1TdGF0
+      ZTELMAkGA1UEChMCQ1gxHDAaBgNVBAMTEzUxLjE3OC45NC4yNS5uaXAuaW8wggEi
+      MA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDIJG+ehEIqnF/Q0DvqLtbDY2Uc
+      UYo/fOObpGBXWoUx5+H9EsMkg5xJLrpl5jPdj/RGODFYlLiuYNYC8hjzUq1dy9BE
+      7cj5EPZqDq0XbrDYYOy01hQXP+/M87wAJnx5AOeFs/8kdbRB0CAwIxzJwFHKpDoe
+      oiWtcMsqbxFk0odU0yNBgcKl/KuMQg6vc13pBR5PtQ/aFkwP0ZVEhXtVfDULkIu9
+      YEndMATjGNDP4M06MFpMzNXMKqp2+WuJ5l0dvdx2EUuR8koYALF1/GgujIQcKwBi
+      pE1hPeE/RfZhR16gRJ08+8RoyceG+OTxiMpr7PXKzXc+ukk1xyuv9MR/cpNHAgMB
+      AAGjQjBAMA4GA1UdDwEB/wQEAwICpDAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQW
+      BBTko6abcqexErAVKJEB0ysBxxRIGzANBgkqhkiG9w0BAQsFAAOCAQEAlLSzDqmR
+      SvutZg1JUDbsVYsWWN00XWetF4Fr/vkbOp0uE3X3HattTVLnlkcCMFVeZoXixrAs
+      feh+0FsdkhmAYHANvq8xKc5fbec6L+We/o9bpm/tvJc7ltU/lp6rbzGCpgGsySl/
+      jo9D5tyBMrw2TrwmudU8Sso6w6Kn4c6VosV9ue3PCBrmp0qctitbDXLUyYRWPvX5
+      DMoZAHrslVIsRUWbMyrEHRgtvCVXkHK1L/gUNoqgJ4Ktfy1XUuEIAKsn7FWduu+v
+      Xts6ixbTdQ889ZjyYhyq0DR28vJqPK5KfBZu+CddNfnIm0qU0W2BeqNh5HWxRRes
+      BrqG67ox2NSS5A==
+      -----END CERTIFICATE-----
+  iatp:
+    # ✅ DID apunta al wallet stub (como indica documentación oficial)
+    id: did:web:ssi-dim-wallet-stub.51.178.94.25.nip.io:BPNL00000002IKLN
+    trustedIssuers:
+      - did:web:ssi-dim-wallet-stub.51.178.94.25.nip.io:BPNL00000003CRHK
+    sts:
+      dim:
+        url: http://ssi-dim-wallet-service.portal.svc.cluster.local:8080/api/sts
+      oauth:
+        token_url: http://ssi-dim-wallet-service.portal.svc.cluster.local:8080/oauth/token
+        client:
+          id: BPNL00000002IKLN
+          secret_alias: edc-wallet-secret
+  controlplane:
+    env:
+      TX_IAM_IATP_CREDENTIALSERVICE_URL: http://ssi-dim-wallet-service.portal.svc.cluster.local:8080/api
+      # ✅ CORREGIDO: true para resolver DIDs via HTTPS
+      EDC_IAM_DID_WEB_USE_HTTPS: "true"
+    bdrs:
+      server:
+        url: http://bdrs-server.portal.svc.cluster.local:8082/api/directory
+    endpoints:
+      management:
+        authKey: ikln-api-key-change-in-production
+    ingresses:
+      - enabled: true
+        hostname: "edc-ikln-control.51.178.94.25.nip.io"
+        endpoints:
+          - default
+          - protocol
+          - management
+        className: "nginx"
+        tls:
+          enabled: true
+          secretName: "edc-ikln-control-tls"
+  dataplane:
+    env:
+      TX_IAM_IATP_CREDENTIALSERVICE_URL: http://ssi-dim-wallet-service.portal.svc.cluster.local:8080/api
+      # ✅ CORREGIDO: true para resolver DIDs via HTTPS
+      EDC_IAM_DID_WEB_USE_HTTPS: "true"
+    ingresses:
+      - enabled: true
+        hostname: "edc-ikln-data.51.178.94.25.nip.io"
+        endpoints:
+          - default
+          - public
+        className: "nginx"
+        tls:
+          enabled: true
+          secretName: "edc-ikln-data-tls"
+    token:
+      signer:
+        privatekey_alias: tokenSignerPrivateKey
+      verifier:
+        publickey_alias: tokenSignerPublicKey
+  postgresql:
+    nameOverride: postgresql
+    jdbcUrl: "jdbc:postgresql://{{ .Release.Name }}-postgresql:5432/edc"
+    auth:
+      password: "dbpassworddataconsumerone"
+      postgresPassword: "dbpassworddataconsumerone"
+  vault:
+    hashicorp:
+      url: http://{{ .Release.Name }}-vault:8200
+      token: "root"
+      paths:
+        secret: "/v1/secret"
+        folder: ""  
+    secretNames:
+      transferProxyTokenSignerPrivateKey: tokenSignerPrivateKey
+      transferProxyTokenSignerPublicKey: tokenSignerPublicKey
+      transferProxyTokenEncryptionAesKey: tokenEncryptionAesKey
+
+vault:
+  enabled: true
+  server:
+    standalone:
+      enabled: true
+    dev:
+      enabled: true
+      devRootToken: "root"
+  nameOverride: vault
+  fullnameOverride: ""
+
+postgresql:
+  enabled: true
+  auth:
+    database: "edc"
+    username: "user"
+    password: "dbpassworddataconsumerone"
+    postgresPassword: "dbpassworddataconsumerone"

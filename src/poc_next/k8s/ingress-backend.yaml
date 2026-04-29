@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: poc-next-backend
+  namespace: ds-management-ui
+  annotations:
+    # NO rewrite: el backend FastAPI espera las rutas con /api
+    # Desactivar redirección SSL
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Configurar timeouts para operaciones largas (descargas, transferencias EDC)
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+      - ds-management.51.178.94.25.nip.io
+    secretName: ds-management-tls
+  rules:
+  - host: ds-management.51.178.94.25.nip.io
+    http:
+      paths:
+      # Ruta para el backend API
+      # /api/health -> /api/health en el backend
+      # /api/phase1/... -> /api/phase1/... en el backend
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: poc-next-backend
+            port:
+              number: 5001

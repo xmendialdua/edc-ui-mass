@@ -13,9 +13,10 @@ Environment Variables:
 """
 
 import os
+import base64
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 from enum import Enum
 
@@ -348,6 +349,101 @@ class SharePointGateway:
         except requests.HTTPError as error:
             print(f"Error getting download URL: {error}")
             print(f"Response: {error.response.text if error.response else 'No response'}")
+            raise
+    
+    def create_public_download_link(
+        self,
+        drive_id: str,
+        item_id: str,
+        expiration_days: int = 365
+    ) -> str:
+        """
+        Create a public sharing link and return a direct download URL.
+        
+        This method performs two steps:
+        1. Creates a public sharing link (anonymous access)
+        2. Converts it to a direct download URL via Microsoft Graph
+        
+        The resulting URL:
+        - Does NOT require authentication
+        - Can be used directly by EDC DataPlane
+        - Is valid for the specified expiration period
+        - Downloads the file content directly (binary)
+        
+        Args:
+            drive_id: SharePoint drive ID
+            item_id: File item ID
+            expiration_days: Number of days until link expires (default: 365)
+            
+        Returns:
+            Public download URL that can be used without authentication
+            Format: https://graph.microsoft.com/v1.0/shares/u!{token}/driveItem/content
+            
+        Raises:
+            requests.HTTPError: If the API request fails
+            ValueError: If the response doesn't contain expected data
+            
+        Note:
+            Requires Sites.ReadWrite.All permission in Azure AD
+        """
+        try:
+            # STEP 1: Create public sharing link
+            endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{drive_id}/items/{item_id}/createLink"
+            
+            # Calculate expiration date
+            expiration = datetime.now() + timedelta(days=expiration_days)
+            
+            payload = {
+                "type": "view",  # Read-only access
+                "scope": "anonymous",  # Public access, no login required
+                "expirationDateTime": expiration.isoformat() + "Z"
+            }
+            
+            print(f"Creating public sharing link (expires in {expiration_days} days)...")
+            response = self.session.post(endpoint, json=payload)
+            response.raise_for_status()
+            
+            data = response.json()
+            sharing_url = data.get("link", {}).get("webUrl")
+            
+            if not sharing_url:
+                raise ValueError("No sharing URL in response")
+            
+            print(f"✅ Sharing link created: {sharing_url[:50]}...")
+            
+            # STEP 2: Convert to direct download URL
+            # Encode the sharing URL in base64 URL-safe format (without padding)
+            encoded = base64.urlsafe_b64encode(sharing_url.encode()).decode().rstrip('=')
+            
+            # Construct Microsoft Graph download URL
+            # This URL is publicly accessible and returns file content directly
+            download_url = f"https://graph.microsoft.com/v1.0/shares/u!{encoded}/driveItem/content"
+            
+            print(f"✅ Direct download URL generated")
+            print(f"   URL: {download_url[:80]}...")
+            print(f"   Expiration: {expiration.strftime('%Y-%m-%d %H:%M:%S')}")
+            
+            return download_url
+            
+        except requests.HTTPError as error:
+            print(f"❌ Error creating sharing link: {error}")
+            
+            # Try to get detailed error message
+            try:
+                error_detail = error.response.json()
+                print(f"Response error detail: {error_detail}")
+                if 'error' in error_detail:
+                    error_msg = error_detail['error'].get('message', 'Unknown error')
+                    error_code = error_detail['error'].get('code', 'Unknown code')
+                    print(f"Microsoft Graph Error [{error_code}]: {error_msg}")
+                    
+                    # Common error: Missing Sites.ReadWrite.All permission
+                    if "AccessDenied" in error_code or "Forbidden" in str(error):
+                        print("💡 Tip: Ensure Azure AD app has Sites.ReadWrite.All permission")
+                        print("   and Admin Consent has been granted")
+            except:
+                print(f"Response: {error.response.text if error.response else 'No response'}")
+            
             raise
     
     def download_file_to_path(

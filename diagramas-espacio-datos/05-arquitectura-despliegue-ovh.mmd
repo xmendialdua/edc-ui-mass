@@ -1,0 +1,149 @@
+graph TB
+    subgraph "🏢 RED CORPORATIVA MONDRAGON ASSEMBLY"
+        SP[📁 SharePoint<br/>Documentación Técnica<br/>Manuales, Planos, etc.]
+        MASSNET[Red Interna<br/>Mondragon Assembly]
+        
+        SP --> MASSNET
+    end
+    
+    subgraph "☁️ CLOUD OVH - Kubernetes Cluster (51.178.94.25)"
+        subgraph "🌐 TRACTUS-X UMBRELLA - Core Services"
+            TXPORTAL[🏠 Portal Tractus-X<br/>Gestión del Espacio]
+            IAM[🔐 Central IDP<br/>Identity & Access Management<br/>centralidp.51.178.94.25.nip.io]
+            REG[📋 Portal Backend<br/>Catálogo de Participantes<br/>BPNs Registry]
+            POLICY[📜 Policy Hub<br/>Marco de Políticas]
+            DISCOVERY[🔍 Discovery Service<br/>Búsqueda de Conectores]
+            
+            TXPORTAL --> IAM
+            TXPORTAL --> REG
+            TXPORTAL --> POLICY
+        end
+        
+        subgraph "🌐 INGRESS NGINX"
+            ING[Ingress Controller<br/>Punto de entrada HTTP/HTTPS]
+        end
+        
+        subgraph "📦 EDC CONNECTOR - MONDRAGON ASSEMBLY"
+            MASSCP[🏭 Control Plane<br/>BPNL00000000MASS<br/>edc-mass-control.51.178.94.25.nip.io]
+            MASSDP[Data Plane<br/>edc-mass-data.51.178.94.25.nip.io]
+            MASSWALLET[SSI DIM Wallet<br/>Credenciales MASS]
+            MASSDB[(PostgreSQL<br/>Metadata Connector)]
+            
+            MASSCP --> MASSDP
+            MASSCP --> MASSDB
+            MASSWALLET -.->|Autenticación| MASSCP
+        end
+        
+        subgraph "📦 EDC CONNECTOR - IKERLAN (Cliente 1)"
+            IKLNCP[🏢 Control Plane<br/>BPNL00000002IKLN<br/>edc-ikln-control.51.178.94.25.nip.io]
+            IKLNDP[Data Plane<br/>edc-ikln-data.51.178.94.25.nip.io]
+            IKLNWALLET[SSI DIM Wallet<br/>Credenciales IKLN]
+            IKLNDB[(PostgreSQL<br/>Metadata Connector)]
+            
+            IKLNCP --> IKLNDP
+            IKLNCP --> IKLNDB
+            IKLNWALLET -.->|Autenticación| IKLNCP
+        end
+        
+        subgraph "📦 EDC CONNECTOR - CLIENTE N (Replicable)"
+            CLIENTCP[🏢 Control Plane<br/>BPNL00000000XXXX<br/>edc-clientN-control.51.178.94.25.nip.io]
+            CLIENTDP[Data Plane<br/>edc-clientN-data.51.178.94.25.nip.io]
+            CLIENTWALLET[SSI DIM Wallet<br/>Credenciales Cliente N]
+            CLIENTDB[(PostgreSQL<br/>Metadata Connector)]
+            
+            CLIENTCP --> CLIENTDP
+            CLIENTCP --> CLIENTDB
+            CLIENTWALLET -.->|Autenticación| CLIENTCP
+        end
+        
+        subgraph "🖥️ INTERFACES DE USUARIO"
+            DASHBOARD[📊 Dashboard Provider<br/>Mondragon Assembly<br/>Publicación de Assets<br/>Gestión de Catálogo<br/>edc-ui.51.178.94.25.nip.io]
+            PORTAL[🌐 Portal Consumer<br/>Acceso Clientes<br/>Búsqueda de Catálogo<br/>Negociación y Descarga<br/>edc-ui.51.178.94.25.nip.io]
+            
+            DASHBOARD -.->|Misma UI<br/>Modo Provider| PORTAL
+        end
+        
+        subgraph "🔒 SEGURIDAD & CONFIGURACIÓN"
+            CRTS[Certificados TLS/SSL<br/>Kubernetes Secrets]
+            APIKEYS[API Keys<br/>Gestión Conectores]
+            CONFIGS[ConfigMaps<br/>Variables de Entorno]
+        end
+    end
+    
+    subgraph "🌍 USUARIOS FINALES"
+        ADMIN[👤 Admin Mondragon<br/>Publica Documentos SharePoint<br/>Crea Assets y Políticas]
+        CLIENT1[👤 Usuario Ikerlan<br/>Busca y Descarga Documentos<br/>Negocia Contratos]
+        CLIENTN[👤 Usuario Cliente N<br/>Busca y Descarga Documentos<br/>Negocia Contratos]
+    end
+    
+    %% Conexión entre redes (OVH <-> Mondragon)
+    MASSNET ==>|VPN/Túnel Seguro<br/>Acceso a SharePoint| MASSDP
+    
+    %% Acceso de usuarios a través de Ingress
+    ADMIN -->|HTTPS<br/>Modo Provider| ING
+    CLIENT1 -->|HTTPS<br/>Modo Consumer| ING
+    CLIENTN -->|HTTPS<br/>Modo Consumer| ING
+    ING --> DASHBOARD
+    ING --> PORTAL
+    ING --> TXPORTAL
+    
+    %% Dashboard Mondragon gestiona conector Provider
+    DASHBOARD -->|Management API<br/>Publica Assets| MASSCP
+    DASHBOARD -->|Configura Carpetas<br/>SharePoint| MASSCP
+    
+    %% Portal Clientes gestionan sus conectores Consumer
+    PORTAL -->|Management API<br/>Consulta Catálogo| IKLNCP
+    PORTAL -->|Management API<br/>Consulta Catálogo| CLIENTCP
+    
+    %% Registro en Tractus-X
+    REG -.->|Registra BPN| MASSCP
+    REG -.->|Registra BPN| IKLNCP
+    REG -.->|Registra BPN| CLIENTCP
+    
+    %% Validación de identidad con IAM
+    MASSCP -.->|OAuth2/OIDC<br/>Verificación| IAM
+    IKLNCP -.->|OAuth2/OIDC<br/>Verificación| IAM
+    CLIENTCP -.->|OAuth2/OIDC<br/>Verificación| IAM
+    
+    %% Discovery Service
+    DISCOVERY -.->|Publica Endpoint| MASSCP
+    DISCOVERY -.->|Descubre Conectores| IKLNCP
+    DISCOVERY -.->|Descubre Conectores| CLIENTCP
+    
+    %% Flujo de intercambio: Ikerlan -> Mondragon
+    IKLNCP -->|1. Consulta Catálogo DSP| MASSCP
+    MASSCP -->|2. Retorna Assets<br/>Documentos SharePoint| IKLNCP
+    IKLNCP -->|3. Negocia Contrato| MASSCP
+    MASSCP -.->|Valida Políticas| POLICY
+    MASSCP -->|4. Firma Contrato| IKLNCP
+    MASSDP ==>|5. Transferencia Documento<br/>desde SharePoint via HTTP DSP| IKLNDP
+    
+    %% Flujo de intercambio: Cliente N -> Mondragon
+    CLIENTCP -->|1. Consulta Catálogo DSP| MASSCP
+    MASSCP -->|2. Retorna Assets<br/>Documentos SharePoint| CLIENTCP
+    CLIENTCP -->|3. Negocia Contrato| MASSCP
+    MASSCP -->|4. Firma Contrato| CLIENTCP
+    MASSDP ==>|5. Transferencia Documento<br/>desde SharePoint via HTTP DSP| CLIENTDP
+    
+    %% Seguridad
+    CRTS -.->|TLS/SSL| ING
+    APIKEYS -.->|Autenticación| DASHBOARD
+    APIKEYS -.->|Autenticación| PORTAL
+    CONFIGS -.->|Configuración| DASHBOARD
+    CONFIGS -.->|Configuración| PORTAL
+    
+    %% Estilos
+    style SP fill:#fff9c4,stroke:#f57f17,stroke-width:4px
+    style MASSNET fill:#fff9c4,stroke:#f57f17,stroke-width:2px
+    style TXPORTAL fill:#e1bee7,stroke:#6a1b9a,stroke-width:2px
+    style IAM fill:#ffcdd2,stroke:#c62828,stroke-width:2px
+    style REG fill:#d1c4e9,stroke:#512da8,stroke-width:2px
+    style POLICY fill:#fff9a5,stroke:#f9a825,stroke-width:2px
+    style DISCOVERY fill:#b2dfdb,stroke:#00695c,stroke-width:2px
+    style DASHBOARD fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
+    style PORTAL fill:#ffab91,stroke:#d84315,stroke-width:3px
+    style MASSCP fill:#a5d6a7,stroke:#2e7d32,stroke-width:3px
+    style IKLNCP fill:#ffccbc,stroke:#d84315,stroke-width:2px
+    style CLIENTCP fill:#ffccbc,stroke:#d84315,stroke-width:2px,stroke-dasharray: 5 5
+    style ING fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style CRTS fill:#ffebee,stroke:#b71c1c,stroke-width:2px
