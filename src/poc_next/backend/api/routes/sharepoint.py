@@ -204,7 +204,7 @@ async def download_file(
     Download a file from SharePoint.
     
     Args:
-        file_id: ID of the file to download
+        file_id: ID of the file to download, can be in format "drive_id|item_id" or just "item_id"
         authorization: Bearer token for Microsoft Graph API
         drive_id: Optional SharePoint drive ID (uses default if not provided)
         
@@ -214,11 +214,22 @@ async def download_file(
     try:
         gateway = get_gateway(authorization)
         
-        logger.info(f"Downloading file_id={file_id}, drive_id={drive_id}")
+        # Parse composite file_id if it contains drive_id|item_id format
+        if '|' in file_id:
+            parsed_drive_id, item_id = file_id.split('|', 1)
+            # Use parsed drive_id if explicit drive_id not provided
+            if not drive_id:
+                drive_id = parsed_drive_id
+            file_id = item_id
+            logger.info(f"Parsed composite ID: drive_id={drive_id}, item_id={item_id}")
+        else:
+            item_id = file_id
+        
+        logger.info(f"Downloading file_id={item_id}, drive_id={drive_id}")
         
         file_content, filename = gateway.download_file(
-            file_id=file_id,
-            drive_id=drive_id
+            drive_id=drive_id,
+            item_id=item_id
         )
         
         return StreamingResponse(

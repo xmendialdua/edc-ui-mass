@@ -14,3 +14,5 @@ src/poc_next/.frontend.pid
 # Environment files with secrets
 *.env
 !*.env.example
+src/poc_next/backend/.env
+src/poc_next/frontend/.env

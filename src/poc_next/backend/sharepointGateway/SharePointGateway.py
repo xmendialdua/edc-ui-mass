@@ -276,14 +276,14 @@ class SharePointGateway:
     
     def download_file(
         self,
-        drive_id: str,
+        drive_id: Optional[str],
         item_id: str
     ) -> Tuple[bytes, str]:
         """
         Download a file from SharePoint
         
         Args:
-            drive_id: SharePoint drive ID
+            drive_id: SharePoint drive ID (uses default_drive_id if None)
             item_id: File item ID
             
         Returns:
@@ -291,17 +291,23 @@ class SharePointGateway:
             
         Raises:
             requests.HTTPError: If the API request fails
+            ValueError: If drive_id is None and no default_drive_id is set
         """
+        # Use default drive ID if not provided
+        effective_drive_id = drive_id or self.default_drive_id
+        if not effective_drive_id:
+            raise ValueError("drive_id must be provided or default_drive_id must be set")
+        
         try:
             # First get file metadata to get the filename
-            metadata_endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{drive_id}/items/{item_id}"
+            metadata_endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{effective_drive_id}/items/{item_id}"
             metadata_response = self.session.get(metadata_endpoint)
             metadata_response.raise_for_status()
             metadata = metadata_response.json()
             filename = metadata.get('name', 'download')
             
             # Then download the content
-            content_endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{drive_id}/items/{item_id}/content"
+            content_endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{effective_drive_id}/items/{item_id}/content"
             response = self.session.get(content_endpoint)
             response.raise_for_status()
             
@@ -473,14 +479,14 @@ class SharePointGateway:
     
     def get_file_metadata(
         self,
-        drive_id: str,
+        drive_id: Optional[str],
         item_id: str
     ) -> SharePointFile:
         """
         Get metadata for a specific file or folder
         
         Args:
-            drive_id: SharePoint drive ID
+            drive_id: SharePoint drive ID (uses default_drive_id if None)
             item_id: File or folder item ID
             
         Returns:
@@ -488,9 +494,15 @@ class SharePointGateway:
             
         Raises:
             requests.HTTPError: If the API request fails
+            ValueError: If drive_id is None and no default_drive_id is set
         """
+        # Use default drive ID if not provided
+        effective_drive_id = drive_id or self.default_drive_id
+        if not effective_drive_id:
+            raise ValueError("drive_id must be provided or default_drive_id must be set")
+        
         try:
-            endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{drive_id}/items/{item_id}"
+            endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{effective_drive_id}/items/{item_id}"
             
             response = self.session.get(endpoint)
             response.raise_for_status()

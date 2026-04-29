@@ -19,6 +19,7 @@ Endpoints:
 import os
 import base64
 import logging
+import mimetypes
 from fastapi import APIRouter, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from sharepointGateway.SharePointAuth import SharePointAuthService
@@ -149,16 +150,13 @@ async def download_sharepoint_file(encoded_file_info: str):
         gateway = SharePointGateway(access_token=access_token, default_drive_id=drive_id)
         
         try:
-            # Descargar contenido del archivo
-            file_content = gateway.download_file(file_id=item_id, drive_id=drive_id)
+            # Descargar contenido del archivo (devuelve tupla: content, filename)
+            file_content, filename = gateway.download_file(drive_id=drive_id, item_id=item_id)
             
-            # Obtener metadatos del archivo (nombre, mime type, etc.)
-            file_metadata = gateway.get_file_metadata(file_id=item_id, drive_id=drive_id)
-            
-            # Extraer información del archivo
-            filename = file_metadata.get('name', 'download')
-            file_info = file_metadata.get('file', {})
-            mime_type = file_info.get('mimeType', 'application/octet-stream')
+            # Inferir MIME type del nombre del archivo
+            mime_type, _ = mimetypes.guess_type(filename)
+            if mime_type is None:
+                mime_type = 'application/octet-stream'  # Fallback genérico
             
             file_size = len(file_content)
             logger.info(f"✅ File downloaded successfully:")
