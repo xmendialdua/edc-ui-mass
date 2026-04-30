@@ -34,6 +34,7 @@ export const loginRequest: PopupRequest = {
     'User.Read',
     'Files.Read.All',
     'Sites.Read.All',
+    'Sites.ReadWrite.All',  // Required for creating sharing links
   ],
 };
 

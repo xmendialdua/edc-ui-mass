@@ -27,6 +27,8 @@ export default function SharePointDataPage() {
   const [driveId, setDriveId] = useState<string>("");
   const [folderPath, setFolderPath] = useState<Array<{ id: string; name: string }>>([]);
   const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "authenticating" | "connected" | "error">("disconnected");
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string; url?: string } | null>(null);
+  const [testingLink, setTestingLink] = useState(false);
 
   // SharePoint Site URL from environment
   const siteUrl = process.env.NEXT_PUBLIC_SHAREPOINT_SITE_URL || "";
@@ -309,6 +311,73 @@ export default function SharePointDataPage() {
     setConnectionStatus("disconnected");
     setError(null);
     setDetailedError(null);
+    setTestResult(null);
+  };
+
+  const testCreateSharingLink = async () => {
+    if (files.length === 0) {
+      setTestResult({
+        success: false,
+        message: "No hay archivos disponibles. Carga archivos primero."
+      });
+      return;
+    }
+
+    // Seleccionar el primer archivo (no carpeta)
+    const testFile = files.find(f => !f.isFolder);
+    if (!testFile) {
+      setTestResult({
+        success: false,
+        message: "No hay archivos de prueba disponibles (solo carpetas)."
+      });
+      return;
+    }
+
+    setTestingLink(true);
+    setTestResult(null);
+
+    try {
+      // Extract drive_id and item_id
+      const [fileDriveId, fileItemId] = testFile.id.includes('|') 
+        ? testFile.id.split('|') 
+        : [driveId, testFile.id];
+
+      console.log('🧪 Testing sharing link creation:', {
+        fileName: testFile.name,
+        driveId: fileDriveId,
+        itemId: fileItemId,
+        accessToken: accessToken.substring(0, 20) + '...'
+      });
+
+      const response = await api.sharepoint.createSharingLink(
+        accessToken,
+        fileDriveId,
+        fileItemId,
+        365
+      );
+
+      if (response.success && response.download_url) {
+        setTestResult({
+          success: true,
+          message: `✅ Sharing link creado exitosamente para: ${testFile.name}`,
+          url: response.download_url
+        });
+      } else {
+        setTestResult({
+          success: false,
+          message: `❌ Error: ${response.message || 'No se pudo crear el sharing link'}`
+        });
+      }
+    } catch (err: any) {
+      console.error('❌ Test failed:', err);
+      setTestResult({
+        success: false,
+        message: `❌ Error: ${err.message || 'Error desconocido'}`,
+        url: err.response?.data?.detail || undefined
+      });
+    } finally {
+      setTestingLink(false);
+    }
   };
 
   return (
@@ -396,7 +465,96 @@ export default function SharePointDataPage() {
                   fontWeight: "500",
                   opacity: loading ? 0.5 : 1
                 }}
+          Test Panel - Sharing Link Creation */}
+      {connectionStatus === 'connected' && files.length > 0 && (
+        <div style={{
+          background: "white",
+          padding: "20px",
+          borderRadius: "12px",
+          marginBottom: "20px",
+          boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+          border: "2px solid #e0e7ff"
+        }}>
+          <div style={{ display: "flex", alignItems: "start", gap: "12px" }}>
+            <Info size={24} color="#667eea" style={{ flexShrink: 0, marginTop: "2px" }} />
+            <div style={{ flex: 1 }}>
+              <h3 style={{ margin: "0 0 10px 0", color: "#667eea", fontSize: "18px" }}>
+                🧪 Test: Crear Sharing Link Público
+              </h3>
+              <p style={{ margin: "0 0 15px 0", color: "#374151", fontSize: "14px" }}>
+                Prueba si tu Azure AD App tiene correctamente configurado el permiso <strong>Sites.ReadWrite.All</strong> 
+                creando un link público de descarga para el primer archivo de la lista.
+              </p>
+              
+              <button
+                onClick={testCreateSharingLink}
+                disabled={testingLink}
+                style={{
+                  padding: "10px 20px",
+                  background: testingLink ? "#9ca3af" : "#667eea",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: testingLink ? "not-allowed" : "pointer",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px"
+                }}
               >
+                <RefreshCw size={16} className={testingLink ? "animate-spin" : ""} />
+                {testingLink ? 'Probando...' : 'Probar Creación de Sharing Link'}
+              </button>
+
+              {testResult && (
+                <div style={{
+                  marginTop: "15px",
+                  padding: "15px",
+                  background: testResult.success ? "#f0fdf4" : "#fef2f2",
+                  border: `1px solid ${testResult.success ? "#86efac" : "#fca5a5"}`,
+                  borderRadius: "8px"
+                }}>
+                  <p style={{ 
+                    margin: "0 0 10px 0", 
+                    color: testResult.success ? "#16a34a" : "#dc2626",
+                    fontWeight: "500" 
+                  }}>
+                    {testResult.message}
+                  </p>
+                  {testResult.url && (
+                    <div style={{
+                      background: testResult.success ? "#dcfce7" : "#fee2e2",
+                      padding: "10px",
+                      borderRadius: "6px",
+                      marginTop: "10px",
+                      fontSize: "12px",
+                      wordBreak: "break-all",
+                      fontFamily: "monospace",
+                      color: testResult.success ? "#166534" : "#991b1b"
+                    }}>
+                      {testResult.url}
+                    </div>
+                  )}
+                  {!testResult.success && (
+                    <div style={{ marginTop: "10px", fontSize: "13px", color: "#7f1d1d" }}>
+                      <strong>Posibles causas:</strong>
+                      <ul style={{ margin: "5px 0", paddingLeft: "20px" }}>
+                        <li>Falta el permiso Sites.ReadWrite.All en Azure AD</li>
+                        <li>El permiso no tiene Admin Consent</li>
+                        <li>El token actual solo tiene permisos de lectura</li>
+                        <li>Es necesario cerrar sesión y volver a autenticarse</li>
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/*     >
                 Iniciar Sesión
               </button>
             ) : (
