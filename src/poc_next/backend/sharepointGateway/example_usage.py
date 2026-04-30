@@ -14,7 +14,7 @@ Prerequisites:
 """
 
 import os
-from SharePointGateway import SharePointGateway, SharePointFile
+from poc_next.backend.sharepointGateway.SharePointGateway import SharePointGateway, SharePointFile
 from typing import List
 
 
