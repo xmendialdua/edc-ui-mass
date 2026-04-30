@@ -465,7 +465,74 @@ export default function SharePointDataPage() {
                   fontWeight: "500",
                   opacity: loading ? 0.5 : 1
                 }}
-          Test Panel - Sharing Link Creation */}
+              >
+                Iniciar Sesión
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={refreshFiles}
+                  disabled={loading}
+                  style={{
+                    padding: "8px 16px",
+                    background: "#10b981",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: loading ? "not-allowed" : "pointer",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    opacity: loading ? 0.5 : 1,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px"
+                  }}
+                >
+                  <RefreshCw size={16} />
+                  Recargar
+                </button>
+                <button
+                  onClick={logout}
+                  style={{
+                    padding: "8px 16px",
+                    background: "#ef4444",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: "500"
+                  }}
+                >
+                  Cerrar Sesión
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Configuration Info */}
+        <div style={{
+          background: "#eff6ff",
+          border: "1px solid #bfdbfe",
+          borderRadius: "8px",
+          padding: "12px",
+          marginBottom: error ? "15px" : "0"
+        }}>
+          <div style={{ display: "flex", alignItems: "start", gap: "10px" }}>
+            <Info size={20} color="#3b82f6" style={{ flexShrink: 0, marginTop: "2px" }} />
+            <div style={{ fontSize: "13px", color: "#1e40af" }}>
+              <strong>Configuración Actual:</strong><br />
+              Client ID: {process.env.NEXT_PUBLIC_AZURE_CLIENT_ID?.substring(0, 8)}...<br />
+              Tenant ID: {process.env.NEXT_PUBLIC_AZURE_TENANT_ID?.substring(0, 8)}...<br />
+              Redirect URI: {process.env.NEXT_PUBLIC_AZURE_REDIRECT_URI}<br />
+              SharePoint Site: {siteUrl || "❌ No configurado"}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Test Panel - Sharing Link Creation */}
       {connectionStatus === 'connected' && files.length > 0 && (
         <div style={{
           background: "white",
@@ -553,73 +620,6 @@ export default function SharePointDataPage() {
           </div>
         </div>
       )}
-
-      {/*     >
-                Iniciar Sesión
-              </button>
-            ) : (
-              <>
-                <button
-                  onClick={refreshFiles}
-                  disabled={loading}
-                  style={{
-                    padding: "8px 16px",
-                    background: "#10b981",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: loading ? "not-allowed" : "pointer",
-                    fontSize: "14px",
-                    fontWeight: "500",
-                    opacity: loading ? 0.5 : 1,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px"
-                  }}
-                >
-                  <RefreshCw size={16} />
-                  Recargar
-                </button>
-                <button
-                  onClick={logout}
-                  style={{
-                    padding: "8px 16px",
-                    background: "#ef4444",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "500"
-                  }}
-                >
-                  Cerrar Sesión
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Configuration Info */}
-        <div style={{
-          background: "#eff6ff",
-          border: "1px solid #bfdbfe",
-          borderRadius: "8px",
-          padding: "12px",
-          marginBottom: error ? "15px" : "0"
-        }}>
-          <div style={{ display: "flex", alignItems: "start", gap: "10px" }}>
-            <Info size={20} color="#3b82f6" style={{ flexShrink: 0, marginTop: "2px" }} />
-            <div style={{ fontSize: "13px", color: "#1e40af" }}>
-              <strong>Configuración Actual:</strong><br />
-              Client ID: {process.env.NEXT_PUBLIC_AZURE_CLIENT_ID?.substring(0, 8)}...<br />
-              Tenant ID: {process.env.NEXT_PUBLIC_AZURE_TENANT_ID?.substring(0, 8)}...<br />
-              Redirect URI: {process.env.NEXT_PUBLIC_AZURE_REDIRECT_URI}<br />
-              SharePoint Site: {siteUrl || "❌ No configurado"}
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Error Panel */}
       {error && (
