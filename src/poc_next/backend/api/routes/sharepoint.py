@@ -29,6 +29,7 @@ class FilesListResponse(BaseModel):
     """Response model for list of files."""
     items: List[FileItemResponse]
     count: int
+    drive_id: Optional[str] = None
 
 
 class ErrorResponse(BaseModel):
@@ -169,6 +170,11 @@ async def list_files_by_site_url(
             site_url=site_url
         )
         
+        # Extract drive_id from the first file (all files have the same drive_id)
+        drive_id = None
+        if files and '|' in files[0].id:
+            drive_id = files[0].id.split('|')[0]
+        
         items = [
             FileItemResponse(
                 id=f.id,
@@ -182,12 +188,76 @@ async def list_files_by_site_url(
             for f in files
         ]
         
-        return FilesListResponse(items=items, count=len(items))
+        return FilesListResponse(items=items, count=len(items), drive_id=drive_id)
         
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error listing files by site URL: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to list files: {str(e)}"
+        )
+
+
+@router.get("/files/by-folder", response_model=FilesListResponse)
+async def list_files_by_folder(
+    authorization: Optional[str] = Header(None),
+    folder_id: str = Query(..., description="Folder ID (can be in format drive_id|item_id)"),
+    drive_id: Optional[str] = Query(None, description="SharePoint drive ID")
+):
+    """
+    List files inside a specific folder.
+    
+    Args:
+        authorization: Bearer token for Microsoft Graph API
+        folder_id: Folder ID, can be in format "drive_id|item_id" or just "item_id"
+        drive_id: Optional SharePoint drive ID (parsed from folder_id if not provided)
+        
+    Returns:
+        List of files and folders inside the specified folder
+    """
+    try:
+        gateway = get_gateway(authorization)
+        
+        # Parse composite folder_id if it contains drive_id|item_id format
+        if '|' in folder_id:
+            parsed_drive_id, item_id = folder_id.split('|', 1)
+            # Use parsed drive_id if explicit drive_id not provided
+            if not drive_id:
+                drive_id = parsed_drive_id
+            folder_id = item_id
+            logger.info(f"Parsed composite ID: drive_id={drive_id}, item_id={item_id}")
+        else:
+            item_id = folder_id
+        
+        logger.info(f"Listing files from folder_id={item_id}, drive_id={drive_id}")
+        
+        # Get files from the folder
+        files = gateway.get_sharepoint_files(
+            drive_id=drive_id,
+            item_id=item_id
+        )
+        
+        items = [
+            FileItemResponse(
+                id=f"{drive_id}|{f.id}",  # Include drive_id in the response
+                name=f.name,
+                webUrl=f.web_url,
+                size=f.size,
+                lastModified=f.last_modified,
+                isFolder=f.is_folder,
+                folder={'childCount': f.folder.child_count} if f.folder else None
+            )
+            for f in files
+        ]
+        
+        return FilesListResponse(items=items, count=len(items), drive_id=drive_id)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing files by folder: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to list files: {str(e)}"
@@ -247,6 +317,62 @@ async def download_file(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to download file: {str(e)}"
+        )
+
+
+@router.get("/download-folder/{folder_id}")
+async def download_folder(
+    folder_id: str,
+    authorization: Optional[str] = Header(None),
+    drive_id: Optional[str] = Query(None, description="SharePoint drive ID")
+):
+    """
+    Download a folder from SharePoint as a ZIP file.
+    
+    Args:
+        folder_id: ID of the folder to download, can be in format "drive_id|item_id" or just "item_id"
+        authorization: Bearer token for Microsoft Graph API
+        drive_id: Optional SharePoint drive ID (uses default if not provided)
+        
+    Returns:
+        ZIP file containing all folder contents
+    """
+    try:
+        gateway = get_gateway(authorization)
+        
+        # Parse composite folder_id if it contains drive_id|item_id format
+        if '|' in folder_id:
+            parsed_drive_id, item_id = folder_id.split('|', 1)
+            # Use parsed drive_id if explicit drive_id not provided
+            if not drive_id:
+                drive_id = parsed_drive_id
+            folder_id = item_id
+            logger.info(f"Parsed composite ID: drive_id={drive_id}, item_id={item_id}")
+        else:
+            item_id = folder_id
+        
+        logger.info(f"Downloading folder_id={item_id}, drive_id={drive_id}")
+        
+        zip_content, zip_filename = gateway.download_folder_as_zip(
+            drive_id=drive_id,
+            folder_id=item_id
+        )
+        
+        return StreamingResponse(
+            iter([zip_content]),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{zip_filename}"'
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading folder: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to download folder: {str(e)}"
         )
 
 

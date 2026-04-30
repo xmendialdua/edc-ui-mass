@@ -24,7 +24,8 @@ export default function SharePointDataPage() {
   const [error, setError] = useState<string | null>(null);
   const [detailedError, setDetailedError] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string>("");
-  const [folderPath, setFolderPath] = useState<string[]>([]);
+  const [driveId, setDriveId] = useState<string>("");
+  const [folderPath, setFolderPath] = useState<Array<{ id: string; name: string }>>([]);
   const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "authenticating" | "connected" | "error">("disconnected");
 
   // SharePoint Site URL from environment
@@ -106,6 +107,8 @@ export default function SharePointDataPage() {
       );
 
       setFiles(response.items);
+      setDriveId(response.drive_id || "");
+      setFolderPath([]);
       setConnectionStatus("connected");
     } catch (err: any) {
       console.error("Error fetching files:", err);
@@ -189,15 +192,62 @@ export default function SharePointDataPage() {
   };
 
   const openFolder = async (folder: SharePointFile) => {
-    // TODO: Implement folder navigation with item_id instead of path
-    console.log('Folder navigation not yet implemented:', folder.name);
-    return;
+    if (!folder.isFolder) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Navigate into folder
+      const response = await api.sharepoint.listFilesByFolder(
+        accessToken,
+        folder.id,
+        driveId
+      );
+      
+      setFiles(response.items);
+      setFolderPath([...folderPath, { id: folder.id, name: folder.name }]);
+      setLoading(false);
+    } catch (err: any) {
+      console.error("Error opening folder:", err);
+      setError(`Error al abrir carpeta: ${err.message}`);
+      setLoading(false);
+    }
   };
 
   const goToParentFolder = async () => {
-    // TODO: Implement folder navigation
-    console.log('Parent folder navigation not yet implemented');
-    return;
+    if (folderPath.length === 0) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      
+      if (folderPath.length === 1) {
+        // Go back to root
+        const response = await api.sharepoint.listFilesBySiteUrl(
+          accessToken,
+          siteUrl
+        );
+        setFiles(response.items);
+        setFolderPath([]);
+      } else {
+        // Go back to parent folder
+        const parentFolder = folderPath[folderPath.length - 2];
+        const response = await api.sharepoint.listFilesByFolder(
+          accessToken,
+          parentFolder.id,
+          driveId
+        );
+        setFiles(response.items);
+        setFolderPath(folderPath.slice(0, -1));
+      }
+      
+      setLoading(false);
+    } catch (err: any) {
+      console.error("Error going to parent folder:", err);
+      setError(`Error al navegar: ${err.message}`);
+      setLoading(false);
+    }
   };
 
   const downloadFile = async (file: SharePointFile) => {
@@ -221,6 +271,32 @@ export default function SharePointDataPage() {
       document.body.removeChild(a);
     } catch (err: any) {
       setError(`Error al descargar: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadFolder = async (folder: SharePointFile) => {
+    if (!folder.isFolder) return;
+
+    try {
+      setLoading(true);
+      const { blob, filename } = await api.sharepoint.downloadFolder(
+        accessToken,
+        folder.id
+      );
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      setError(`Error al descargar carpeta: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -490,8 +566,31 @@ export default function SharePointDataPage() {
 
           {/* Breadcrumb */}
           {folderPath.length > 0 && (
-            <div style={{ marginBottom: "15px", fontSize: "14px", color: "#6b7280" }}>
-              <span>📂 Ruta: / {folderPath.join(' / ')}</span>
+            <div style={{ marginBottom: "15px", fontSize: "14px", color: "#6b7280", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <span style={{ cursor: "pointer", color: "#3b82f6" }} onClick={async () => {
+                const response = await api.sharepoint.listFilesBySiteUrl(accessToken, siteUrl);
+                setFiles(response.items);
+                setFolderPath([]);
+              }}>📂 Raíz</span>
+              {folderPath.map((folder, index) => (
+                <span key={folder.id} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span> / </span>
+                  {index === folderPath.length - 1 ? (
+                    <span style={{ fontWeight: "500" }}>{folder.name}</span>
+                  ) : (
+                    <span 
+                      style={{ cursor: "pointer", color: "#3b82f6" }}
+                      onClick={async () => {
+                        const response = await api.sharepoint.listFilesByFolder(accessToken, folder.id, driveId);
+                        setFiles(response.items);
+                        setFolderPath(folderPath.slice(0, index + 1));
+                      }}
+                    >
+                      {folder.name}
+                    </span>
+                  )}
+                </span>
+              ))}
             </div>
           )}
 
@@ -539,29 +638,31 @@ export default function SharePointDataPage() {
                         {formatDate(file.lastModified)}
                       </td>
                       <td style={{ padding: "12px", textAlign: "right" }}>
-                        {!file.isFolder && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (file.isFolder) {
+                              downloadFolder(file);
+                            } else {
                               downloadFile(file);
-                            }}
-                            style={{
-                              padding: "6px 12px",
-                              background: "#10b981",
-                              color: "white",
-                              border: "none",
-                              borderRadius: "6px",
-                              cursor: "pointer",
-                              fontSize: "12px",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "4px"
-                            }}
-                          >
-                            <Download size={14} />
-                            Descargar
-                          </button>
-                        )}
+                            }
+                          }}
+                          style={{
+                            padding: "6px 12px",
+                            background: "#10b981",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                            fontSize: "12px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px"
+                          }}
+                        >
+                          <Download size={14} />
+                          Descargar
+                        </button>
                       </td>
                     </tr>
                   ))}

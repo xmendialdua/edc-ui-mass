@@ -337,8 +337,38 @@ export const api = {
           folder?: { childCount: number };
         }>;
         count: number;
+        drive_id?: string;
       }>(
         `/api/sharepoint/files/by-site-url?${params.toString()}`,
+        { 
+          method: 'GET',
+          headers: { Authorization: `Bearer ${accessToken}` }
+        }
+      );
+    },
+
+    /**
+     * List files inside a specific folder
+     */
+    listFilesByFolder: (accessToken: string, folderId: string, driveId?: string) => {
+      const params = new URLSearchParams();
+      params.append('folder_id', folderId);
+      if (driveId) params.append('drive_id', driveId);
+      
+      return apiRequest<{ 
+        items: Array<{
+          id: string;
+          name: string;
+          webUrl: string;
+          size?: number;
+          lastModified?: string;
+          isFolder: boolean;
+          folder?: { childCount: number };
+        }>;
+        count: number;
+        drive_id?: string;
+      }>(
+        `/api/sharepoint/files/by-folder?${params.toString()}`,
         { 
           method: 'GET',
           headers: { Authorization: `Bearer ${accessToken}` }
@@ -421,6 +451,50 @@ export const api = {
       
       // Extract filename from Content-Disposition header
       let filename = 'downloaded-file';
+      if (contentDisposition) {
+        // Try RFC 5987 format first: filename*=UTF-8''filename
+        const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;\n]+)/);
+        if (utf8Match && utf8Match[1]) {
+          filename = decodeURIComponent(utf8Match[1]);
+        } else {
+          // Try standard format: filename="filename" or filename=filename
+          const standardMatch = contentDisposition.match(/filename=(["']?)(.+?)\1(?:;|$)/);
+          if (standardMatch && standardMatch[2]) {
+            filename = standardMatch[2];
+          }
+        }
+      }
+
+      return { blob, filename };
+    },
+
+    /**
+     * Download a folder from SharePoint as ZIP
+     */
+    downloadFolder: async (accessToken: string, folderId: string, driveId?: string): Promise<{ blob: Blob; filename: string }> => {
+      const params = new URLSearchParams();
+      if (driveId) params.append('drive_id', driveId);
+      
+      const response = await fetch(
+        `${API_BASE_URL}/api/sharepoint/download-folder/${encodeURIComponent(folderId)}${params.toString() ? '?' + params.toString() : ''}`,
+        {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${accessToken}` }
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.detail || `API Error: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('Content-Disposition') || '';
+      
+      // Extract filename from Content-Disposition header
+      let filename = 'folder.zip';
       if (contentDisposition) {
         // Try RFC 5987 format first: filename*=UTF-8''filename
         const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;\n]+)/);
