@@ -366,17 +366,17 @@ class SharePointGateway:
         expiration_days: int = 365
     ) -> str:
         """
-        Create a public sharing link and return a direct download URL.
+        Create an organizational sharing link for a SharePoint file.
         
-        This method performs two steps:
-        1. Creates a public sharing link (anonymous access)
-        2. Converts it to a direct download URL via Microsoft Graph
+        Creates a sharing link that requires organization authentication.
+        The link can be opened directly in a browser - users will be prompted
+        to authenticate if needed.
         
         The resulting URL:
-        - Does NOT require authentication
-        - Can be used directly by EDC DataPlane
+        - REQUIRES authentication (users must be part of the organization)
+        - Can be opened directly in a browser
         - Is valid for the specified expiration period
-        - Downloads the file content directly (binary)
+        - Allows viewing/downloading the file
         
         Args:
             drive_id: SharePoint drive ID
@@ -384,15 +384,16 @@ class SharePointGateway:
             expiration_days: Number of days until link expires (default: 365)
             
         Returns:
-            Public download URL that can be used without authentication
-            Format: https://graph.microsoft.com/v1.0/shares/u!{token}/driveItem/content
+            SharePoint webUrl that can be opened in browser
+            Format: https://{tenant}.sharepoint.com/:u:/...
             
         Raises:
             requests.HTTPError: If the API request fails
             ValueError: If the response doesn't contain expected data
             
         Note:
-            Requires Sites.ReadWrite.All permission in Azure AD
+            Requires Sites.ReadWrite.All permission in Azure AD.
+            Users accessing the link must be authenticated in the organization.
         """
         try:
             # STEP 1: Create public sharing link
@@ -403,12 +404,23 @@ class SharePointGateway:
             
             payload = {
                 "type": "view",  # Read-only access
-                "scope": "anonymous",  # Public access, no login required
+                "scope": "organization",  # Organization access - requires user authentication
                 "expirationDateTime": expiration.isoformat() + "Z"
             }
             
-            print(f"Creating public sharing link (expires in {expiration_days} days)...")
+            print(f"\n🔵 ========== CREATING ORGANIZATIONAL SHARING LINK ==========")
+            print(f"📍 Endpoint: {endpoint}")
+            print(f"📦 Payload: {payload}")
+            print(f"🏢 Scope: organization (requires authentication)")
+            print(f"🔑 Token (first 30 chars): {self.session.headers.get('Authorization', 'N/A')[:30]}...")
+            print(f"⏰ Expiration: {expiration_days} days ({expiration.isoformat()})")
+            
+            print(f"\n📤 Sending POST request to Microsoft Graph...")
             response = self.session.post(endpoint, json=payload)
+            
+            print(f"📥 Response Status: {response.status_code}")
+            print(f"📋 Response Headers: {dict(response.headers)}")
+            
             response.raise_for_status()
             
             data = response.json()
@@ -417,41 +429,51 @@ class SharePointGateway:
             if not sharing_url:
                 raise ValueError("No sharing URL in response")
             
-            print(f"✅ Sharing link created: {sharing_url[:50]}...")
-            
-            # STEP 2: Convert to direct download URL
-            # Encode the sharing URL in base64 URL-safe format (without padding)
-            encoded = base64.urlsafe_b64encode(sharing_url.encode()).decode().rstrip('=')
-            
-            # Construct Microsoft Graph download URL
-            # This URL is publicly accessible and returns file content directly
-            download_url = f"https://graph.microsoft.com/v1.0/shares/u!{encoded}/driveItem/content"
-            
-            print(f"✅ Direct download URL generated")
-            print(f"   URL: {download_url[:80]}...")
+            print(f"✅ Organizational sharing link created: {sharing_url}")
             print(f"   Expiration: {expiration.strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"   ⚠️  Note: Users must authenticate with organization account to access")
+            print(f"   This URL can be opened directly in a browser")
             
-            return download_url
+            # Return the webUrl - it can be opened directly in browser
+            # Users will be prompted to authenticate if needed
+            return sharing_url
             
         except requests.HTTPError as error:
-            print(f"❌ Error creating sharing link: {error}")
+            print(f"\n❌ ========== ERROR CREATING SHARING LINK ==========")
+            print(f"🔴 HTTP Error: {error}")
+            print(f"📊 Status Code: {error.response.status_code if error.response else 'N/A'}")
             
             # Try to get detailed error message
             try:
                 error_detail = error.response.json()
-                print(f"Response error detail: {error_detail}")
+                print(f"\n📋 Full Error Response:")
+                print(f"   {error_detail}")
+                
                 if 'error' in error_detail:
                     error_msg = error_detail['error'].get('message', 'Unknown error')
                     error_code = error_detail['error'].get('code', 'Unknown code')
-                    print(f"Microsoft Graph Error [{error_code}]: {error_msg}")
+                    inner_error = error_detail['error'].get('innerError', {})
+                    
+                    print(f"\n🔴 Microsoft Graph Error:")
+                    print(f"   Code: {error_code}")
+                    print(f"   Message: {error_msg}")
+                    if inner_error:
+                        print(f"   Inner Error: {inner_error}")
                     
                     # Common error: Missing Sites.ReadWrite.All permission
                     if "AccessDenied" in error_code or "Forbidden" in str(error):
-                        print("💡 Tip: Ensure Azure AD app has Sites.ReadWrite.All permission")
-                        print("   and Admin Consent has been granted")
-            except:
-                print(f"Response: {error.response.text if error.response else 'No response'}")
+                        print(f"\n⚠️  PERMISSION ERROR DETECTED")
+                        print(f"   Causa probable: Token NO tiene Sites.ReadWrite.All")
+                        print(f"   \n🔧 Soluciones:")
+                        print(f"   1. Verifica en Azure Portal que la App tiene Sites.ReadWrite.All")
+                        print(f"   2. Verifica que Admin Consent fue otorgado")
+                        print(f"   3. Usuario debe cerrar sesión y re-autenticarse para obtener nuevo token")
+                        print(f"   4. Verifica que authConfig.ts incluye Sites.ReadWrite.All en scopes")
+            except Exception as parse_error:
+                print(f"❌ Could not parse error response: {parse_error}")
+                print(f"   Raw response: {error.response.text if error.response else 'No response'}")
             
+            print(f"===============================================\n")
             raise
     
     def download_file_to_path(

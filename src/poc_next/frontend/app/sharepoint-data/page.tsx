@@ -29,6 +29,15 @@ export default function SharePointDataPage() {
   const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "authenticating" | "connected" | "error">("disconnected");
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; url?: string } | null>(null);
   const [testingLink, setTestingLink] = useState(false);
+  const [tokenDiagnostics, setTokenDiagnostics] = useState<{
+    scopes: string[];
+    hasRequiredPermission: boolean;
+    expiresAt?: string;
+    issuedBy?: string;
+  } | null>(null);
+  const [sharingLinks, setSharingLinks] = useState<Record<string, string>>({});
+  const [generatingLink, setGeneratingLink] = useState<string | null>(null);
+  const [copySuccess, setCopySuccess] = useState<string | null>(null);
 
   // SharePoint Site URL from environment
   const siteUrl = process.env.NEXT_PUBLIC_SHAREPOINT_SITE_URL || "";
@@ -314,6 +323,87 @@ export default function SharePointDataPage() {
     setTestResult(null);
   };
 
+  const createSharingLinkForFile = async (file: SharePointFile) => {
+    const fileKey = file.id;
+    
+    // Si ya existe el link, no lo generamos de nuevo
+    if (sharingLinks[fileKey]) {
+      return sharingLinks[fileKey];
+    }
+
+    setGeneratingLink(fileKey);
+
+    try {
+      // Extract drive_id and item_id
+      const [fileDriveId, fileItemId] = file.id.includes('|') 
+        ? file.id.split('|') 
+        : [driveId, file.id];
+
+      console.log('🔗 Creating sharing link for:', file.name);
+
+      const response = await api.sharepoint.createSharingLink(
+        accessToken,
+        fileDriveId,
+        fileItemId,
+        365
+      );
+
+      if (response.success && response.download_url) {
+        console.log('✅ Sharing link created:', response.download_url);
+        // Guardar el link en el estado
+        setSharingLinks(prev => ({
+          ...prev,
+          [fileKey]: response.download_url
+        }));
+        return response.download_url;
+      } else {
+        console.error('❌ Failed to create sharing link:', response.message);
+        return null;
+      }
+    } catch (err: any) {
+      console.error('❌ Error creating sharing link:', err);
+      return null;
+    } finally {
+      setGeneratingLink(null);
+    }
+  };
+
+  const openSharingLink = async (file: SharePointFile) => {
+    let link = sharingLinks[file.id];
+    
+    if (!link) {
+      const newLink = await createSharingLinkForFile(file);
+      if (newLink) {
+        link = newLink;
+      }
+    }
+    
+    if (link) {
+      window.open(link, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const copySharingLink = async (file: SharePointFile) => {
+    let link = sharingLinks[file.id];
+    
+    if (!link) {
+      const newLink = await createSharingLinkForFile(file);
+      if (newLink) {
+        link = newLink;
+      }
+    }
+    
+    if (link) {
+      try {
+        await navigator.clipboard.writeText(link);
+        setCopySuccess(file.id);
+        setTimeout(() => setCopySuccess(null), 2000);
+      } catch (err) {
+        console.error('Error copying to clipboard:', err);
+      }
+    }
+  };
+
   const testCreateSharingLink = async () => {
     if (files.length === 0) {
       setTestResult({
@@ -337,6 +427,48 @@ export default function SharePointDataPage() {
     setTestResult(null);
 
     try {
+      // DEBUG: Decodificar token para ver scopes
+      let tokenScopes: string[] = [];
+      let hasRequiredPermission = false;
+      try {
+        const tokenParts = accessToken.split('.');
+        if (tokenParts.length === 3) {
+          const payload = JSON.parse(atob(tokenParts[1]));
+          console.log('🔍 ========== TOKEN DIAGNOSTICS ==========');
+          console.log('📋 Token scopes (scp):', payload.scp);
+          console.log('🔐 Token roles (roles):', payload.roles);
+          console.log('⏰ Expires at:', payload.exp ? new Date(payload.exp * 1000).toLocaleString() : 'Unknown');
+          console.log('🏢 Issued by:', payload.iss);
+          console.log('👤 User:', payload.upn || payload.email || payload.unique_name);
+          console.log('📦 Full token payload:', payload);
+          console.log('========================================');
+          
+          // Extraer scopes
+          tokenScopes = payload.scp ? payload.scp.split(' ') : [];
+          
+          // Verificar si tiene Sites.ReadWrite.All
+          hasRequiredPermission = tokenScopes.includes('Sites.ReadWrite.All') || 
+                                  (payload.roles && payload.roles.includes('Sites.ReadWrite.All'));
+          
+          setTokenDiagnostics({
+            scopes: tokenScopes,
+            hasRequiredPermission,
+            expiresAt: payload.exp ? new Date(payload.exp * 1000).toLocaleString() : undefined,
+            issuedBy: payload.iss
+          });
+          
+          if (!hasRequiredPermission) {
+            console.warn('⚠️ TOKEN NO TIENE Sites.ReadWrite.All');
+            console.warn('   Scopes actuales:', tokenScopes.join(', '));
+            console.warn('   ➡️ Necesitas cerrar sesión y volver a autenticarte');
+          } else {
+            console.log('✅ Token tiene Sites.ReadWrite.All');
+          }
+        }
+      } catch (e) {
+        console.error('❌ Error decodificando token:', e);
+      }
+
       // Extract drive_id and item_id
       const [fileDriveId, fileItemId] = testFile.id.includes('|') 
         ? testFile.id.split('|') 
@@ -349,31 +481,50 @@ export default function SharePointDataPage() {
         accessToken: accessToken.substring(0, 20) + '...'
       });
 
+      console.log('📤 Enviando request a backend...');
       const response = await api.sharepoint.createSharingLink(
         accessToken,
         fileDriveId,
         fileItemId,
         365
       );
+      console.log('📥 Response del backend:', response);
 
       if (response.success && response.download_url) {
+        console.log('✅ SUCCESS - Sharing link creado');
         setTestResult({
           success: true,
-          message: `✅ Sharing link creado exitosamente para: ${testFile.name}`,
+          message: `✅ Sharing link creado exitosamente para: ${testFile.name}\n\n📎 Puedes abrir este link en tu navegador (requiere autenticación de la organización):`,
           url: response.download_url
         });
       } else {
+        console.log('⚠️ Response indica error:', response.message);
         setTestResult({
           success: false,
           message: `❌ Error: ${response.message || 'No se pudo crear el sharing link'}`
         });
       }
     } catch (err: any) {
-      console.error('❌ Test failed:', err);
+      console.error('❌ ========== ERROR DETAILS ==========');
+      console.error('Error object:', err);
+      console.error('Error message:', err.message);
+      console.error('Error response:', err.response);
+      console.error('Error response data:', err.response?.data);
+      console.error('Error response status:', err.response?.status);
+      console.error('=====================================');
+      
+      let errorMessage = err.message || 'Error desconocido';
+      let errorDetail = err.response?.data?.detail || '';
+      
+      // Si el error viene del backend, mostrar el detalle
+      if (errorDetail) {
+        errorMessage = errorDetail;
+      }
+      
       setTestResult({
         success: false,
-        message: `❌ Error: ${err.message || 'Error desconocido'}`,
-        url: err.response?.data?.detail || undefined
+        message: `❌ Error: ${errorMessage}`,
+        url: errorDetail
       });
     } finally {
       setTestingLink(false);
@@ -381,12 +532,19 @@ export default function SharePointDataPage() {
   };
 
   return (
-    <div style={{
-      fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-      background: "#f5f7fa",
-      minHeight: "100vh",
-      padding: "20px"
-    }}>
+    <>
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+      <div style={{
+        fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+        background: "#f5f7fa",
+        minHeight: "100vh",
+        padding: "20px"
+      }}>
       {/* Header */}
       <div style={{
         background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
@@ -517,7 +675,7 @@ export default function SharePointDataPage() {
           border: "1px solid #bfdbfe",
           borderRadius: "8px",
           padding: "12px",
-          marginBottom: error ? "15px" : "0"
+          marginBottom: "12px"
         }}>
           <div style={{ display: "flex", alignItems: "start", gap: "10px" }}>
             <Info size={20} color="#3b82f6" style={{ flexShrink: 0, marginTop: "2px" }} />
@@ -530,6 +688,37 @@ export default function SharePointDataPage() {
             </div>
           </div>
         </div>
+
+        {/* Token Diagnostics Panel */}
+        {tokenDiagnostics && (
+          <div style={{
+            background: tokenDiagnostics.hasRequiredPermission ? "#f0fdf4" : "#fef2f2",
+            border: tokenDiagnostics.hasRequiredPermission ? "1px solid #bbf7d0" : "1px solid #fecaca",
+            borderRadius: "8px",
+            padding: "12px",
+            marginBottom: error ? "15px" : "0"
+          }}>
+            <div style={{ display: "flex", alignItems: "start", gap: "10px" }}>
+              <Info size={20} color={tokenDiagnostics.hasRequiredPermission ? "#16a34a" : "#dc2626"} style={{ flexShrink: 0, marginTop: "2px" }} />
+              <div style={{ fontSize: "13px", color: tokenDiagnostics.hasRequiredPermission ? "#166534" : "#991b1b" }}>
+                <strong>🔍 Diagnóstico del Token:</strong><br />
+                Estado: {tokenDiagnostics.hasRequiredPermission ? "✅ Token tiene Sites.ReadWrite.All" : "⚠️ Token NO tiene Sites.ReadWrite.All"}<br />
+                Scopes actuales: {tokenDiagnostics.scopes.join(', ')}<br />
+                {tokenDiagnostics.expiresAt && <>Expira: {tokenDiagnostics.expiresAt}<br /></>}
+                {!tokenDiagnostics.hasRequiredPermission && (
+                  <>
+                    <br />
+                    <strong style={{ color: "#991b1b" }}>⚠️ ACCIÓN REQUERIDA:</strong><br />
+                    1. Haz clic en "Cerrar Sesión" arriba<br />
+                    2. Vuelve a hacer "Iniciar Sesión"<br />
+                    3. Azure AD pedirá consentimiento para Sites.ReadWrite.All<br />
+                    4. Recarga los archivos y prueba de nuevo
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Test Panel - Sharing Link Creation */}
@@ -600,7 +789,22 @@ export default function SharePointDataPage() {
                       fontFamily: "monospace",
                       color: testResult.success ? "#166534" : "#991b1b"
                     }}>
-                      {testResult.url}
+                      {testResult.success ? (
+                        <a 
+                          href={testResult.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          style={{
+                            color: "#166534",
+                            textDecoration: "underline",
+                            cursor: "pointer"
+                          }}
+                        >
+                          🔗 Abrir Sharing Link (haz clic aquí)
+                        </a>
+                      ) : (
+                        testResult.url
+                      )}
                     </div>
                   )}
                   {!testResult.success && (
@@ -796,31 +1000,87 @@ export default function SharePointDataPage() {
                         {formatDate(file.lastModified)}
                       </td>
                       <td style={{ padding: "12px", textAlign: "right" }}>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (file.isFolder) {
-                              downloadFolder(file);
-                            } else {
-                              downloadFile(file);
-                            }
-                          }}
-                          style={{
-                            padding: "6px 12px",
-                            background: "#10b981",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "6px",
-                            cursor: "pointer",
-                            fontSize: "12px",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "4px"
-                          }}
-                        >
-                          <Download size={14} />
-                          Descargar
-                        </button>
+                        <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (file.isFolder) {
+                                downloadFolder(file);
+                              } else {
+                                downloadFile(file);
+                              }
+                            }}
+                            style={{
+                              padding: "6px 12px",
+                              background: "#10b981",
+                              color: "white",
+                              border: "none",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              fontSize: "12px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px"
+                            }}
+                          >
+                            <Download size={14} />
+                            Descargar
+                          </button>
+                          
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openSharingLink(file);
+                            }}
+                            disabled={generatingLink === file.id}
+                            style={{
+                              padding: "6px 12px",
+                              background: generatingLink === file.id ? "#9ca3af" : "#3b82f6",
+                              color: "white",
+                              border: "none",
+                              borderRadius: "6px",
+                              cursor: generatingLink === file.id ? "not-allowed" : "pointer",
+                              fontSize: "12px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              opacity: generatingLink === file.id ? 0.6 : 1
+                            }}
+                            title="Abrir sharing link en nueva pestaña"
+                          >
+                            {generatingLink === file.id ? (
+                              <RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} />
+                            ) : (
+                              "🔗"
+                            )}
+                            Abrir Link
+                          </button>
+                          
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copySharingLink(file);
+                            }}
+                            disabled={generatingLink === file.id}
+                            style={{
+                              padding: "6px 12px",
+                              background: copySuccess === file.id ? "#16a34a" : (generatingLink === file.id ? "#9ca3af" : "#8b5cf6"),
+                              color: "white",
+                              border: "none",
+                              borderRadius: "6px",
+                              cursor: generatingLink === file.id ? "not-allowed" : "pointer",
+                              fontSize: "12px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              opacity: generatingLink === file.id ? 0.6 : 1
+                            }}
+                            title="Copiar sharing link al portapapeles"
+                          >
+                            {copySuccess === file.id ? "✓" : "📋"}
+                            {copySuccess === file.id ? "Copiado" : "Copiar Link"}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -830,6 +1090,7 @@ export default function SharePointDataPage() {
           )}
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
