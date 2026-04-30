@@ -15,12 +15,12 @@ IMAGE_NAME="xmendialdua/poc-next-frontend"
 IMAGE_TAG="latest"
 
 # Valores de las variables NEXT_PUBLIC_*
-NEXT_PUBLIC_API_URL="https://ds-management.51.178.94.25.nip.io"
+NEXT_PUBLIC_API_URL=""
 NEXT_PUBLIC_APP_NAME="POC Next Dashboard"
 NEXT_PUBLIC_APP_VERSION="0.1.0"
 NEXT_PUBLIC_AZURE_CLIENT_ID="a1fc2076-f046-4a0f-90e7-4601aeb5b856"
 NEXT_PUBLIC_AZURE_TENANT_ID="910ac815-f855-4a08-bf29-90b46552cf11"
-NEXT_PUBLIC_AZURE_REDIRECT_URI="https://ds-management.51.178.94.25.nip.io/sharepoint-data"
+NEXT_PUBLIC_AZURE_REDIRECT_URI="https://ds-management.51.178.94.25.nip.io"
 NEXT_PUBLIC_SHAREPOINT_SITE_URL="https://ikerlan.sharepoint.com/sites/IKDataSpace"
 
 # Navegar al directorio del frontend
