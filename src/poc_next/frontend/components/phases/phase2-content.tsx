@@ -58,7 +58,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
   const [showSharePointPicker, setShowSharePointPicker] = useState(false);
   const [sharePointUrl, setSharePointUrl] = useState('');
   const [sharePointItemName, setSharePointItemName] = useState('');
-  const [linkType, setLinkType] = useState<'temporary' | 'sharing' | 'proxy'>('sharing'); // Default: sharing link
+  const [linkType, setLinkType] = useState<'temporary' | 'sharing' | 'proxy'>('proxy'); // Default: proxy (para EDC DataPlane)
   
   // SharePoint states
   const [sharePointAccessToken, setSharePointAccessToken] = useState('');
@@ -270,23 +270,26 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
           return;
         }
       } else {
-        // Opción 3: Usar URL del proxy (requiere despliegue en Kubernetes)
+        // Opción 3: Usar URL del proxy interno del cluster (para EDC DataPlane)
         // Codificar drive_id|item_id en base64 URL-safe
         const fileInfo = `${driveId}|${itemId}`;
-        const encoded = btoa(fileInfo); // Base64 encode
+        const encoded = btoa(fileInfo)
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=+$/, ''); // Base64 URL-safe encode
         
-        // Generar URL del proxy
-        const proxyUrl = `${getApiBaseUrl()}/api/sharepoint-proxy/download/${encoded}`;
+        // URL INTERNA del cluster - accesible para EDC DataPlane
+        const proxyUrl = `http://sharepoint-proxy.ds-management-ui.svc.cluster.local:5001/api/sharepoint-proxy/download/${encoded}`;
 
-        log(`🔗 Generando URL de proxy para: ${item.name}`);
+        log(`🔗 Generando URL de proxy interno para: ${item.name}`);
         log(`📍 Drive ID: ${driveId.substring(0, 8)}...`);
         log(`📍 Item ID: ${itemId.substring(0, 8)}...`);
-        log(`📍 URL proxy: ${proxyUrl}`);
+        log(`📍 URL proxy (interno cluster): ${proxyUrl}`);
+        log(`✅ URL configurada para EDC DataPlane`);
+        log(`ℹ️  Esta URL solo funciona desde dentro del cluster de Kubernetes`);
         
-        setSharePointUrl(proxyUrl);  // Usar URL del proxy en lugar de SharePoint directa
+        setSharePointUrl(proxyUrl);  // Usar URL del proxy interno
         setSharePointItemName(item.name);
-        log(`✅ URL del proxy configurada`);
-        log(`⚠️  Requiere despliegue del proxy en Kubernetes`);
       }
     } catch (error) {
       log(`❌ Error al procesar archivo: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -1040,6 +1043,10 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                       setSharePointUrl('');
                       setSharePointItemName('');
                     }
+                    // Auto-seleccionar opción 'proxy' para archivos de SharePoint
+                    if (newType === 'sharepoint-file' || newType === 'sharepoint-folder') {
+                      setLinkType('proxy');
+                    }
                   }}
                   style={{
                     width: '100%',
@@ -1469,16 +1476,12 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                     </div>
                   </div>
 
-                  {/* Opción 2: Sharing Link Público (recomendado) */}
+                  {/* Opción 2: Sharing Link Público */}
                   <div style={{ 
                     display: 'flex', 
                     alignItems: 'flex-start', 
                     gap: '10px', 
-                    marginBottom: '12px',
-                    padding: '8px',
-                    backgroundColor: linkType === 'sharing' ? '#eff6ff' : 'transparent',
-                    borderRadius: '4px',
-                    border: linkType === 'sharing' ? '1px solid #3b82f6' : '1px solid transparent'
+                    marginBottom: '12px'
                   }}>
                     <input
                       type="radio"
@@ -1507,7 +1510,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                           marginBottom: '4px'
                         }}
                       >
-                        🌐 Sharing Link Público <span style={{ color: '#059669', fontSize: '12px' }}>✓ Recomendado</span>
+                        🌐 Sharing Link Público
                       </label>
                       <p style={{ 
                         fontSize: '12px', 
@@ -1515,13 +1518,21 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                         margin: 0,
                         lineHeight: '1.4'
                       }}>
-                        URL pública válida durante <strong>1 año</strong>. Compatible con EDC DataPlane - descarga directa sin autenticación. <span style={{ color: '#059669' }}>✓ Ideal para producción</span>.
+                        URL pública válida durante <strong>1 año</strong>. Compatible con EDC DataPlane. <span style={{ color: '#f59e0b' }}>⚠️ Expira después de 1 año</span>.
                       </p>
                     </div>
                   </div>
 
-                  {/* Opción 3: Proxy (requiere despliegue en Kubernetes) */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                  {/* Opción 3: Proxy (recomendado para producción) */}
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'flex-start', 
+                    gap: '10px',
+                    padding: '8px',
+                    backgroundColor: linkType === 'proxy' ? '#eff6ff' : 'transparent',
+                    borderRadius: '4px',
+                    border: linkType === 'proxy' ? '1px solid #3b82f6' : '1px solid transparent'
+                  }}>
                     <input
                       type="radio"
                       id="link-proxy"
@@ -1549,7 +1560,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                           marginBottom: '4px'
                         }}
                       >
-                        🔒 Proxy Autenticado
+                        🔒 Proxy Autenticado <span style={{ color: '#059669', fontSize: '12px' }}>✓ Recomendado</span>
                       </label>
                       <p style={{ 
                         fontSize: '12px', 
@@ -1557,7 +1568,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                         margin: 0,
                         lineHeight: '1.4'
                       }}>
-                        URL interna del proxy. <span style={{ color: '#dc2626' }}>⚠️ Requiere despliegue en Kubernetes</span>. Mayor control y seguridad.
+                        URL interna del cluster para EDC DataPlane. <span style={{ color: '#059669' }}>✓ Permanente</span> (no expira). Mayor control y seguridad con Service Principal.
                       </p>
                     </div>
                   </div>
@@ -1575,7 +1586,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                     setCustomUrl('');
                     setSharePointUrl('');
                     setSharePointItemName('');
-                    setLinkType('sharing'); // Reset to recommended option
+                    setLinkType('proxy'); // Reset to recommended option (proxy for production)
                   }}
                   style={{
                     padding: '8px 16px',
