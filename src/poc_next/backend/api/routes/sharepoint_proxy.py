@@ -97,8 +97,13 @@ async def download_sharepoint_file(encoded_file_info: str):
         # PASO 1: Decodificar información del archivo
         # El frontend codifica "drive_id|item_id" en base64 URL-safe
         try:
+            # Añadir padding si es necesario (el frontend lo elimina)
+            # Base64 requiere que la longitud sea múltiplo de 4
+            padding = '=' * (4 - len(encoded_file_info) % 4) if len(encoded_file_info) % 4 != 0 else ''
+            padded_encoded = encoded_file_info + padding
+            
             # Decodificar base64 URL-safe
-            decoded_bytes = base64.urlsafe_b64decode(encoded_file_info.encode())
+            decoded_bytes = base64.urlsafe_b64decode(padded_encoded.encode())
             decoded_str = decoded_bytes.decode('utf-8')
             
             # Separar drive_id e item_id
@@ -370,7 +375,11 @@ async def download_with_user_token(
         
         # PASO 2: Decodificar información del archivo
         try:
-            decoded_bytes = base64.urlsafe_b64decode(encoded_file_info.encode())
+            # Añadir padding si es necesario (el frontend lo elimina)
+            padding = '=' * (4 - len(encoded_file_info) % 4) if len(encoded_file_info) % 4 != 0 else ''
+            padded_encoded = encoded_file_info + padding
+            
+            decoded_bytes = base64.urlsafe_b64decode(padded_encoded.encode())
             decoded_str = decoded_bytes.decode('utf-8')
             # Usar split con maxsplit=1 para manejar item_ids que contienen '|'
             drive_id, item_id = decoded_str.split('|', 1)
