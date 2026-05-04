@@ -3,6 +3,9 @@
 import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
 import { api } from '@/lib/api';
 import { Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { useMsal } from "@azure/msal-react";
+import { InteractionRequiredAuthError } from "@azure/msal-browser";
+import { loginRequest } from "@/lib/authConfig";
 
 interface Transfer {
   id: string;
@@ -24,6 +27,7 @@ interface TransfersContentProps {
 
 const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentProps>(
   ({ onLog }, ref) => {
+    const { instance, accounts } = useMsal();
     const [loading, setLoading] = useState(false);
     const [transfers, setTransfers] = useState<Transfer[]>([]);
     const [autoRefreshCount, setAutoRefreshCount] = useState(0);
@@ -340,16 +344,14 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
       addLog(`📥 Descargando datos de transferencia: ${transferId}`);
       
       let endpoint = edrEndpoint;
-      let token = edrToken;
       
       // If no EDR available, try to fetch it on-demand
-      if (!endpoint || !token) {
+      if (!endpoint) {
         addLog(`   ⏳ EDR no disponible, obteniéndolo bajo demanda...`);
         try {
           const result = await api.phase6.getTransferEdr(transferId);
           if (result.success && result.edr) {
             endpoint = result.edr.endpoint;
-            token = result.edr.authorization;
             addLog(`   ✅ EDR obtenido ${result.cached ? '(caché)' : '(consulta)'}`);
           } else {
             addLog(`   ❌ No se pudo obtener el EDR para esta transferencia`);
@@ -361,40 +363,125 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
         }
       }
       
-      if (!endpoint || !token) {
-        addLog(`   ❌ No hay endpoint o token EDR disponible`);
+      if (!endpoint) {
+        addLog(`   ❌ No hay endpoint EDR disponible`);
         return;
       }
 
       addLog(`   Endpoint: ${endpoint}`);
-      addLog(`   Token: ${token.substring(0, 50)}...`);
       
       try {
-        // Llamar al backend para descargar el archivo (actúa como proxy para evitar CORS)
-        const { blob, contentType, filename } = await api.phase6.downloadFile({
-          transferId: transferId,
-          endpoint: endpoint,
-          token: token
-        });
+        // Verificar si es una URL de SharePoint proxy
+        if (endpoint.includes('/api/sharepoint-proxy/download/')) {
+          addLog(`   🔍 Detectado asset de SharePoint, usando descarga con token de usuario...`);
+          
+          // Extraer el encoded file info del endpoint
+          const match = endpoint.match(/\/api\/sharepoint-proxy\/download\/([^?]+)/);
+          if (!match || !match[1]) {
+            throw new Error('No se pudo extraer la información del archivo del endpoint');
+          }
+          
+          const encodedFileInfo = match[1];
+          addLog(`   📦 Encoded info: ${encodedFileInfo.substring(0, 30)}...`);
+          
+          // Decodificar para obtener drive_id|item_id
+          // Añadir padding si es necesario para base64 URL-safe
+          let padded = encodedFileInfo;
+          const remainder = encodedFileInfo.length % 4;
+          if (remainder) {
+            padded += '='.repeat(4 - remainder);
+          }
+          
+          // Decodificar base64 URL-safe
+          const decoded = atob(padded.replace(/-/g, '+').replace(/_/g, '/'));
+          const [driveId, itemId] = decoded.split('|');
+          
+          addLog(`   📁 Drive ID: ${driveId.substring(0, 20)}...`);
+          addLog(`   📄 Item ID: ${itemId.substring(0, 20)}...`);
+          
+          // Obtener token de Azure AD del usuario autenticado
+          const activeAccount = accounts[0];
+          if (!activeAccount) {
+            throw new Error('Usuario no autenticado. Por favor, inicia sesión en la sección de SharePoint primero.');
+          }
+          
+          addLog(`   🔐 Obteniendo token de Azure AD del usuario...`);
+          const request = {
+            ...loginRequest,
+            account: activeAccount,
+          };
+          
+          let tokenResponse;
+          try {
+            tokenResponse = await instance.acquireTokenSilent(request);
+          } catch (silentError: any) {
+            if (silentError instanceof InteractionRequiredAuthError) {
+              addLog(`   🔄 Token expirado, solicitando reautenticación...`);
+              tokenResponse = await instance.acquireTokenPopup(request);
+            } else {
+              throw silentError;
+            }
+          }
+          
+          const userToken = tokenResponse.accessToken;
+          addLog(`   ✅ Token de usuario obtenido`);
+          
+          // Descargar usando el proxy con token de usuario (delegated permissions)
+          addLog(`   📥 Descargando archivo desde SharePoint...`);
+          const { blob, filename } = await api.sharepoint.downloadFileViaProxyWithUserToken(
+            itemId,
+            driveId,
+            userToken
+          );
+          
+          addLog(`   📝 Nombre del archivo: ${filename}`);
+          addLog(`   📊 Tamaño: ${(blob.size / 1024).toFixed(2)} KB`);
+          
+          // Crear un URL temporal para el blob
+          const url = window.URL.createObjectURL(blob);
+          
+          // Crear un enlace temporal y hacer click automáticamente
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          
+          // Limpiar
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          
+          addLog(`   ✅ Archivo descargado exitosamente usando token del usuario`);
+          
+        } else {
+          // Flujo tradicional para otros tipos de assets (no SharePoint)
+          addLog(`   🔄 Usando descarga tradicional vía EDC DataPlane...`);
+          
+          const { blob, contentType, filename } = await api.phase6.downloadFile({
+            transferId: transferId,
+            endpoint: endpoint,
+            token: edrToken || ''
+          });
 
-        addLog(`   📄 Tipo de archivo: ${contentType}`);
-        addLog(`   📝 Nombre del archivo: ${filename}`);
+          addLog(`   📄 Tipo de archivo: ${contentType}`);
+          addLog(`   📝 Nombre del archivo: ${filename}`);
 
-        // Crear un URL temporal para el blob
-        const url = window.URL.createObjectURL(blob);
-        
-        // Crear un enlace temporal y hacer click automáticamente
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        
-        // Limpiar
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-        
-        addLog(`   ✅ Archivo descargado exitosamente`);
+          // Crear un URL temporal para el blob
+          const url = window.URL.createObjectURL(blob);
+          
+          // Crear un enlace temporal y hacer click automáticamente
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          
+          // Limpiar
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          
+          addLog(`   ✅ Archivo descargado exitosamente`);
+        }
 
         // Iniciar polling individual para esta transferencia
         if (!pollingTransfers.has(transferId)) {
@@ -405,63 +492,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
         
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        
-        // Check if token expired (403 error with specific message)
-        if (errorMessage.includes('403') && errorMessage.includes('Token has expired')) {
-          addLog(`   ⚠️ Token expirado detectado, renovando...`);
-          
-          try {
-            // Request a fresh token (bypass cache)
-            const result = await api.phase6.getFreshToken(transferId);
-            if (result.success && result.token && result.endpoint) {
-              const newEndpoint = result.endpoint;
-              const newToken = result.token;
-              addLog(`   ✅ Nuevo token obtenido`);
-              addLog(`   Token renovado: ${newToken.substring(0, 50)}...`);
-              
-              // Retry download with new token
-              addLog(`   🔄 Reintentando descarga con nuevo token...`);
-              const { blob, contentType, filename } = await api.phase6.downloadFile({
-                transferId: transferId,
-                endpoint: newEndpoint,
-                token: newToken
-              });
-
-              addLog(`   📄 Tipo de archivo: ${contentType}`);
-              addLog(`   📝 Nombre del archivo: ${filename}`);
-
-              // Crear un URL temporal para el blob
-              const url = window.URL.createObjectURL(blob);
-              
-              // Crear un enlace temporal y hacer click automáticamente
-              const link = document.createElement('a');
-              link.href = url;
-              link.download = filename;
-              document.body.appendChild(link);
-              link.click();
-              
-              // Limpiar
-              document.body.removeChild(link);
-              window.URL.revokeObjectURL(url);
-              
-              addLog(`   ✅ Archivo descargado exitosamente con token renovado`);
-
-              // Iniciar polling individual para esta transferencia
-              if (!pollingTransfers.has(transferId)) {
-                addLog(`🔄 Iniciando monitoreo del estado de transferencia ${transferId}...`);
-                setPollingTransfers(prev => new Set(prev).add(transferId));
-                pollTransferState(transferId);
-              }
-              
-            } else {
-              addLog(`   ❌ No se pudo obtener un nuevo token: ${result.error || 'Desconocido'}`);
-            }
-          } catch (retryError) {
-            addLog(`   ❌ Error al renovar token: ${retryError instanceof Error ? retryError.message : 'Unknown error'}`);
-          }
-        } else {
-          addLog(`   ❌ Error al descargar: ${errorMessage}`);
-        }
+        addLog(`   ❌ Error al descargar: ${errorMessage}`);
       }
     };
 
