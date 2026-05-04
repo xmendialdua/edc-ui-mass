@@ -513,6 +513,103 @@ export const api = {
     },
 
     /**
+     * Download a file via SharePoint Proxy (for testing EDC integration)
+     * Uses OAuth 2.0 Service Principal authentication via proxy service
+     */
+    downloadFileViaProxy: async (fileId: string, driveId: string): Promise<{ blob: Blob; filename: string }> => {
+      // Encode driveId|fileId in base64 URL-safe format
+      const fileInfo = `${driveId}|${fileId}`;
+      const encodedFileInfo = btoa(fileInfo)
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+      
+      const response = await fetch(
+        `${API_BASE_URL}/api/sharepoint-proxy/download/${encodedFileInfo}`,
+        { method: 'GET' }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.detail || `Proxy Error: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('Content-Disposition') || '';
+      
+      // Extract filename from Content-Disposition header
+      let filename = 'downloaded-file';
+      if (contentDisposition) {
+        // Try RFC 5987 format first: filename*=UTF-8''filename
+        const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;\n]+)/);
+        if (utf8Match && utf8Match[1]) {
+          filename = decodeURIComponent(utf8Match[1]);
+        } else {
+          // Try standard format: filename="filename" or filename=filename
+          const standardMatch = contentDisposition.match(/filename=(["']?)(.+?)\1(?:;|$)/);
+          if (standardMatch && standardMatch[2]) {
+            filename = standardMatch[2];
+          }
+        }
+      }
+
+      return { blob, filename };
+    },
+
+    /**
+     * Download a file via SharePoint Proxy using user token (Delegated permissions)
+     * This version uses the authenticated user's token instead of Service Principal
+     */
+    downloadFileViaProxyWithUserToken: async (fileId: string, driveId: string, accessToken: string): Promise<{ blob: Blob; filename: string }> => {
+      // Encode driveId|fileId in base64 URL-safe format
+      const fileInfo = `${driveId}|${fileId}`;
+      const encodedFileInfo = btoa(fileInfo)
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+      
+      const response = await fetch(
+        `${API_BASE_URL}/api/sharepoint-proxy/download-with-user-token/${encodedFileInfo}`,
+        { 
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.detail || `Proxy Error: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('Content-Disposition') || '';
+      
+      // Extract filename from Content-Disposition header
+      let filename = 'downloaded-file';
+      if (contentDisposition) {
+        // Try RFC 5987 format first: filename*=UTF-8''filename
+        const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;\n]+)/);
+        if (utf8Match && utf8Match[1]) {
+          filename = decodeURIComponent(utf8Match[1]);
+        } else {
+          // Try standard format: filename="filename" or filename=filename
+          const standardMatch = contentDisposition.match(/filename=(["']?)(.+?)\1(?:;|$)/);
+          if (standardMatch && standardMatch[2]) {
+            filename = standardMatch[2];
+          }
+        }
+      }
+
+      return { blob, filename };
+    },
+
+    /**
      * Get file metadata
      */
     getFileMetadata: (accessToken: string, fileId: string, driveId?: string) => {

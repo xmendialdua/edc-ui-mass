@@ -136,6 +136,83 @@ Las variables de entorno se configuran en `configmap.yaml` y `secrets`:
    kubectl rollout restart deployment/poc-next-frontend -n poc-next
    ```
 
+## SharePoint Proxy - Configuración de Secretos
+
+El **SharePoint Proxy** permite al EDC DataPlane descargar archivos de SharePoint mediante autenticación OAuth 2.0 con Azure AD Service Principal.
+
+### Pre-requisitos
+
+1. **Azure AD App Registration** con:
+   - Application permissions: `Files.Read.All`, `Sites.Read.All`
+   - Admin consent otorgado
+   - Client Secret generado
+
+### Crear el Secret
+
+**No versiones el archivo con credenciales reales**. En su lugar, usa el template:
+
+1. **Copia el template**:
+   ```bash
+   cp sharepoint-proxy-secret.yaml.template sharepoint-proxy-secret.yaml
+   ```
+
+2. **Edita el archivo** y reemplaza los placeholders con tus credenciales reales:
+   ```yaml
+   stringData:
+     client-id: "your-client-id-guid"
+     client-secret: "your-client-secret-value"
+     tenant-id: "your-tenant-id-guid"
+   ```
+
+3. **Aplica el secret al cluster**:
+   ```bash
+   kubectl apply -f sharepoint-proxy-secret.yaml -n ds-management-ui
+   ```
+
+4. **Verifica que se creó**:
+   ```bash
+   kubectl get secret sharepoint-proxy-credentials -n ds-management-ui
+   ```
+
+### Desplegar SharePoint Proxy
+
+Una vez creado el secret, despliega el proxy:
+
+```bash
+kubectl apply -f sharepoint-proxy-deployment.yaml -n ds-management-ui
+kubectl apply -f sharepoint-proxy-service.yaml -n ds-management-ui
+```
+
+### Verificar el Proxy
+
+```bash
+# Ver estado del pod
+kubectl get pods -n ds-management-ui | grep sharepoint-proxy
+
+# Ver logs
+kubectl logs -f deployment/sharepoint-proxy -n ds-management-ui
+
+# Probar health check desde dentro del cluster
+kubectl run test-curl --image=curlimages/curl:latest --rm -i --restart=Never -n ds-management-ui -- \
+  curl -s http://sharepoint-proxy.ds-management-ui.svc.cluster.local:5001/health
+```
+
+### URL del Proxy para Assets
+
+Al crear assets en EDC que apunten a SharePoint, usa:
+```
+http://sharepoint-proxy.ds-management-ui.svc.cluster.local:5001/api/sharepoint-proxy/download/{base64_encoded_url}
+```
+
+Donde `{base64_encoded_url}` es la codificación base64 URL-safe de `drive_id|item_id`.
+
+### Seguridad
+
+⚠️ **IMPORTANTE**: 
+- El archivo `sharepoint-proxy-secret.yaml` está en `.gitignore` y **NO debe versionarse**
+- Solo versiona `sharepoint-proxy-secret.yaml.template`
+- Las credenciales solo existen en el cluster de Kubernetes
+
 ## Logs y Debugging
 
 ### Ver logs del backend

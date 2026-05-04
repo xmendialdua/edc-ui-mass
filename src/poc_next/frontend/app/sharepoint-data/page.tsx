@@ -38,6 +38,7 @@ export default function SharePointDataPage() {
   const [sharingLinks, setSharingLinks] = useState<Record<string, string>>({});
   const [generatingLink, setGeneratingLink] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
+  const [downloadingViaProxy, setDownloadingViaProxy] = useState<string | null>(null);
 
   // SharePoint Site URL from environment
   const siteUrl = process.env.NEXT_PUBLIC_SHAREPOINT_SITE_URL || "";
@@ -310,6 +311,54 @@ export default function SharePointDataPage() {
       setError(`Error al descargar carpeta: ${err.message}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const downloadFileViaProxy = async (file: SharePointFile) => {
+    if (file.isFolder) {
+      setError("No se pueden descargar carpetas via proxy (solo archivos individuales)");
+      return;
+    }
+
+    if (!driveId) {
+      setError("Drive ID no disponible. Por favor, reconecta.");
+      return;
+    }
+
+    if (!accessToken) {
+      setError("Token no disponible. Por favor, inicia sesión.");
+      return;
+    }
+
+    try {
+      setDownloadingViaProxy(file.id);
+      setError(null);
+      
+      // Usar el nuevo método que pasa el token del usuario
+      const { blob, filename } = await api.sharepoint.downloadFileViaProxyWithUserToken(
+        file.id,
+        driveId,
+        accessToken
+      );
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      // Show success message briefly
+      setTimeout(() => {
+        setError(null);
+      }, 3000);
+    } catch (err: any) {
+      setError(`Error al descargar via proxy: ${err.message}`);
+    } finally {
+      setDownloadingViaProxy(null);
     }
   };
 
@@ -1080,6 +1129,37 @@ export default function SharePointDataPage() {
                             {copySuccess === file.id ? "✓" : "📋"}
                             {copySuccess === file.id ? "Copiado" : "Copiar Link"}
                           </button>
+
+                          {!file.isFolder && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                downloadFileViaProxy(file);
+                              }}
+                              disabled={downloadingViaProxy === file.id}
+                              style={{
+                                padding: "6px 12px",
+                                background: downloadingViaProxy === file.id ? "#9ca3af" : "#f97316",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "6px",
+                                cursor: downloadingViaProxy === file.id ? "not-allowed" : "pointer",
+                                fontSize: "12px",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                opacity: downloadingViaProxy === file.id ? 0.6 : 1
+                              }}
+                              title="Descargar via Proxy (prueba integración EDC)"
+                            >
+                              {downloadingViaProxy === file.id ? (
+                                <RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} />
+                              ) : (
+                                "🔄"
+                              )}
+                              Proxy
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

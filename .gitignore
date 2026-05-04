@@ -16,3 +16,9 @@ src/poc_next/.frontend.pid
 !*.env.example
 src/poc_next/backend/.env
 src/poc_next/frontend/.env
+src/poc_next/backend/api/routes/__pycache__/phase6.cpython-312.pyc
+src/poc_next/backend/api/routes/__pycache__/sharepoint_proxy.cpython-312.pyc
+src/poc_next/backend/sharepointGateway/__pycache__/SharePointGateway.cpython-312.pyc
+
+# Kubernetes secrets with sensitive credentials
+src/poc_next/k8s/sharepoint-proxy-secret.yaml

@@ -26,12 +26,28 @@ spec:
             name: poc-next-config
         - secretRef:
             name: poc-next-secrets
+        env:
+        - name: SHAREPOINT_PROXY_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: sharepoint-proxy-credentials
+              key: client-id
+        - name: SHAREPOINT_PROXY_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: sharepoint-proxy-credentials
+              key: client-secret
+        - name: SHAREPOINT_PROXY_TENANT_ID
+          valueFrom:
+            secretKeyRef:
+              name: sharepoint-proxy-credentials
+              key: tenant-id
         resources:
           limits:
             cpu: "500m"
             memory: "512Mi"
           requests:
-            cpu: "100m"
+            cpu: "50m"
             memory: "256Mi"
         livenessProbe:
           httpGet:

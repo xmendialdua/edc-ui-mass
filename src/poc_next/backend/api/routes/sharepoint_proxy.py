@@ -20,8 +20,9 @@ import os
 import base64
 import logging
 import mimetypes
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Response, Header
 from fastapi.responses import StreamingResponse
+from typing import Optional
 from sharepointGateway.SharePointAuth import SharePointAuthService
 from sharepointGateway.SharePointGateway import SharePointGateway
 from config import settings
@@ -106,6 +107,13 @@ async def download_sharepoint_file(encoded_file_info: str):
                 raise ValueError("Invalid format: expected 'drive_id|item_id'")
             
             drive_id, item_id = parts
+            
+            # SharePoint item_ids tienen formato: "drive_id|file_id"
+            # Si el item_id contiene '|', extraer solo la parte del file_id
+            if '|' in item_id:
+                _, file_id = item_id.split('|', 1)
+                item_id = file_id
+                logger.info("📄 Extracted file_id from full item_id")
             
             # Validar que no estén vacíos
             if not drive_id or not item_id:
@@ -318,3 +326,119 @@ async def proxy_info():
             "error": str(e),
             "message": "Service not properly configured"
         }
+
+@router.get("/sharepoint-proxy/download-with-user-token/{encoded_file_info}")
+async def download_with_user_token(
+    encoded_file_info: str,
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Endpoint de prueba: Descarga usando el token OAuth del usuario.
+    
+    A diferencia del endpoint principal que usa Service Principal (Application permissions),
+    este endpoint usa el token del usuario autenticado (Delegated permissions).
+    
+    Útil para:
+    - Probar el proxy sin necesitar permisos de Application
+    - Debugging de permisos
+    - Desarrollo y testing
+    
+    Args:
+        encoded_file_info: Base64 URL-safe encoding de "drive_id|item_id"
+        authorization: Header "Bearer {token}" con el token del usuario
+    
+    Returns:
+        Response: Archivo binario con headers apropiados
+        
+    Raises:
+        HTTPException 401: Si no se proporciona token
+        HTTPException 400: Si encoded_file_info no es válido
+        HTTPException 500: Si falla la descarga
+    """
+    try:
+        # PASO 1: Validar que se proporciona token
+        if not authorization or not authorization.startswith("Bearer "):
+            logger.error("❌ No authorization header provided")
+            raise HTTPException(
+                status_code=401,
+                detail="Authorization header with Bearer token is required"
+            )
+        
+        # Extraer token del header
+        user_token = authorization.replace("Bearer ", "").strip()
+        logger.info("🔑 Using user-provided token for authentication")
+        
+        # PASO 2: Decodificar información del archivo
+        try:
+            decoded_bytes = base64.urlsafe_b64decode(encoded_file_info.encode())
+            decoded_str = decoded_bytes.decode('utf-8')
+            # Usar split con maxsplit=1 para manejar item_ids que contienen '|'
+            drive_id, item_id = decoded_str.split('|', 1)
+            
+            # SharePoint item_ids tienen formato: "drive_id|file_id"
+            # Si el item_id contiene '|', extraer solo la parte del file_id
+            if '|' in item_id:
+                _, file_id = item_id.split('|', 1)
+                item_id = file_id
+                logger.info(f"📄 Extracted file_id from full item_id")
+            
+            logger.info(f"📄 Decoded - Drive: {drive_id[:20]}..., Item: {item_id[:20]}...")
+        except Exception as e:
+            logger.error(f"❌ Error decoding file info: {e}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid encoded_file_info format: {str(e)}"
+            )
+        
+        # PASO 3: Usar SharePointGateway con el token del usuario
+        logger.info("📥 Downloading file using user token...")
+        
+        # Crear gateway con el token del usuario
+        gateway = SharePointGateway(access_token=user_token)
+        
+        # Descargar archivo
+        file_content, filename = gateway.download_file(drive_id=drive_id, item_id=item_id)
+        
+        logger.info(f"✅ File downloaded successfully: {filename}")
+        
+        # PASO 4: Detectar tipo MIME
+        mime_type, _ = mimetypes.guess_type(filename)
+        if not mime_type:
+            mime_type = 'application/octet-stream'
+        
+        # PASO 5: Preparar respuesta
+        headers = {
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'Content-Type': mime_type,
+            'Content-Length': str(len(file_content))
+        }
+        
+        logger.info(f"📤 Sending file: {filename} ({len(file_content)} bytes, {mime_type})")
+        
+        return Response(
+            content=file_content,
+            headers=headers,
+            media_type=mime_type
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error downloading with user token: {e}")
+        logger.exception("Full exception details:")
+        
+        # Proveer tips de debugging
+        error_str = str(e).lower()
+        if "401" in error_str or "unauthorized" in error_str:
+            tip = "Token may be invalid, expired, or lack required permissions (Files.Read.All, Sites.Read.All)"
+        elif "403" in error_str or "forbidden" in error_str:
+            tip = "User may not have access to this specific file or site"
+        elif "404" in error_str or "not found" in error_str:
+            tip = "File or drive not found - check drive_id and item_id"
+        else:
+            tip = "Check logs for more details"
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to download file: {str(e)}. Tip: {tip}"
+        )

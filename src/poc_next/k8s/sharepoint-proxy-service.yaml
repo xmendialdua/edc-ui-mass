@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sharepoint-proxy
+  namespace: ds-management-ui
+  labels:
+    app: sharepoint-proxy
+spec:
+  type: ClusterIP  # Solo accesible internamente
+  selector:
+    app: sharepoint-proxy
+  ports:
+  - name: http
+    port: 5001
+    targetPort: 5001
+    protocol: TCP
