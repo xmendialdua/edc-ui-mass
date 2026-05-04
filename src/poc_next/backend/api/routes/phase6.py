@@ -880,3 +880,132 @@ async def debug_transfer(transfer_id: str) -> Dict[str, Any]:
         }
     finally:
         await ikln_client.close()
+
+
+@router.get("/sharepoint-info/{transfer_id}")
+async def get_sharepoint_info(transfer_id: str) -> Dict[str, Any]:
+    """
+    Extract SharePoint information from an asset if it's a SharePoint proxy URL.
+    
+    This endpoint:
+    1. Gets the transfer to extract the assetId
+    2. Gets the asset from the provider to extract the baseUrl
+    3. If baseUrl is a SharePoint proxy URL, extracts drive_id|item_id
+    4. Returns the information needed for frontend to download with user token
+    
+    Returns:
+        - is_sharepoint: bool - whether this is a SharePoint asset
+        - drive_id: str - SharePoint drive ID (if SharePoint)
+        - item_id: str - SharePoint item ID (if SharePoint)
+        - error: str - error message if any
+    """
+    ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
+    mass_client = EdcManagementClient(settings.mass_management_url, settings.mass_api_key)
+    
+    try:
+        # Get transfer to extract assetId
+        logger.info(f"📥 Getting transfer {transfer_id} to extract assetId...")
+        transfer = await ikln_client.get_transfer(transfer_id)
+        asset_id = transfer.get("assetId", "")
+        
+        if not asset_id:
+            return {
+                "success": False,
+                "is_sharepoint": False,
+                "error": "No assetId found in transfer"
+            }
+        
+        logger.info(f"📄 Asset ID: {asset_id}")
+        
+        # Get asset from provider (MASS) to extract baseUrl
+        logger.info(f"🔍 Getting asset from provider...")
+        asset = await mass_client.get_asset(asset_id)
+        
+        if not asset:
+            return {
+                "success": False,
+                "is_sharepoint": False,
+                "error": "Asset not found in provider"
+            }
+        
+        # Extract baseUrl from dataAddress
+        data_address = asset.get("dataAddress", {})
+        base_url = data_address.get("baseUrl", "")
+        
+        logger.info(f"🔗 Base URL: {base_url[:100]}...")
+        
+        # Check if it's a SharePoint proxy URL
+        if not base_url or "/api/sharepoint-proxy/download/" not in base_url:
+            return {
+                "success": True,
+                "is_sharepoint": False,
+                "message": "Not a SharePoint asset"
+            }
+        
+        # Extract encoded file info from URL
+        import re
+        match = re.search(r'/api/sharepoint-proxy/download/([^?]+)', base_url)
+        if not match:
+            return {
+                "success": False,
+                "is_sharepoint": True,
+                "error": "Could not extract encoded info from SharePoint proxy URL"
+            }
+        
+        encoded_file_info = match.group(1)
+        logger.info(f"📦 Encoded info extracted: {encoded_file_info[:50]}...")
+        
+        # Decode base64 URL-safe to get drive_id|item_id
+        import base64
+        try:
+            # Add padding if necessary
+            padding = '=' * (4 - len(encoded_file_info) % 4) if len(encoded_file_info) % 4 != 0 else ''
+            padded_encoded = encoded_file_info + padding
+            
+            # Decode base64 URL-safe
+            decoded_bytes = base64.urlsafe_b64decode(padded_encoded.encode())
+            decoded_str = decoded_bytes.decode('utf-8')
+            
+            # Split drive_id|item_id
+            parts = decoded_str.split('|', 1)
+            if len(parts) != 2:
+                return {
+                    "success": False,
+                    "is_sharepoint": True,
+                    "error": f"Invalid format: expected 'drive_id|item_id', got '{decoded_str}'"
+                }
+            
+            drive_id, item_id = parts
+            
+            logger.info(f"✅ SharePoint info extracted:")
+            logger.info(f"   Drive ID: {drive_id[:30]}...")
+            logger.info(f"   Item ID: {item_id[:30]}...")
+            
+            return {
+                "success": True,
+                "is_sharepoint": True,
+                "drive_id": drive_id,
+                "item_id": item_id,
+                "base_url": base_url
+            }
+            
+        except Exception as decode_error:
+            logger.error(f"❌ Error decoding SharePoint info: {decode_error}")
+            return {
+                "success": False,
+                "is_sharepoint": True,
+                "error": f"Failed to decode SharePoint info: {str(decode_error)}"
+            }
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting SharePoint info: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return {
+            "success": False,
+            "is_sharepoint": False,
+            "error": str(e)
+        }
+    finally:
+        await ikln_client.close()
+        await mass_client.close()

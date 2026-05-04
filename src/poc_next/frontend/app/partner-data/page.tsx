@@ -7,18 +7,89 @@ import TransfersContent from "@/components/phases/transfers-content";
 import { api } from "@/lib/api";
 import Image from "next/image";
 import { RefreshCw } from "lucide-react";
+import { useMsal } from "@azure/msal-react";
+import { InteractionRequiredAuthError } from "@azure/msal-browser";
+import { loginRequest } from "@/lib/authConfig";
 
 export default function PartnerDataPage() {
+  const { instance, accounts } = useMsal();
   const [connectorStatus] = useState<"checking" | "connected" | "disconnected">("connected");
   const [isMounted, setIsMounted] = useState(false);
   const [globalLogs, setGlobalLogs] = useState<string[]>([]);
+  const [sharePointConnected, setSharePointConnected] = useState(false);
+  const [sharePointUser, setSharePointUser] = useState<string | null>(null);
+  const [sharePointAuthenticating, setSharePointAuthenticating] = useState(false);
   const phase5Ref = useRef<any>(null);
   const negotiationsRef = useRef<any>(null);
   const transfersRef = useRef<any>(null);
 
   useEffect(() => {
     setIsMounted(true);
+    // Autenticación automática con SharePoint al cargar la página
+    authenticateSharePoint();
   }, []);
+
+  // Autenticación silenciosa con SharePoint
+  const authenticateSharePoint = async () => {
+    if (sharePointAuthenticating) return;
+    
+    setSharePointAuthenticating(true);
+    
+    try {
+      const activeAccount = accounts[0];
+      
+      if (!activeAccount) {
+        // Si no hay cuenta, intentar login silencioso
+        console.log('No active account, attempting silent login...');
+        try {
+          const loginResult = await instance.loginPopup(loginRequest);
+          if (loginResult.account) {
+            setSharePointConnected(true);
+            setSharePointUser(loginResult.account.username || loginResult.account.name || 'Usuario');
+            console.log('✅ SharePoint authentication successful (popup)');
+          }
+        } catch (loginError: any) {
+          // Usuario canceló o error de login - no mostramos error, simplemente quedamos desconectados
+          console.log('SharePoint login not completed:', loginError.errorCode);
+          setSharePointConnected(false);
+        }
+      } else {
+        // Ya hay una cuenta, intentar obtener token silenciosamente
+        const request = {
+          ...loginRequest,
+          account: activeAccount,
+        };
+
+        try {
+          const tokenResponse = await instance.acquireTokenSilent(request);
+          setSharePointConnected(true);
+          setSharePointUser(activeAccount.username || activeAccount.name || 'Usuario');
+          console.log('✅ SharePoint authentication successful (silent)');
+        } catch (silentError: any) {
+          if (silentError instanceof InteractionRequiredAuthError) {
+            // Necesita interacción, intentar popup automáticamente
+            try {
+              const tokenResponse = await instance.acquireTokenPopup(request);
+              setSharePointConnected(true);
+              setSharePointUser(activeAccount.username || activeAccount.name || 'Usuario');
+              console.log('✅ SharePoint authentication successful (popup after silent fail)');
+            } catch (popupError) {
+              console.log('SharePoint popup authentication failed');
+              setSharePointConnected(false);
+            }
+          } else {
+            console.error('SharePoint authentication error:', silentError);
+            setSharePointConnected(false);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('SharePoint authentication error:', error);
+      setSharePointConnected(false);
+    } finally {
+      setSharePointAuthenticating(false);
+    }
+  };
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -329,34 +400,96 @@ export default function PartnerDataPage() {
                 <span style={{ fontSize: "24px" }}>📥</span>
                 <span>Transferencias</span>
               </div>
-              <button
-                onClick={() => transfersRef.current?.refresh()}
-                style={{
-                  padding: "8px",
-                  background: "rgba(255, 255, 255, 0.2)",
-                  color: "white",
-                  border: "1px solid rgba(255, 255, 255, 0.3)",
-                  borderRadius: "6px",
-                  cursor: "pointer",
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px"
+              }}>
+                {/* Indicador de estado de SharePoint */}
+                <div style={{
                   display: "flex",
                   alignItems: "center",
-                  transition: "all 0.2s ease"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.3)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)";
-                }}
-              >
-                <RefreshCw size={16} />
-              </button>
+                  gap: "8px",
+                  padding: "6px 12px",
+                  background: "rgba(255, 255, 255, 0.15)",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  color: "white",
+                  border: `1px solid ${sharePointConnected ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)'}`
+                }}>
+                  {sharePointConnected ? (
+                    <>
+                      <span style={{
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "50%",
+                        background: "#10b981",
+                        boxShadow: "0 0 6px rgba(16, 185, 129, 0.8)"
+                      }}></span>
+                      <span style={{ fontSize: "12px", fontWeight: "500" }}>
+                        SharePoint: Conectado
+                      </span>
+                      {sharePointUser && (
+                        <span style={{ 
+                          fontSize: "11px", 
+                          opacity: 0.8,
+                          marginLeft: "4px"
+                        }}>
+                          ({sharePointUser})
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span style={{
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "50%",
+                        background: "#ef4444"
+                      }}></span>
+                      <span style={{ fontSize: "12px", fontWeight: "500" }}>
+                        SharePoint: No conectado
+                      </span>
+                    </>
+                  )}
+                </div>
+                
+                {/* Botón de refrescar */}
+                <button
+                  onClick={() => transfersRef.current?.refresh()}
+                  style={{
+                    padding: "8px",
+                    background: "rgba(255, 255, 255, 0.2)",
+                    color: "white",
+                    border: "1px solid rgba(255, 255, 255, 0.3)",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    transition: "all 0.2s ease"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "rgba(255, 255, 255, 0.3)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)";
+                  }}
+                >
+                  <RefreshCw size={16} />
+                </button>
+              </div>
             </div>
             <div style={{
               padding: "20px",
               minHeight: "400px"
             }}>
-              <TransfersContent ref={transfersRef} onLog={addLog} />
+              <TransfersContent 
+                ref={transfersRef} 
+                onLog={addLog}
+                sharePointConnected={sharePointConnected}
+                sharePointUser={sharePointUser}
+                onAuthenticateSharePoint={authenticateSharePoint}
+              />
             </div>
           </div>
         </div>

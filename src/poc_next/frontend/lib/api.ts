@@ -270,6 +270,18 @@ export const api = {
       `/api/phase6/transfer-status/${transferId}`,
       { method: 'GET' }
     ),
+    getSharePointInfo: (transferId: string) => apiRequest<{
+      success: boolean;
+      is_sharepoint: boolean;
+      drive_id?: string;
+      item_id?: string;
+      base_url?: string;
+      error?: string;
+      message?: string;
+    }>(
+      `/api/phase6/sharepoint-info/${transferId}`,
+      { method: 'GET' }
+    ),
   },
 
   /**

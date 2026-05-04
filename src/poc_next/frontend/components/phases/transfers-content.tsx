@@ -23,10 +23,13 @@ interface Transfer {
 
 interface TransfersContentProps {
   onLog?: (message: string) => void;
+  sharePointConnected?: boolean;
+  sharePointUser?: string | null;
+  onAuthenticateSharePoint?: () => void;
 }
 
 const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentProps>(
-  ({ onLog }, ref) => {
+  ({ onLog, sharePointConnected = false, sharePointUser = null, onAuthenticateSharePoint }, ref) => {
     const { instance, accounts } = useMsal();
     const [loading, setLoading] = useState(false);
     const [transfers, setTransfers] = useState<Transfer[]>([]);
@@ -343,72 +346,49 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
     const handleDownloadData = async (transferId: string, edrEndpoint?: string, edrToken?: string) => {
       addLog(`📥 Descargando datos de transferencia: ${transferId}`);
       
-      let endpoint = edrEndpoint;
-      
-      // If no EDR available, try to fetch it on-demand
-      if (!endpoint) {
-        addLog(`   ⏳ EDR no disponible, obteniéndolo bajo demanda...`);
-        try {
-          const result = await api.phase6.getTransferEdr(transferId);
-          if (result.success && result.edr) {
-            endpoint = result.edr.endpoint;
-            addLog(`   ✅ EDR obtenido ${result.cached ? '(caché)' : '(consulta)'}`);
-          } else {
-            addLog(`   ❌ No se pudo obtener el EDR para esta transferencia`);
-            return;
-          }
-        } catch (error) {
-          addLog(`   ❌ Error al obtener EDR: ${error instanceof Error ? error.message : 'Unknown error'}`);
-          return;
-        }
-      }
-      
-      if (!endpoint) {
-        addLog(`   ❌ No hay endpoint EDR disponible`);
-        return;
-      }
-
-      addLog(`   Endpoint: ${endpoint}`);
-      
       try {
-        // Verificar si es una URL de SharePoint proxy
-        if (endpoint.includes('/api/sharepoint-proxy/download/')) {
-          addLog(`   🔍 Detectado asset de SharePoint, usando descarga con token de usuario...`);
+        // Primero, verificar si es un asset de SharePoint consultando el backend
+        addLog(`   🔍 Verificando si es un asset de SharePoint...`);
+        const sharePointInfo = await api.phase6.getSharePointInfo(transferId);
+        
+        if (sharePointInfo.success && sharePointInfo.is_sharepoint && sharePointInfo.drive_id && sharePointInfo.item_id) {
+          // Es un asset de SharePoint - descargar con token del usuario
+          addLog(`   ✅ Asset de SharePoint detectado`);
+          addLog(`   📁 Drive ID: ${sharePointInfo.drive_id.substring(0, 20)}...`);
+          addLog(`   📄 Item ID: ${sharePointInfo.item_id.substring(0, 20)}...`);
           
-          // Extraer el encoded file info del endpoint
-          const match = endpoint.match(/\/api\/sharepoint-proxy\/download\/([^?]+)/);
-          if (!match || !match[1]) {
-            throw new Error('No se pudo extraer la información del archivo del endpoint');
-          }
-          
-          const encodedFileInfo = match[1];
-          addLog(`   📦 Encoded info: ${encodedFileInfo.substring(0, 30)}...`);
-          
-          // Decodificar para obtener drive_id|item_id
-          // Añadir padding si es necesario para base64 URL-safe
-          let padded = encodedFileInfo;
-          const remainder = encodedFileInfo.length % 4;
-          if (remainder) {
-            padded += '='.repeat(4 - remainder);
-          }
-          
-          // Decodificar base64 URL-safe
-          const decoded = atob(padded.replace(/-/g, '+').replace(/_/g, '/'));
-          const [driveId, itemId] = decoded.split('|');
-          
-          addLog(`   📁 Drive ID: ${driveId.substring(0, 20)}...`);
-          addLog(`   📄 Item ID: ${itemId.substring(0, 20)}...`);
-          
-          // Obtener token de Azure AD del usuario autenticado
+          // Verificar si el usuario está autenticado
           const activeAccount = accounts[0];
           if (!activeAccount) {
-            throw new Error('Usuario no autenticado. Por favor, inicia sesión en la sección de SharePoint primero.');
+            addLog(`   ⚠️ No hay sesión de SharePoint activa`);
+            addLog(`   🔐 Iniciando autenticación con SharePoint...`);
+            
+            // Intentar autenticar automáticamente
+            if (onAuthenticateSharePoint) {
+              try {
+                await onAuthenticateSharePoint();
+                // Esperar un momento para que se complete la autenticación
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Verificar de nuevo si hay cuenta
+                const newActiveAccount = accounts[0];
+                if (!newActiveAccount) {
+                  throw new Error('No se pudo autenticar con SharePoint. Por favor, intenta de nuevo.');
+                }
+                
+                addLog(`   ✅ Autenticación completada`);
+              } catch (authError) {
+                throw new Error('Autenticación con SharePoint requerida. Por favor, recarga la página e intenta de nuevo.');
+              }
+            } else {
+              throw new Error('No se pudo iniciar la autenticación con SharePoint.');
+            }
           }
           
           addLog(`   🔐 Obteniendo token de Azure AD del usuario...`);
           const request = {
             ...loginRequest,
-            account: activeAccount,
+            account: accounts[0], // Usar la cuenta actualizada
           };
           
           let tokenResponse;
@@ -429,8 +409,8 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
           // Descargar usando el proxy con token de usuario (delegated permissions)
           addLog(`   📥 Descargando archivo desde SharePoint...`);
           const { blob, filename } = await api.sharepoint.downloadFileViaProxyWithUserToken(
-            itemId,
-            driveId,
+            sharePointInfo.item_id,
+            sharePointInfo.drive_id,
             userToken
           );
           
@@ -455,7 +435,32 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
           
         } else {
           // Flujo tradicional para otros tipos de assets (no SharePoint)
-          addLog(`   🔄 Usando descarga tradicional vía EDC DataPlane...`);
+          addLog(`   ${sharePointInfo.message || 'No es un asset de SharePoint'}`);
+          addLog(`   🔄 Usando descarga tradicional vía backend POC Next...`);
+          
+          // Obtener el EDR endpoint si no lo tenemos
+          let endpoint = edrEndpoint;
+          if (!endpoint) {
+            addLog(`   ⏳ Obteniendo EDR endpoint...`);
+            try {
+              const result = await api.phase6.getTransferEdr(transferId);
+              if (result.success && result.edr) {
+                endpoint = result.edr.endpoint;
+                addLog(`   ✅ EDR obtenido`);
+              } else {
+                addLog(`   ❌ No se pudo obtener el EDR`);
+                return;
+              }
+            } catch (error) {
+              addLog(`   ❌ Error al obtener EDR: ${error instanceof Error ? error.message : 'Unknown error'}`);
+              return;
+            }
+          }
+          
+          if (!endpoint) {
+            addLog(`   ❌ No hay endpoint EDR disponible`);
+            return;
+          }
           
           const { blob, contentType, filename } = await api.phase6.downloadFile({
             transferId: transferId,
