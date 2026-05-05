@@ -114,13 +114,6 @@ async def download_sharepoint_file(encoded_file_info: str):
             
             drive_id, item_id = parts
             
-            # SharePoint item_ids tienen formato: "drive_id|file_id"
-            # Si el item_id contiene '|', extraer solo la parte del file_id
-            if '|' in item_id:
-                _, file_id = item_id.split('|', 1)
-                item_id = file_id
-                logger.info("📄 Extracted file_id from full item_id")
-            
             # Validar que no estén vacíos
             if not drive_id or not item_id:
                 raise ValueError("drive_id and item_id cannot be empty")
@@ -286,12 +279,6 @@ async def download_sharepoint_folder(encoded_folder_info: str):
                 raise ValueError("Invalid format: expected 'drive_id|folder_id'")
             
             drive_id, folder_id = parts
-            
-            # Si el folder_id contiene '|', extraer solo la parte del item_id
-            if '|' in folder_id:
-                _, item_id = folder_id.split('|', 1)
-                folder_id = item_id
-                logger.info("📁 Extracted folder_id from full composite id")
             
             # Validar que no estén vacíos
             if not drive_id or not folder_id:
@@ -548,13 +535,6 @@ async def download_with_user_token(
             decoded_str = decoded_bytes.decode('utf-8')
             # Usar split con maxsplit=1 para manejar item_ids que contienen '|'
             drive_id, item_id = decoded_str.split('|', 1)
-            
-            # SharePoint item_ids tienen formato: "drive_id|file_id"
-            # Si el item_id contiene '|', extraer solo la parte del file_id
-            if '|' in item_id:
-                _, file_id = item_id.split('|', 1)
-                item_id = file_id
-                logger.info(f"📄 Extracted file_id from full item_id")
             
             logger.info(f"📄 Decoded - Drive: {drive_id[:20]}..., Item: {item_id[:20]}...")
         except Exception as e:
