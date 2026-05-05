@@ -13,7 +13,8 @@ Flujo de descarga:
 6. DataPlane entrega el archivo al Consumer
 
 Endpoints:
-- GET /api/sharepoint-proxy/download/{encoded_file_info}: Descarga archivo
+- GET /api/sharepoint-proxy/download/{encoded_file_info}: Descarga archivo individual
+- GET /api/sharepoint-proxy/download-folder/{encoded_folder_info}: Descarga carpeta como ZIP
 - GET /api/sharepoint-proxy/health: Health check del servicio
 """
 import os
@@ -230,6 +231,169 @@ async def download_sharepoint_file(encoded_file_info: str):
             detail=f"Internal server error: {str(e)}"
         )
 
+@router.get("/sharepoint-proxy/download-folder/{encoded_folder_info}")
+async def download_sharepoint_folder(encoded_folder_info: str):
+    """
+    Endpoint proxy para descargar carpetas de SharePoint como ZIP.
+    
+    Este endpoint es llamado por el EDC DataPlane cuando intenta descargar
+    un asset de tipo carpeta. El proxy gestiona la autenticación OAuth y descarga 
+    todo el contenido de la carpeta recursivamente, empaquetándolo como ZIP.
+    
+    Args:
+        encoded_folder_info: Base64 URL-safe encoding de "drive_id|folder_id"
+                            Ejemplo: "YjEhWHl6MTIzfDAxQUJDREVG"
+    
+    Returns:
+        Response: Archivo ZIP con contenido de la carpeta
+        
+    Raises:
+        HTTPException 400: Si encoded_folder_info no es válido
+        HTTPException 503: Si falla la autenticación con Azure AD
+        HTTPException 500: Si falla la descarga desde SharePoint
+        
+    Headers de respuesta:
+        - Content-Disposition: attachment con nombre de la carpeta + .zip
+        - Content-Type: application/zip
+        - Content-Length: Tamaño del archivo ZIP en bytes
+        
+    Ejemplo de uso:
+        GET /api/sharepoint-proxy/download-folder/YjEhWHl6MTIzfDAxQUJDREVG
+        
+        Respuesta:
+        HTTP/1.1 200 OK
+        Content-Type: application/zip
+        Content-Disposition: attachment; filename="MyFolder.zip"
+        Content-Length: 1234567
+        
+        <binary ZIP file content>
+    """
+    try:
+        # PASO 1: Decodificar información de la carpeta
+        # El frontend codifica "drive_id|folder_id" en base64 URL-safe
+        try:
+            # Añadir padding si es necesario
+            padding = '=' * (4 - len(encoded_folder_info) % 4) if len(encoded_folder_info) % 4 != 0 else ''
+            padded_encoded = encoded_folder_info + padding
+            
+            # Decodificar base64 URL-safe
+            decoded_bytes = base64.urlsafe_b64decode(padded_encoded.encode())
+            decoded_str = decoded_bytes.decode('utf-8')
+            
+            # Separar drive_id y folder_id
+            parts = decoded_str.split('|', 1)
+            if len(parts) != 2:
+                raise ValueError("Invalid format: expected 'drive_id|folder_id'")
+            
+            drive_id, folder_id = parts
+            
+            # Si el folder_id contiene '|', extraer solo la parte del item_id
+            if '|' in folder_id:
+                _, item_id = folder_id.split('|', 1)
+                folder_id = item_id
+                logger.info("📁 Extracted folder_id from full composite id")
+            
+            # Validar que no estén vacíos
+            if not drive_id or not folder_id:
+                raise ValueError("drive_id and folder_id cannot be empty")
+                
+        except Exception as e:
+            logger.error(f"❌ Error decoding folder info: {e}")
+            logger.error(f"   Received: {encoded_folder_info}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid folder identifier format: {str(e)}"
+            )
+        
+        # Log de la petición
+        drive_preview = drive_id[:8] + "..." if len(drive_id) > 8 else drive_id
+        folder_preview = folder_id[:8] + "..." if len(folder_id) > 8 else folder_id
+        logger.info(f"📦 Proxy download-folder request:")
+        logger.info(f"   Drive ID: {drive_preview}")
+        logger.info(f"   Folder ID: {folder_preview}")
+        
+        # PASO 2: Obtener access token de Azure AD
+        logger.info("🔐 Obtaining access token from Azure AD...")
+        auth = get_auth_service()
+        access_token = auth.get_access_token()
+        
+        if not access_token:
+            logger.error("❌ Failed to obtain access token from Azure AD")
+            raise HTTPException(
+                status_code=503, 
+                detail="Failed to authenticate with SharePoint. Check server logs."
+            )
+        
+        logger.info("✅ Access token obtained successfully")
+        
+        # PASO 3: Descargar carpeta desde SharePoint como ZIP
+        logger.info("📦 Downloading folder from SharePoint and creating ZIP...")
+        gateway = SharePointGateway(access_token=access_token, default_drive_id=drive_id)
+        
+        try:
+            # Descargar contenido de la carpeta empaquetado como ZIP
+            # Devuelve tupla: (zip_content, zip_filename)
+            zip_content, zip_filename = gateway.download_folder_as_zip(
+                drive_id=drive_id, 
+                folder_id=folder_id
+            )
+            
+            zip_size = len(zip_content)
+            logger.info(f"✅ Folder downloaded and zipped successfully:")
+            logger.info(f"   ZIP filename: {zip_filename}")
+            logger.info(f"   ZIP size: {zip_size:,} bytes ({zip_size / (1024*1024):.2f} MB)")
+            
+            # PASO 4: Retornar ZIP como HTTP response
+            return Response(
+                content=zip_content,
+                media_type='application/zip',
+                headers={
+                    # Indica al navegador que descargue el archivo
+                    'Content-Disposition': f'attachment; filename="{zip_filename}"',
+                    # Tamaño total del ZIP
+                    'Content-Length': str(zip_size),
+                    # Permitir CORS (si es necesario)
+                    'Access-Control-Allow-Origin': '*',
+                    # Cache control
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Error downloading folder from SharePoint: {e}")
+            logger.exception("Full exception details:")
+            
+            # Errores comunes y sus soluciones
+            error_tips = {
+                "401": "Unauthorized - Token may have expired or lacks permissions",
+                "403": "Forbidden - Service Principal lacks Files.Read.All permission",
+                "404": "Folder not found - Item may have been deleted or moved",
+                "429": "Rate limited - Too many requests to SharePoint"
+            }
+            
+            error_msg = str(e)
+            for code, tip in error_tips.items():
+                if code in error_msg:
+                    logger.error(f"   💡 Tip: {tip}")
+                    break
+            
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to download folder from SharePoint: {str(e)}"
+            )
+            
+    except HTTPException:
+        # Re-raise HTTP exceptions (ya están formateadas)
+        raise
+    except Exception as e:
+        # Capturar cualquier otro error inesperado
+        logger.error(f"❌ Unexpected error in proxy: {e}")
+        logger.exception("Full exception details:")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Internal server error: {str(e)}"
+        )
+
 @router.get("/sharepoint-proxy/health")
 async def proxy_health():
     """
@@ -320,7 +484,8 @@ async def proxy_info():
                 "scopes": auth.scopes
             },
             "endpoints": {
-                "download": "/api/sharepoint-proxy/download/{encoded_file_info}",
+                "download_file": "/api/sharepoint-proxy/download/{encoded_file_info}",
+                "download_folder": "/api/sharepoint-proxy/download-folder/{encoded_folder_info}",
                 "health": "/api/sharepoint-proxy/health",
                 "info": "/api/sharepoint-proxy/info"
             }

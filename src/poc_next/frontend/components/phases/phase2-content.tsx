@@ -3,7 +3,7 @@
 import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '@/components/ui/button';
 import { api, getApiBaseUrl } from '@/lib/api';
-import { Package, Plus, RefreshCw, Trash2, Upload, ChevronDown, ChevronUp, FolderOpen, File, ChevronRight, Home } from 'lucide-react';
+import { Package, Plus, RefreshCw, Trash2, Upload, ChevronDown, ChevronUp, FolderOpen, File, ChevronRight, Home, CheckCircle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -278,13 +278,20 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
           .replace(/\//g, '_')
           .replace(/=+$/, ''); // Base64 URL-safe encode
         
+        // Determinar el endpoint según si es carpeta o archivo
+        const proxyEndpoint = item.isFolder ? 'download-folder' : 'download';
+        
         // URL INTERNA del cluster - accesible para EDC DataPlane
-        const proxyUrl = `http://sharepoint-proxy.ds-management-ui.svc.cluster.local:5001/api/sharepoint-proxy/download/${encoded}`;
+        const proxyUrl = `http://sharepoint-proxy.ds-management-ui.svc.cluster.local:5001/api/sharepoint-proxy/${proxyEndpoint}/${encoded}`;
 
-        log(`🔗 Generando URL de proxy interno para: ${item.name}`);
+        const itemType = item.isFolder ? 'carpeta' : 'archivo';
+        log(`🔗 Generando URL de proxy interno para ${itemType}: ${item.name}`);
         log(`📍 Drive ID: ${driveId.substring(0, 8)}...`);
         log(`📍 Item ID: ${itemId.substring(0, 8)}...`);
         log(`📍 URL proxy (interno cluster): ${proxyUrl}`);
+        if (item.isFolder) {
+          log(`📦 La carpeta se descargará como archivo ZIP`);
+        }
         log(`✅ URL configurada para EDC DataPlane`);
         log(`ℹ️  Esta URL solo funciona desde dentro del cluster de Kubernetes`);
         
@@ -1316,78 +1323,124 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                           {sharePointFiles.map((file) => (
                             <div
                               key={file.id}
-                              onClick={() => {
-                                if (file.isFolder) {
-                                  if (assetUrlType === 'sharepoint-folder') {
-                                    // Can select folder with single click
-                                    handleSharePointItemSelect(file);
-                                  }
-                                  // In file mode, do nothing on single click (wait for double click to navigate)
-                                } else {
-                                  // Select file with single click
-                                  handleSharePointItemSelect(file);
-                                }
-                              }}
-                              onDoubleClick={() => {
-                                if (file.isFolder) {
-                                  // Double click always navigates into folder
-                                  handleSharePointFolderClick(file);
-                                }
-                              }}
                               style={{
-                                padding: '12px',
                                 borderBottom: '1px solid #f3f4f6',
-                                cursor: 'pointer',
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '12px',
-                                transition: 'background 0.2s'
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = '#f3f4f6';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = '#fff';
+                                transition: 'background 0.2s',
+                                backgroundColor: '#fff'
                               }}
                             >
-                              {file.isFolder ? (
-                                <FolderOpen size={20} color="#f59e0b" />
-                              ) : (
-                                <File size={20} color="#6b7280" />
-                              )}
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{
-                                  fontSize: '14px',
-                                  fontWeight: '500',
-                                  color: '#111827',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap'
-                                }}>
-                                  {file.name}
+                              {/* Main clickable area */}
+                              <div
+                                onClick={() => {
+                                  if (!file.isFolder) {
+                                    // Select file with single click
+                                    handleSharePointItemSelect(file);
+                                  }
+                                  // For folders, do nothing on single click (wait for double click to navigate)
+                                }}
+                                onDoubleClick={() => {
+                                  if (file.isFolder) {
+                                    // Double click always navigates into folder
+                                    handleSharePointFolderClick(file);
+                                  }
+                                }}
+                                style={{
+                                  padding: '12px',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '12px',
+                                  flex: 1,
+                                  minWidth: 0
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.parentElement!.style.background = '#f3f4f6';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.parentElement!.style.background = '#fff';
+                                }}
+                              >
+                                {file.isFolder ? (
+                                  <FolderOpen size={20} color="#f59e0b" />
+                                ) : (
+                                  <File size={20} color="#6b7280" />
+                                )}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{
+                                    fontSize: '14px',
+                                    fontWeight: '500',
+                                    color: '#111827',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                  }}>
+                                    {file.name}
+                                  </div>
+                                  {file.isFolder && (
+                                    <div style={{
+                                      fontSize: '11px',
+                                      color: '#9ca3af',
+                                      marginTop: '2px',
+                                      fontStyle: 'italic'
+                                    }}>
+                                      Doble clic para abrir
+                                    </div>
+                                  )}
+                                  {!file.isFolder && file.size && (
+                                    <div style={{
+                                      fontSize: '12px',
+                                      color: '#6b7280',
+                                      marginTop: '2px'
+                                    }}>
+                                      {formatFileSize(file.size)}
+                                    </div>
+                                  )}
                                 </div>
                                 {file.isFolder && (
-                                  <div style={{
-                                    fontSize: '11px',
-                                    color: '#9ca3af',
-                                    marginTop: '2px',
-                                    fontStyle: 'italic'
-                                  }}>
-                                    Doble clic para abrir
-                                  </div>
-                                )}
-                                {!file.isFolder && file.size && (
-                                  <div style={{
-                                    fontSize: '12px',
-                                    color: '#6b7280',
-                                    marginTop: '2px'
-                                  }}>
-                                    {formatFileSize(file.size)}
-                                  </div>
+                                  <ChevronRight size={16} color="#9ca3af" />
                                 )}
                               </div>
+                              
+                              {/* Select button for folders */}
                               {file.isFolder && (
-                                <ChevronRight size={16} color="#9ca3af" />
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSharePointItemSelect(file);
+                                  }}
+                                  style={{
+                                    padding: '8px 12px',
+                                    marginRight: '12px',
+                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    fontSize: '13px',
+                                    fontWeight: '600',
+                                    whiteSpace: 'nowrap',
+                                    transition: 'all 0.2s ease',
+                                    boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.transform = 'scale(1.05)';
+                                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(16, 185, 129, 0.3)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = 'scale(1)';
+                                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(16, 185, 129, 0.2)';
+                                  }}
+                                  title="Seleccionar esta carpeta"
+                                >
+                                  <CheckCircle size={16} />
+                                  Seleccionar
+                                </button>
                               )}
                             </div>
                           ))}
