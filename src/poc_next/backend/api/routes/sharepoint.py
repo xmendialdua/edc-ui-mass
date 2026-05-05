@@ -147,7 +147,7 @@ async def list_files(
 async def list_files_by_site_url(
     authorization: Optional[str] = Header(None),
     site_url: str = Query(..., description="SharePoint site URL"),
-    folder_path: Optional[str] = Query(None, description="Folder path within site")
+    folder_id: Optional[str] = Query(None, description="Folder item ID for navigation")
 ):
     """
     List files from SharePoint by site URL.
@@ -155,7 +155,7 @@ async def list_files_by_site_url(
     Args:
         authorization: Bearer token for Microsoft Graph API
         site_url: SharePoint site URL (e.g., https://company.sharepoint.com/sites/sitename)
-        folder_path: Optional folder path within the site
+        folder_id: Optional folder item ID to list contents of specific folder
         
     Returns:
         List of files and folders
@@ -163,30 +163,76 @@ async def list_files_by_site_url(
     try:
         gateway = get_gateway(authorization)
         
-        logger.info(f"Listing files from site_url={site_url}, folder_path={folder_path}")
+        logger.info(f"[SharePoint API] Listing files from site_url={site_url}, folder_id={folder_id}")
         
-        # For now, only list root folder (item_id navigation can be added later)
-        files = gateway.get_sharepoint_files_by_site_url(
-            site_url=site_url
-        )
-        
-        # Extract drive_id from the first file (all files have the same drive_id)
-        drive_id = None
-        if files and '|' in files[0].id:
-            drive_id = files[0].id.split('|')[0]
-        
-        items = [
-            FileItemResponse(
-                id=f.id,
-                name=f.name,
-                webUrl=f.web_url,
-                size=f.size,
-                lastModified=f.last_modified,
-                isFolder=f.is_folder,
-                folder={'childCount': f.folder.child_count} if f.folder else None
+        if folder_id:
+            # Navigate into specific folder using item_id
+            # Parse composite ID if present (drive_id|item_id)
+            item_id = folder_id
+            drive_id = None
+            if '|' in folder_id:
+                drive_id, item_id = folder_id.split('|', 1)
+                logger.info(f"[SharePoint API] Parsed composite ID: drive_id={drive_id[:20]}..., item_id={item_id[:20]}...")
+            else:
+                logger.warning(f"[SharePoint API] folder_id does NOT contain '|' separator: {folder_id[:50]}... - will use /me/drive")
+            
+            # List files in the specific folder
+            logger.info(f"[SharePoint API] Calling gateway.get_sharepoint_files(drive_id={drive_id[:20] if drive_id else 'None'}..., item_id={item_id[:20]}...)")
+            files = gateway.get_sharepoint_files(
+                drive_id=drive_id,
+                item_id=item_id
             )
-            for f in files
-        ]
+            
+            # Ensure all IDs include drive_id prefix
+            if drive_id:
+                items = [
+                    FileItemResponse(
+                        id=f.id if '|' in f.id else f"{drive_id}|{f.id}",
+                        name=f.name,
+                        webUrl=f.web_url,
+                        size=f.size,
+                        lastModified=f.last_modified,
+                        isFolder=f.is_folder,
+                        folder={'childCount': f.folder.child_count} if f.folder else None
+                    )
+                    for f in files
+                ]
+            else:
+                items = [
+                    FileItemResponse(
+                        id=f.id,
+                        name=f.name,
+                        webUrl=f.web_url,
+                        size=f.size,
+                        lastModified=f.last_modified,
+                        isFolder=f.is_folder,
+                        folder={'childCount': f.folder.child_count} if f.folder else None
+                    )
+                    for f in files
+                ]
+        else:
+            # List root folder
+            files = gateway.get_sharepoint_files_by_site_url(
+                site_url=site_url
+            )
+            
+            # Extract drive_id from the first file (all files have the same drive_id)
+            drive_id = None
+            if files and '|' in files[0].id:
+                drive_id = files[0].id.split('|')[0]
+            
+            items = [
+                FileItemResponse(
+                    id=f.id,
+                    name=f.name,
+                    webUrl=f.web_url,
+                    size=f.size,
+                    lastModified=f.last_modified,
+                    isFolder=f.is_folder,
+                    folder={'childCount': f.folder.child_count} if f.folder else None
+                )
+                for f in files
+            ]
         
         return FilesListResponse(items=items, count=len(items), drive_id=drive_id)
         

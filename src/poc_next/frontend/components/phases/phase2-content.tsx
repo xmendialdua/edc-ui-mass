@@ -184,9 +184,9 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
       setSharePointFolderPath([...sharePointFolderPath, folder.name]);
       setSharePointFolderIds([...sharePointFolderIds, folder.id]);
       
-      // Extract item_id from composite format "drive_id|item_id"
-      const itemId = folder.id.includes('|') ? folder.id.split('|')[1] : folder.id;
-      await loadSharePointFiles(sharePointAccessToken, itemId);
+      // Pass the full folder.id (drive_id|item_id) to backend
+      // Backend will parse it correctly
+      await loadSharePointFiles(sharePointAccessToken, folder.id);
     }
   };
 
@@ -200,9 +200,9 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
       await loadSharePointFiles(sharePointAccessToken);
     } else {
       const folderId = newIds[newIds.length - 1];
-      // Extract item_id from composite format
-      const itemId = folderId.includes('|') ? folderId.split('|')[1] : folderId;
-      await loadSharePointFiles(sharePointAccessToken, itemId);
+      // Pass the full folderId (drive_id|item_id) to backend
+      // Backend will parse it correctly
+      await loadSharePointFiles(sharePointAccessToken, folderId);
     }
   };
 
@@ -1259,11 +1259,9 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                           <button
                             onClick={() => {
                               const currentFolderId = sharePointFolderIds[sharePointFolderIds.length - 1];
-                              // Extract item_id from composite format
-                              const itemId = currentFolderId ? 
-                                (currentFolderId.includes('|') ? currentFolderId.split('|')[1] : currentFolderId) : 
-                                undefined;
-                              loadSharePointFiles(sharePointAccessToken, itemId);
+                              // Pass the full currentFolderId (drive_id|item_id) to backend
+                              // Backend will parse it correctly
+                              loadSharePointFiles(sharePointAccessToken, currentFolderId);
                             }}
                             style={{
                               marginLeft: 'auto',
@@ -1321,15 +1319,19 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                               onClick={() => {
                                 if (file.isFolder) {
                                   if (assetUrlType === 'sharepoint-folder') {
-                                    // Can select folder
+                                    // Can select folder with single click
                                     handleSharePointItemSelect(file);
-                                  } else {
-                                    // Navigate into folder
-                                    handleSharePointFolderClick(file);
                                   }
+                                  // In file mode, do nothing on single click (wait for double click to navigate)
                                 } else {
-                                  // Select file
+                                  // Select file with single click
                                   handleSharePointItemSelect(file);
+                                }
+                              }}
+                              onDoubleClick={() => {
+                                if (file.isFolder) {
+                                  // Double click always navigates into folder
+                                  handleSharePointFolderClick(file);
                                 }
                               }}
                               style={{
@@ -1364,6 +1366,16 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                                 }}>
                                   {file.name}
                                 </div>
+                                {file.isFolder && (
+                                  <div style={{
+                                    fontSize: '11px',
+                                    color: '#9ca3af',
+                                    marginTop: '2px',
+                                    fontStyle: 'italic'
+                                  }}>
+                                    Doble clic para abrir
+                                  </div>
+                                )}
                                 {!file.isFolder && file.size && (
                                   <div style={{
                                     fontSize: '12px',
@@ -1374,7 +1386,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                                   </div>
                                 )}
                               </div>
-                              {file.isFolder && assetUrlType === 'sharepoint-file' && (
+                              {file.isFolder && (
                                 <ChevronRight size={16} color="#9ca3af" />
                               )}
                             </div>
