@@ -553,8 +553,9 @@ async def download_with_user_token(
         # Obtener metadatos del item para determinar si es carpeta
         try:
             metadata = gateway.get_file_metadata(drive_id=drive_id, item_id=item_id)
-            is_folder = 'folder' in metadata
-            item_name = metadata.get('name', 'item')
+            # SharePointFile es una dataclass con atributo is_folder
+            is_folder = metadata.is_folder
+            item_name = metadata.name
             
             logger.info(f"📋 Item metadata retrieved: {item_name} (folder={is_folder})")
         except Exception as e:
