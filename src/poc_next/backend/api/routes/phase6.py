@@ -934,17 +934,17 @@ async def get_sharepoint_info(transfer_id: str) -> Dict[str, Any]:
         
         logger.info(f"🔗 Base URL: {base_url[:100]}...")
         
-        # Check if it's a SharePoint proxy URL
-        if not base_url or "/api/sharepoint-proxy/download/" not in base_url:
+        # Check if it's a SharePoint proxy URL (file or folder)
+        if not base_url or "/api/sharepoint-proxy/download" not in base_url:
             return {
                 "success": True,
                 "is_sharepoint": False,
                 "message": "Not a SharePoint asset"
             }
         
-        # Extract encoded file info from URL
+        # Extract encoded file info from URL (supports both /download/ and /download-folder/)
         import re
-        match = re.search(r'/api/sharepoint-proxy/download/([^?]+)', base_url)
+        match = re.search(r'/api/sharepoint-proxy/download(?:-folder)?/([^?]+)', base_url)
         if not match:
             return {
                 "success": False,

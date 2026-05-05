@@ -565,29 +565,46 @@ async def download_with_user_token(
             )
         
         # PASO 3: Usar SharePointGateway con el token del usuario
-        logger.info("📥 Downloading file using user token...")
+        logger.info("📥 Checking item type (file or folder)...")
         
         # Crear gateway con el token del usuario
         gateway = SharePointGateway(access_token=user_token)
         
-        # Descargar archivo
-        file_content, filename = gateway.download_file(drive_id=drive_id, item_id=item_id)
+        # Obtener metadatos del item para determinar si es carpeta
+        try:
+            metadata = gateway.get_file_metadata(drive_id=drive_id, item_id=item_id)
+            is_folder = 'folder' in metadata
+            item_name = metadata.get('name', 'item')
+            
+            logger.info(f"📋 Item metadata retrieved: {item_name} (folder={is_folder})")
+        except Exception as e:
+            logger.warning(f"⚠️  Could not get item metadata, assuming file: {e}")
+            is_folder = False
+            item_name = "item"
         
-        logger.info(f"✅ File downloaded successfully: {filename}")
+        # Descargar según el tipo
+        if is_folder:
+            logger.info(f"📦 Downloading folder as ZIP: {item_name}")
+            file_content, filename = gateway.download_folder_as_zip(drive_id=drive_id, folder_id=item_id)
+            mime_type = 'application/zip'
+            logger.info(f"✅ Folder downloaded successfully as ZIP: {filename}")
+        else:
+            logger.info(f"📄 Downloading file: {item_name}")
+            file_content, filename = gateway.download_file(drive_id=drive_id, item_id=item_id)
+            # Detectar tipo MIME del archivo
+            mime_type, _ = mimetypes.guess_type(filename)
+            if not mime_type:
+                mime_type = 'application/octet-stream'
+            logger.info(f"✅ File downloaded successfully: {filename}")
         
-        # PASO 4: Detectar tipo MIME
-        mime_type, _ = mimetypes.guess_type(filename)
-        if not mime_type:
-            mime_type = 'application/octet-stream'
-        
-        # PASO 5: Preparar respuesta
+        # PASO 4: Preparar respuesta
         headers = {
             'Content-Disposition': f'attachment; filename="{filename}"',
             'Content-Type': mime_type,
             'Content-Length': str(len(file_content))
         }
         
-        logger.info(f"📤 Sending file: {filename} ({len(file_content)} bytes, {mime_type})")
+        logger.info(f"📤 Sending {('folder (ZIP)' if is_folder else 'file')}: {filename} ({len(file_content)} bytes, {mime_type})")
         
         return Response(
             content=file_content,
