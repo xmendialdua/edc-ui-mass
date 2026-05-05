@@ -169,9 +169,9 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
         // Nivel actual de navegación
         const navigationLevel = sharePointFolderPath.length;
         
-        // Si estamos en nivel raíz (0), solo mostramos carpetas de proyectos/clientes
+        // Si estamos en nivel raíz (0), mostramos TODO pero sin permitir selección
         if (navigationLevel === 0) {
-          filteredFiles = result.items.filter((f: any) => f.isFolder);
+          filteredFiles = result.items;
           setSharePointInsideAllowedFolder(false);
         } 
         // Si estamos en nivel 1 (dentro de un proyecto/cliente)
@@ -1437,7 +1437,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                                   gap: '12px',
                                   transition: 'background 0.2s',
                                   backgroundColor: '#fff',
-                                  opacity: (!showSelectButton && navigationLevel === 1 && !isAllowedFolder) ? 0.5 : 1
+                                  opacity: (!showSelectButton && ((navigationLevel === 0 && !file.isFolder) || (navigationLevel === 1 && !isAllowedFolder))) ? 0.5 : 1
                                 }}
                               >
                                 {/* Main clickable area */}
@@ -1476,14 +1476,14 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                                   ) : (
                                     <File 
                                       size={20} 
-                                      color={(!showSelectButton && navigationLevel === 1) ? "#d1d5db" : "#6b7280"} 
+                                      color={(!showSelectButton && (navigationLevel === 0 || navigationLevel === 1)) ? "#d1d5db" : "#6b7280"} 
                                     />
                                   )}
                                   <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{
                                       fontSize: '14px',
                                       fontWeight: '500',
-                                      color: (!showSelectButton && navigationLevel === 1 && !isAllowedFolder) ? '#9ca3af' : '#111827',
+                                      color: (!showSelectButton && ((navigationLevel === 0 && !file.isFolder) || (navigationLevel === 1 && !isAllowedFolder))) ? '#9ca3af' : '#111827',
                                       overflow: 'hidden',
                                       textOverflow: 'ellipsis',
                                       whiteSpace: 'nowrap'
