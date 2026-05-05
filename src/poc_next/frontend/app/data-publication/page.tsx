@@ -14,13 +14,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getAvailablePartners } from "@/lib/partners";
+import { useMsal } from "@azure/msal-react";
+import { InteractionRequiredAuthError } from "@azure/msal-browser";
+import { loginRequest } from "@/lib/authConfig";
 
 export default function DataPublicationPage() {
+  const { instance, accounts } = useMsal();
   const [connectorStatus] = useState<"checking" | "connected" | "disconnected">("connected");
   const [globalLogs, setGlobalLogs] = useState<string[]>([]);
   const [contractFilter, setContractFilter] = useState('all');
   const [isMounted, setIsMounted] = useState(false);
   const [isPoliciesExpanded, setIsPoliciesExpanded] = useState(false);
+  const [sharePointConnected, setSharePointConnected] = useState(false);
+  const [sharePointUser, setSharePointUser] = useState<string | null>(null);
+  const [sharePointAuthenticating, setSharePointAuthenticating] = useState(false);
   const phase2Ref = useRef<any>(null);
   const phase3Ref = useRef<any>(null);
   const phase4Ref = useRef<any>(null);
@@ -30,7 +37,71 @@ export default function DataPublicationPage() {
 
   useEffect(() => {
     setIsMounted(true);
+    // Autenticación automática con SharePoint al cargar la página
+    authenticateSharePoint();
   }, []);
+
+  // Autenticación silenciosa con SharePoint
+  const authenticateSharePoint = async () => {
+    if (sharePointAuthenticating) return;
+    
+    setSharePointAuthenticating(true);
+    
+    try {
+      const activeAccount = accounts[0];
+      
+      if (!activeAccount) {
+        // Si no hay cuenta, intentar login silencioso
+        console.log('No active account, attempting silent login...');
+        try {
+          const loginResult = await instance.loginPopup(loginRequest);
+          if (loginResult.account) {
+            setSharePointConnected(true);
+            setSharePointUser(loginResult.account.username || loginResult.account.name || 'Usuario');
+            console.log('✅ SharePoint authentication successful (popup)');
+          }
+        } catch (loginError: any) {
+          // Usuario canceló o error de login - no mostramos error, simplemente quedamos desconectados
+          console.log('SharePoint login not completed:', loginError.errorCode);
+          setSharePointConnected(false);
+        }
+      } else {
+        // Ya hay una cuenta, intentar obtener token silenciosamente
+        const request = {
+          ...loginRequest,
+          account: activeAccount,
+        };
+
+        try {
+          const tokenResponse = await instance.acquireTokenSilent(request);
+          setSharePointConnected(true);
+          setSharePointUser(activeAccount.username || activeAccount.name || 'Usuario');
+          console.log('✅ SharePoint authentication successful (silent)');
+        } catch (silentError: any) {
+          if (silentError instanceof InteractionRequiredAuthError) {
+            // Necesita interacción, intentar popup automáticamente
+            try {
+              const tokenResponse = await instance.acquireTokenPopup(request);
+              setSharePointConnected(true);
+              setSharePointUser(activeAccount.username || activeAccount.name || 'Usuario');
+              console.log('✅ SharePoint authentication successful (popup after silent fail)');
+            } catch (popupError) {
+              console.log('SharePoint popup authentication failed');
+              setSharePointConnected(false);
+            }
+          } else {
+            console.error('SharePoint authentication error:', silentError);
+            setSharePointConnected(false);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('SharePoint authentication error:', error);
+      setSharePointConnected(false);
+    } finally {
+      setSharePointAuthenticating(false);
+    }
+  };
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -190,6 +261,59 @@ export default function DataPublicationPage() {
               }}>
                 📦 Assets Publicables
               </div>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px"
+              }}>
+                {/* Indicador de estado de SharePoint */}
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "6px 12px",
+                  background: "rgba(255, 255, 255, 0.15)",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  color: "white",
+                  border: `1px solid ${sharePointConnected ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)'}`
+                }}>
+                  {sharePointConnected ? (
+                    <>
+                      <span style={{
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "50%",
+                        background: "#10b981",
+                        boxShadow: "0 0 6px rgba(16, 185, 129, 0.8)"
+                      }}></span>
+                      <span style={{ fontSize: "12px", fontWeight: "500" }}>
+                        SharePoint: Conectado
+                      </span>
+                      {sharePointUser && (
+                        <span style={{ 
+                          fontSize: "11px", 
+                          opacity: 0.8,
+                          marginLeft: "4px"
+                        }}>
+                          ({sharePointUser})
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span style={{
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "50%",
+                        background: "#ef4444"
+                      }}></span>
+                      <span style={{ fontSize: "12px", fontWeight: "500" }}>
+                        SharePoint: Desconectado
+                      </span>
+                    </>
+                  )}
+                </div>
               <button
                 onClick={() => phase2Ref.current?.refresh()}
                 style={{
@@ -212,6 +336,7 @@ export default function DataPublicationPage() {
               >
                 <RefreshCw size={16} />
               </button>
+              </div>
             </div>
             <div style={{
               padding: "25px",
