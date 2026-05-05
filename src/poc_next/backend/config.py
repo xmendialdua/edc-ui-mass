@@ -44,6 +44,7 @@ class Settings(BaseSettings):
 
     # --- SharePoint Configuration ---
     sharepoint_drive_id: str | None = None
+    sharepoint_allowed_folder: str = "05.Dataspace"  # Folder where assets can be selected
     
     # --- SharePoint Proxy Configuration (for EDC Downloads) ---
     sharepoint_proxy_client_id: str | None = None

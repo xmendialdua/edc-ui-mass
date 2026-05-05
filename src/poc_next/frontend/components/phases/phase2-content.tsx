@@ -67,6 +67,8 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
   const [sharePointError, setSharePointError] = useState<string | null>(null);
   const [sharePointFolderPath, setSharePointFolderPath] = useState<string[]>([]);
   const [sharePointFolderIds, setSharePointFolderIds] = useState<string[]>([]);
+  const [sharePointAllowedFolder, setSharePointAllowedFolder] = useState('05.Dataspace'); // Configurable
+  const [sharePointInsideAllowedFolder, setSharePointInsideAllowedFolder] = useState(false); // Track if inside allowed folder
   
   // SharePoint site URL
   const SHAREPOINT_SITE_URL = 'https://ikerlan.sharepoint.com/sites/IKDataSpace';
@@ -162,10 +164,29 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
       );
       
       if (result.items) {
-        const mode = assetUrlType === 'sharepoint-folder' ? 'folder' : 'file';
-        const filteredFiles = mode === 'folder' 
-          ? result.items.filter((f: any) => f.isFolder)
-          : result.items;
+        let filteredFiles = result.items;
+        
+        // Nivel actual de navegación
+        const navigationLevel = sharePointFolderPath.length;
+        
+        // Si estamos en nivel raíz (0), solo mostramos carpetas de proyectos/clientes
+        if (navigationLevel === 0) {
+          filteredFiles = result.items.filter((f: any) => f.isFolder);
+          setSharePointInsideAllowedFolder(false);
+        } 
+        // Si estamos en nivel 1 (dentro de un proyecto/cliente)
+        // Mostrar TODO pero solo permitir interacción con "05.Dataspace"
+        else if (navigationLevel === 1) {
+          // Mostrar todo el contenido sin filtrar
+          filteredFiles = result.items;
+          setSharePointInsideAllowedFolder(false);
+        }
+        // Si estamos en nivel 2+ (ya dentro de la carpeta permitida)
+        else {
+          // Mostrar todo el contenido
+          filteredFiles = result.items;
+          setSharePointInsideAllowedFolder(true);
+        }
         
         setSharePointFiles(filteredFiles);
       } else {
@@ -219,11 +240,12 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
         driveId, 
         itemId, 
         isFolder: item.isFolder,
-        webUrl: item.webUrl
+        webUrl: item.webUrl,
+        folderPath: sharePointFolderPath
       });
 
       if (!driveId || !itemId) {
-        log('❌ Error: No se pudo extraer drive_id o item_id del archivo seleccionado');
+        log('❌ Error: No se pudo extraer drive_id o item_id del elemento seleccionado');
         return;
       }
 
@@ -240,7 +262,8 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
 
         if (response.success && response.download_url) {
           setSharePointUrl(response.download_url);
-          setSharePointItemName(item.name);
+          const fullPath = [...sharePointFolderPath, item.name].join(' / ');
+          setSharePointItemName(fullPath);
           log(`✅ Link temporal obtenido (válido 1 hora)`);
           log(`⚠️  No válido para producción - el link expira`);
         } else {
@@ -261,7 +284,8 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
 
         if (response.success && response.download_url) {
           setSharePointUrl(response.download_url);
-          setSharePointItemName(item.name);
+          const fullPath = [...sharePointFolderPath, item.name].join(' / ');
+          setSharePointItemName(fullPath);
           log(`✅ Sharing link público creado (expira en 1 año)`);
           log(`🌐 URL pública - accesible sin autenticación`);
           log(`✅ Compatible con EDC DataPlane - descarga directa`);
@@ -296,7 +320,12 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
         log(`ℹ️  Esta URL solo funciona desde dentro del cluster de Kubernetes`);
         
         setSharePointUrl(proxyUrl);  // Usar URL del proxy interno
-        setSharePointItemName(item.name);
+        
+        // Construir el path completo del elemento seleccionado
+        const fullPath = [...sharePointFolderPath, item.name].join(' / ');
+        setSharePointItemName(fullPath);
+        
+        log(`✅ Elemento seleccionado: ${fullPath}`);
       }
     } catch (error) {
       log(`❌ Error al procesar archivo: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -307,6 +336,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
     setSharePointFiles([]);
     setSharePointFolderPath([]);
     setSharePointFolderIds([]);
+    setSharePointInsideAllowedFolder(false);
   };
 
   const handleSharePointToggle = () => {
@@ -322,6 +352,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
       setSharePointFiles([]);
       setSharePointFolderPath([]);
       setSharePointFolderIds([]);
+      setSharePointInsideAllowedFolder(false);
     }
   };
 
@@ -354,6 +385,20 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
       setPolicies(result.policies || []);
     } catch (error) {
       console.error('Error cargando políticas:', error);
+    }
+  }
+
+  async function loadSharePointConfig() {
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/config/sharepoint`);
+      if (response.ok) {
+        const config = await response.json();
+        setSharePointAllowedFolder(config.allowed_folder || '05.Dataspace');
+        console.log(`✅ SharePoint config loaded: allowed_folder="${config.allowed_folder}"`);
+      }
+    } catch (error) {
+      console.error('Error loading SharePoint config, using default:', error);
+      setSharePointAllowedFolder('05.Dataspace');
     }
   }
 
@@ -667,6 +712,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
   useEffect(() => {
     loadAssets();
     loadPolicies();
+    loadSharePointConfig();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1288,6 +1334,26 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                         )}
                       </div>
 
+                      {/* Info Message about allowed folder */}
+                      {sharePointFolderPath.length === 1 && (
+                        <div style={{
+                          padding: '10px 12px',
+                          background: '#fef3c7',
+                          borderBottom: '1px solid #fbbf24',
+                          color: '#92400e',
+                          fontSize: '13px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}>
+                          <span style={{ fontSize: '16px' }}>ℹ️</span>
+                          <span>
+                            Solo puedes acceder y seleccionar la carpeta <strong>"{sharePointAllowedFolder}"</strong>. 
+                            Las demás carpetas y archivos no están disponibles.
+                          </span>
+                        </div>
+                      )}
+
                       {/* Error Message */}
                       {sharePointError && (
                         <div style={{
@@ -1320,130 +1386,187 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                           overflowY: 'auto',
                           background: '#fff'
                         }}>
-                          {sharePointFiles.map((file) => (
-                            <div
-                              key={file.id}
-                              style={{
-                                borderBottom: '1px solid #f3f4f6',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '12px',
-                                transition: 'background 0.2s',
-                                backgroundColor: '#fff'
-                              }}
-                            >
-                              {/* Main clickable area */}
+                          {sharePointFiles.map((file) => {
+                            const navigationLevel = sharePointFolderPath.length;
+                            const isAllowedFolder = file.isFolder && file.name === sharePointAllowedFolder;
+                            
+                            // Determinar si el botón "Seleccionar" debe mostrarse
+                            const showSelectButton = (() => {
+                              // Nivel 0 (raíz): NO mostrar botón
+                              if (navigationLevel === 0) return false;
+                              
+                              // Nivel 1 (proyecto): Solo mostrar para carpeta permitida
+                              if (navigationLevel === 1) {
+                                return isAllowedFolder;
+                              }
+                              
+                              // Nivel 2+ (dentro de carpeta permitida): Mostrar para TODO
+                              return true;
+                            })();
+                            
+                            // Determinar si el doble click está permitido
+                            const allowDoubleClick = (() => {
+                              if (!file.isFolder) return false;
+                              
+                              // Nivel 0 (raíz): Permitir doble click en cualquier carpeta
+                              if (navigationLevel === 0) return true;
+                              
+                              // Nivel 1 (proyecto): Solo permitir doble click en carpeta permitida
+                              if (navigationLevel === 1) {
+                                return isAllowedFolder;
+                              }
+                              
+                              // Nivel 2+ (dentro de carpeta permitida): Permitir doble click en cualquier carpeta
+                              return true;
+                            })();
+                            
+                            // Estilo de cursor
+                            const cursorStyle = (() => {
+                              if (file.isFolder && allowDoubleClick) return 'pointer';
+                              if (showSelectButton) return 'default';
+                              return 'not-allowed';
+                            })();
+                            
+                            return (
                               <div
-                                onClick={() => {
-                                  if (!file.isFolder) {
-                                    // Select file with single click
-                                    handleSharePointItemSelect(file);
-                                  }
-                                  // For folders, do nothing on single click (wait for double click to navigate)
-                                }}
-                                onDoubleClick={() => {
-                                  if (file.isFolder) {
-                                    // Double click always navigates into folder
-                                    handleSharePointFolderClick(file);
-                                  }
-                                }}
+                                key={file.id}
                                 style={{
-                                  padding: '12px',
-                                  cursor: 'pointer',
+                                  borderBottom: '1px solid #f3f4f6',
                                   display: 'flex',
                                   alignItems: 'center',
                                   gap: '12px',
-                                  flex: 1,
-                                  minWidth: 0
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.parentElement!.style.background = '#f3f4f6';
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.parentElement!.style.background = '#fff';
+                                  transition: 'background 0.2s',
+                                  backgroundColor: '#fff',
+                                  opacity: (!showSelectButton && navigationLevel === 1 && !isAllowedFolder) ? 0.5 : 1
                                 }}
                               >
-                                {file.isFolder ? (
-                                  <FolderOpen size={20} color="#f59e0b" />
-                                ) : (
-                                  <File size={20} color="#6b7280" />
-                                )}
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{
-                                    fontSize: '14px',
-                                    fontWeight: '500',
-                                    color: '#111827',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap'
-                                  }}>
-                                    {file.name}
-                                  </div>
-                                  {file.isFolder && (
-                                    <div style={{
-                                      fontSize: '11px',
-                                      color: '#9ca3af',
-                                      marginTop: '2px',
-                                      fontStyle: 'italic'
-                                    }}>
-                                      Doble clic para abrir
-                                    </div>
-                                  )}
-                                  {!file.isFolder && file.size && (
-                                    <div style={{
-                                      fontSize: '12px',
-                                      color: '#6b7280',
-                                      marginTop: '2px'
-                                    }}>
-                                      {formatFileSize(file.size)}
-                                    </div>
-                                  )}
-                                </div>
-                                {file.isFolder && (
-                                  <ChevronRight size={16} color="#9ca3af" />
-                                )}
-                              </div>
-                              
-                              {/* Select button for folders */}
-                              {file.isFolder && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSharePointItemSelect(file);
+                                {/* Main clickable area */}
+                                <div
+                                  onClick={() => {
+                                    // No hacer nada en click simple
+                                  }}
+                                  onDoubleClick={() => {
+                                    if (file.isFolder && allowDoubleClick) {
+                                      handleSharePointFolderClick(file);
+                                    }
                                   }}
                                   style={{
-                                    padding: '8px 12px',
-                                    marginRight: '12px',
-                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
+                                    padding: '12px',
+                                    cursor: cursorStyle,
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '6px',
-                                    fontSize: '13px',
-                                    fontWeight: '600',
-                                    whiteSpace: 'nowrap',
-                                    transition: 'all 0.2s ease',
-                                    boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)'
+                                    gap: '12px',
+                                    flex: 1,
+                                    minWidth: 0
                                   }}
                                   onMouseEnter={(e) => {
-                                    e.currentTarget.style.transform = 'scale(1.05)';
-                                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(16, 185, 129, 0.3)';
+                                    if (allowDoubleClick || showSelectButton) {
+                                      e.currentTarget.parentElement!.style.background = '#f3f4f6';
+                                    }
                                   }}
                                   onMouseLeave={(e) => {
-                                    e.currentTarget.style.transform = 'scale(1)';
-                                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(16, 185, 129, 0.2)';
+                                    e.currentTarget.parentElement!.style.background = '#fff';
                                   }}
-                                  title="Seleccionar esta carpeta"
                                 >
-                                  <CheckCircle size={16} />
-                                  Seleccionar
-                                </button>
-                              )}
-                            </div>
-                          ))}
+                                  {file.isFolder ? (
+                                    <FolderOpen 
+                                      size={20} 
+                                      color={(!showSelectButton && navigationLevel === 1 && !isAllowedFolder) ? "#d1d5db" : "#f59e0b"} 
+                                    />
+                                  ) : (
+                                    <File 
+                                      size={20} 
+                                      color={(!showSelectButton && navigationLevel === 1) ? "#d1d5db" : "#6b7280"} 
+                                    />
+                                  )}
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{
+                                      fontSize: '14px',
+                                      fontWeight: '500',
+                                      color: (!showSelectButton && navigationLevel === 1 && !isAllowedFolder) ? '#9ca3af' : '#111827',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap'
+                                    }}>
+                                      {file.name}
+                                    </div>
+                                    {file.isFolder && allowDoubleClick && (
+                                      <div style={{
+                                        fontSize: '11px',
+                                        color: '#9ca3af',
+                                        marginTop: '2px',
+                                        fontStyle: 'italic'
+                                      }}>
+                                        Doble clic para abrir
+                                      </div>
+                                    )}
+                                    {file.isFolder && navigationLevel === 1 && isAllowedFolder && (
+                                      <div style={{
+                                        fontSize: '11px',
+                                        color: '#10b981',
+                                        marginTop: '2px',
+                                        fontStyle: 'italic',
+                                        fontWeight: '600'
+                                      }}>
+                                        ✓ Carpeta permitida
+                                      </div>
+                                    )}
+                                    {!file.isFolder && file.size && (
+                                      <div style={{
+                                        fontSize: '12px',
+                                        color: '#6b7280',
+                                        marginTop: '2px'
+                                      }}>
+                                        {formatFileSize(file.size)}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {file.isFolder && allowDoubleClick && (
+                                    <ChevronRight size={16} color="#9ca3af" />
+                                  )}
+                                </div>
+                                
+                                {/* Select button - conditional rendering based on level and item */}
+                                {showSelectButton && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleSharePointItemSelect(file);
+                                    }}
+                                    style={{
+                                      padding: '8px 12px',
+                                      marginRight: '12px',
+                                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '6px',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '6px',
+                                      fontSize: '13px',
+                                      fontWeight: '600',
+                                      whiteSpace: 'nowrap',
+                                      transition: 'all 0.2s ease',
+                                      boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.transform = 'scale(1.05)';
+                                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(16, 185, 129, 0.3)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.transform = 'scale(1)';
+                                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(16, 185, 129, 0.2)';
+                                    }}
+                                    title={file.isFolder ? "Seleccionar esta carpeta" : "Seleccionar este archivo"}
+                                  >
+                                    <CheckCircle size={16} />
+                                    Seleccionar
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
 

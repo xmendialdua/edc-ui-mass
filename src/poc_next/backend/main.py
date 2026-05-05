@@ -19,7 +19,7 @@ from api.routes import (
     phase6_router,
     sharepoint_router,
 )
-from api.routes import sharepoint_proxy
+from api.routes import sharepoint_proxy, config as config_router
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -105,6 +105,7 @@ app.include_router(phase5_router)
 app.include_router(phase6_router)
 app.include_router(sharepoint_router)
 app.include_router(sharepoint_proxy.router, prefix="/api")  # SharePoint proxy for EDC downloads
+app.include_router(config_router.router)  # Configuration endpoints
 
 
 @app.get("/")
