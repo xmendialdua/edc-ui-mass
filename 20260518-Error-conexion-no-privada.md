@@ -1242,6 +1242,562 @@ kubectl rollout restart deployment poc-next-frontend -n ds-management-ui
 
 ---
 
+## ✅ EJECUCIÓN COMPLETADA - 18 de Mayo de 2026
+
+**Fecha de ejecución:** 18 de mayo de 2026, 10:44-10:53 CEST  
+**Duración total:** ~9 minutos  
+**Resultado:** ✅ **EXITOSO** - Todos los certificados renovados
+
+---
+
+### Resumen Ejecutivo de la Ejecución
+
+El procedimiento de renovación de certificados se completó exitosamente siguiendo la **Opción 1: Renovación completa de CA Root** con las siguientes modificaciones:
+
+**Cambios respecto al plan original:**
+- ✅ CA Root: Renovada con validez de **10 años** (hasta 2036) ✓
+- ✅ Certificados de servicio: **2 años** en lugar de 90 días (hasta 2028) ✓
+- ✅ Clave RSA CA: **4096 bits** para mayor seguridad ✓
+
+---
+
+### FASE 0: Backups (✅ Completada)
+
+**Directorio creado:** `/home/xmendialdua/projects/assembly/iflex/cert-backup-20260518`
+
+**Archivos de backup creados:**
+```bash
+backup-ca-cert.yaml                  # Certificate my-selfsigned-ca
+backup-root-secret-certmgr.yaml      # Secret root-secret (cert-manager namespace)
+backup-root-secret-umbrella.yaml     # Secret root-secret (umbrella namespace)
+backup-ds-management-cert.yaml       # Certificate ds-management-cert
+backup-edc-ikln-control.yaml         # Certificate edc-ikln-control-tls
+backup-edc-ikln-data.yaml            # Certificate edc-ikln-data-tls
+backup-edc-mass-control.yaml         # Certificate edc-mass-control-tls
+backup-edc-mass-data.yaml            # Certificate edc-mass-data-tls
+```
+
+**Resultado:** ✅ 8 archivos backup creados (total: 48 KB)
+
+---
+
+### FASE 1: Renovación CA Root (✅ Completada)
+
+#### Paso 1.1: Eliminación del certificado CA expirado
+
+**Comando ejecutado:**
+```bash
+kubectl delete certificate my-selfsigned-ca -n umbrella
+```
+
+**Resultado:**
+```
+certificate.cert-manager.io "my-selfsigned-ca" deleted from umbrella namespace
+✅ Certificate eliminado correctamente
+```
+
+---
+
+#### Paso 1.2: Eliminación de secrets root-secret
+
+**Comandos ejecutados:**
+```bash
+kubectl delete secret root-secret -n umbrella
+kubectl delete secret root-secret -n cert-manager
+```
+
+**Resultado:**
+```
+secret "root-secret" deleted from umbrella namespace
+✅ Eliminado de umbrella
+
+secret "root-secret" deleted from cert-manager namespace
+✅ Eliminado de cert-manager
+```
+
+**Nota:** Los secrets no se eliminaron automáticamente con el Certificate, fue necesario eliminarlos manualmente.
+
+---
+
+#### Paso 1.3: Creación de nuevo certificado CA
+
+**Configuración aplicada:**
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: my-selfsigned-ca
+  namespace: umbrella
+spec:
+  commonName: 51.178.94.25.nip.io
+  isCA: true
+  duration: 87600h     # 10 años (cambio: antes 90 días)
+  renewBefore: 720h    # Renovar 30 días antes de expirar
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: selfsigned-issuer
+  privateKey:
+    algorithm: RSA
+    size: 4096         # 4096 bits (cambio: antes 2048)
+  secretName: root-secret
+  subject:
+    countries: ["DE"]
+    organizations: ["CX"]
+    provinces: ["Some-State"]
+```
+
+**Resultado:**
+```
+certificate.cert-manager.io/my-selfsigned-ca created
+```
+
+---
+
+#### Paso 1.4: Monitoreo de creación
+
+**Tiempo de generación:** 11 segundos
+
+**Estado final:**
+```
+NAME               READY   SECRET        AGE
+my-selfsigned-ca   True    root-secret   11s
+✅ Certificado READY!
+```
+
+---
+
+#### Paso 1.5: Verificación del nuevo certificado CA
+
+**Fechas del nuevo certificado:**
+```
+Issuer: C = DE, ST = Some-State, O = CX, CN = 51.178.94.25.nip.io
+Validity:
+    Not Before: May 18 08:45:28 2026 GMT
+    Not After : May 15 08:45:28 2036 GMT
+Subject: C = DE, ST = Some-State, O = CX, CN = 51.178.94.25.nip.io
+Public-Key: (4096 bit)
+```
+
+**Análisis:**
+- ✅ Válido desde: 18 de mayo de 2026
+- ✅ Válido hasta: **15 de mayo de 2036** (10 años)
+- ✅ Clave RSA: 4096 bits
+- ✅ Auto-firmado (issuer = subject)
+
+---
+
+#### Paso 1.6: Copia del secret a cert-manager
+
+**Comando ejecutado:**
+```bash
+kubectl get secret root-secret -n umbrella -o yaml | \
+  sed 's/namespace: umbrella/namespace: cert-manager/' | \
+  sed '/resourceVersion:/d' | sed '/uid:/d' | sed '/creationTimestamp:/d' | \
+  kubectl apply -f -
+```
+
+**Resultado:**
+```
+secret/root-secret created
+✅ Secret copiado exitosamente a cert-manager
+```
+
+---
+
+### FASE 2: Certificado ds-management (✅ Completada)
+
+#### Paso 2.1: Eliminación del certificado actual
+
+**Comandos ejecutados:**
+```bash
+kubectl delete certificate ds-management-cert -n ds-management-ui
+kubectl delete secret ds-management-tls -n ds-management-ui
+```
+
+**Resultado:**
+```
+certificate.cert-manager.io "ds-management-cert" deleted
+secret "ds-management-tls" deleted
+✅ Certificado y secret eliminados
+```
+
+---
+
+#### Paso 2.2: Creación de nuevo certificado (2 años)
+
+**Configuración aplicada:**
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ds-management-cert
+  namespace: ds-management-ui
+spec:
+  secretName: ds-management-tls
+  duration: 17520h     # 2 años (730 días) - MODIFICADO
+  renewBefore: 1440h   # Renovar 60 días antes - MODIFICADO
+  issuerRef:
+    name: my-ca-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - ds-management.51.178.94.25.nip.io
+```
+
+**Resultado:**
+```
+certificate.cert-manager.io/ds-management-cert created
+```
+
+**Tiempo de generación:** 11 segundos
+
+---
+
+#### Paso 2.4: Verificación del certificado ds-management
+
+**Fechas del certificado servidor:**
+```
+notBefore=May 18 08:49:45 2026 GMT
+notAfter=May 17 08:49:45 2028 GMT
+```
+
+**Fechas de CA embebida:**
+```
+notBefore=May 18 08:45:28 2026 GMT
+notAfter=May 15 08:45:28 2036 GMT
+```
+
+**Detalles del Certificate:**
+```
+Expira: 2028-05-17T08:49:45Z
+Renovación programada: 2028-03-18T08:49:45Z
+```
+
+**Análisis:**
+- ✅ Certificado servidor válido hasta: **17 de mayo de 2028** (2 años)
+- ✅ CA embebida válida hasta: **15 de mayo de 2036** (10 años - CA nueva)
+- ✅ Renovación automática: **18 de marzo de 2028** (60 días antes de expirar)
+
+---
+
+#### Paso 2.5: Reinicio de pods ds-management
+
+**Deployments reiniciados:**
+```bash
+kubectl rollout restart deployment poc-next-backend -n ds-management-ui
+kubectl rollout restart deployment poc-next-frontend -n ds-management-ui
+kubectl rollout restart deployment sharepoint-proxy -n ds-management-ui
+```
+
+**Resultado:**
+```
+deployment.apps/poc-next-backend restarted
+deployment.apps/poc-next-frontend restarted
+deployment.apps/sharepoint-proxy restarted
+```
+
+**Verificación de rollouts:**
+```
+deployment "poc-next-backend" successfully rolled out
+deployment "poc-next-frontend" successfully rolled out
+deployment "sharepoint-proxy" successfully rolled out
+```
+
+**Estado final de pods:**
+```
+NAME                                 READY   STATUS    RESTARTS   AGE
+poc-next-backend-65b88f9fd-pgh8z     1/1     Running   0          24s
+poc-next-frontend-778465c9c7-xggnt   1/1     Running   0          24s
+sharepoint-proxy-5b5fd4fbf7-2642g    1/1     Running   0          23s
+```
+
+✅ **3 deployments reiniciados correctamente**
+
+---
+
+### FASE 3: Certificados EDC (✅ Completada)
+
+#### Paso 3.1: Eliminación de certificados EDC
+
+**Comandos ejecutados:**
+```bash
+kubectl delete certificate edc-ikln-control-tls -n umbrella
+kubectl delete certificate edc-ikln-data-tls -n umbrella
+kubectl delete certificate edc-mass-control-tls -n umbrella
+kubectl delete certificate edc-mass-data-tls -n umbrella
+kubectl delete secret edc-ikln-control-tls edc-ikln-data-tls edc-mass-control-tls edc-mass-data-tls -n umbrella
+```
+
+**Resultado:**
+```
+✅ 4 certificados eliminados
+✅ 4 secrets eliminados
+```
+
+---
+
+#### Paso 3.2: Creación de nuevos certificados EDC (2 años)
+
+**Configuración aplicada para cada certificado:**
+```yaml
+duration: 17520h     # 2 años (730 días)
+renewBefore: 1440h   # Renovar 60 días antes
+issuerRef:
+  name: my-ca-issuer
+  kind: ClusterIssuer
+```
+
+**Dominios configurados:**
+- `edc-ikln-control.51.178.94.25.nip.io`
+- `edc-ikln-data.51.178.94.25.nip.io`
+- `edc-mass-control.51.178.94.25.nip.io`
+- `edc-mass-data.51.178.94.25.nip.io`
+
+**Resultado:**
+```
+certificate.cert-manager.io/edc-ikln-control-tls created
+certificate.cert-manager.io/edc-ikln-data-tls created
+certificate.cert-manager.io/edc-mass-control-tls created
+certificate.cert-manager.io/edc-mass-data-tls created
+```
+
+**Tiempo de generación:** 11 segundos para los 4 certificados
+
+---
+
+#### Paso 3.4: Verificación de certificado EDC (muestra)
+
+**Certificado verificado:** `edc-ikln-control-tls`
+
+**Fechas del certificado servidor:**
+```
+notBefore=May 18 08:51:41 2026 GMT
+notAfter=May 17 08:51:41 2028 GMT
+```
+
+**Fechas de CA embebida:**
+```
+notBefore=May 18 08:45:28 2026 GMT
+notAfter=May 15 08:45:28 2036 GMT
+```
+
+**Análisis:**
+- ✅ Certificado servidor válido hasta: **17 de mayo de 2028** (2 años)
+- ✅ CA embebida válida hasta: **15 de mayo de 2036** (10 años)
+- ✅ Los 4 certificados EDC tienen las mismas características
+
+---
+
+#### Paso 3.5: Reinicio de deployments EDC
+
+**Deployments reiniciados:**
+```bash
+kubectl rollout restart deployment ikln-edc-controlplane -n umbrella
+kubectl rollout restart deployment ikln-edc-dataplane -n umbrella
+kubectl rollout restart deployment mass-edc-controlplane -n umbrella
+kubectl rollout restart deployment mass-edc-dataplane -n umbrella
+```
+
+**Resultado:**
+```
+deployment.apps/ikln-edc-controlplane restarted
+deployment.apps/ikln-edc-dataplane restarted
+deployment.apps/mass-edc-controlplane restarted
+deployment.apps/mass-edc-dataplane restarted
+```
+
+**Verificación de rollouts:**
+```
+deployment "ikln-edc-controlplane" successfully rolled out
+deployment "ikln-edc-dataplane" successfully rolled out
+deployment "mass-edc-controlplane" successfully rolled out
+deployment "mass-edc-dataplane" successfully rolled out
+```
+
+**Estado final de pods EDC:**
+```
+NAME                                   READY   STATUS    RESTARTS   AGE
+ikln-edc-controlplane-8496565485-sktxq 1/1     Running   0          74s
+ikln-edc-dataplane-76db47cf4f-5bx27    1/1     Running   0          74s
+mass-edc-controlplane-6ccdf67649-w8vfj 1/1     Running   0          73s
+mass-edc-dataplane-559c7998cb-x7ppb    1/1     Running   0          73s
+```
+
+✅ **4 deployments EDC reiniciados correctamente**
+
+---
+
+### FASE 4: Verificación Final (✅ Completada)
+
+#### Resumen de Certificados Renovados
+
+**1. Certificado CA Root:**
+```
+Nombre: my-selfsigned-ca
+Estado: Ready = True
+Expira: 2036-05-15T08:45:28Z (10 años)
+Renovación programada: 2036-04-15T08:45:28Z
+```
+
+**2. Certificado ds-management:**
+```
+Nombre: ds-management-cert
+Estado: Ready = True
+Expira: 2028-05-17T08:49:45Z (2 años)
+Renovación programada: 2028-03-18T08:49:45Z
+```
+
+**3. Certificados EDC:**
+```
+edc-ikln-control-tls   Ready   Expira: 2028-05-17
+edc-ikln-data-tls      Ready   Expira: 2028-05-17
+edc-mass-control-tls   Ready   Expira: 2028-05-17
+edc-mass-data-tls      Ready   Expira: 2028-05-17
+```
+
+---
+
+#### Prueba de Conexión HTTPS
+
+**Comando ejecutado:**
+```bash
+curl -I -k https://ds-management.51.178.94.25.nip.io
+```
+
+**Resultado:**
+```
+HTTP/2 404 
+date: Mon, 18 May 2026 08:53:57 GMT
+content-type: text/html
+strict-transport-security: max-age=31536000; includeSubDomains
+```
+
+**Verificación de certificado:**
+```bash
+echo | openssl s_client -connect ds-management.51.178.94.25.nip.io:443 \
+  -servername ds-management.51.178.94.25.nip.io | openssl x509 -noout -dates
+```
+
+**Resultado:**
+```
+notBefore=May 18 08:49:45 2026 GMT
+notAfter=May 17 08:49:45 2028 GMT
+```
+
+**Análisis:**
+- ✅ Servidor HTTPS responde correctamente
+- ✅ HTTP/2 funcional
+- ✅ HSTS activado
+- ✅ Certificado con fechas válidas (2026-2028)
+- ✅ **NO hay errores de certificado expirado**
+- ✅ Error 404 es esperado (ruta raíz no existe, usar /data-publication)
+
+---
+
+#### Estado Final de Todos los Servicios
+
+**Pods ds-management-ui (3/3 Running):**
+```
+NAME                                 READY   STATUS    RESTARTS   AGE
+poc-next-backend-65b88f9fd-pgh8z     1/1     Running   0          3m48s
+poc-next-frontend-778465c9c7-xggnt   1/1     Running   0          3m48s
+sharepoint-proxy-5b5fd4fbf7-2642g    1/1     Running   0          3m47s
+```
+
+**Pods conectores EDC (4/4 Running):**
+```
+NAME                                   READY   STATUS    RESTARTS   AGE
+ikln-edc-controlplane-8496565485-sktxq 1/1     Running   0          118s
+ikln-edc-dataplane-76db47cf4f-5bx27    1/1     Running   0          118s
+mass-edc-controlplane-6ccdf67649-w8vfj 1/1     Running   0          117s
+mass-edc-dataplane-559c7998cb-x7ppb    1/1     Running   0          117s
+```
+
+✅ **Todos los servicios operativos (7/7 deployments Running)**
+
+---
+
+### Resultados y Métricas
+
+| Métrica | Valor |
+|---------|-------|
+| **Duración total** | ~9 minutos |
+| **Downtime** | ~4 minutos (durante restart de pods) |
+| **Certificados renovados** | 6 (1 CA + 5 servicios) |
+| **Deployments reiniciados** | 7 (3 ds-management + 4 EDC) |
+| **Pods reiniciados** | 7 |
+| **Backups creados** | 8 archivos |
+| **Errores encontrados** | 0 |
+| **Rollbacks necesarios** | 0 |
+
+---
+
+### Cambios Implementados vs Plan Original
+
+| Aspecto | Plan Original | Ejecutado | Justificación |
+|---------|---------------|-----------|---------------|
+| **Duración CA** | 10 años | ✅ 10 años | Según plan |
+| **Duración certificados** | 90 días | ✅ 2 años | Solicitado por usuario para evitar renovaciones frecuentes |
+| **Clave RSA CA** | 4096 bits | ✅ 4096 bits | Según plan |
+| **Renovación anticipada** | 15-30 días | ✅ 60 días | Ajustado proporcionalmente a duración de 2 años |
+| **Método de renovación** | Eliminar + Recrear | ✅ Eliminar + Recrear | Según plan |
+
+---
+
+### Próximos Pasos Recomendados
+
+1. **Verificación desde navegador:**
+   - Acceder a `https://ds-management.51.178.94.25.nip.io/data-publication`
+   - Limpiar caché SSL del navegador o usar modo incógnito
+   - Aceptar excepción de certificado (CA interna no confiable)
+   - Verificar que la aplicación carga correctamente
+
+2. **Pruebas funcionales:**
+   - Probar publicación de assets en ds-management
+   - Verificar consulta de catálogos de partners
+   - Probar negociaciones y transferencias EDC
+
+3. **Monitoreo:**
+   - Configurar alertas de expiración de certificados
+   - Implementar script de verificación periódica
+   - Documentar fechas de renovación en calendario
+
+4. **Documentación:**
+   - ✅ Proceso ejecutado documentado en este archivo
+   - Actualizar documentación de infraestructura
+   - Comunicar cambios al equipo
+
+---
+
+### Lecciones Aprendidas
+
+1. **Duración de CA Root:**
+   - ❌ 90 días es inadecuado para una CA (demasiado corto)
+   - ✅ 10 años es apropiado para una CA interna
+   - 💡 Las CAs deben tener validez mucho mayor que los certificados que firman
+
+2. **Duración de certificados de servicio:**
+   - ⚠️ 90 días requiere renovaciones muy frecuentes
+   - ✅ 2 años es más práctico para entornos internos
+   - 💡 Balance entre seguridad y operabilidad
+
+3. **Renovación automática:**
+   - ✅ cert-manager funciona correctamente
+   - ⚠️ Los secrets no siempre se eliminan automáticamente con los Certificates
+   - 💡 Considerar automatizar limpieza de secrets huérfanos
+
+4. **Impacto de HSTS:**
+   - ⚠️ HSTS impide aceptar certificados inválidos manualmente
+   - 💡 Importante mantener certificados actualizados para sitios con HSTS
+   - 💡 Los usuarios no pueden "aceptar riesgo" si el certificado está expirado
+
+5. **Backup antes de cambios:**
+   - ✅ Backups permitieron tener un rollback seguro
+   - ✅ Proceso de backup rápido y efectivo
+   - 💡 Siempre hacer backup antes de cambios en certificados
+
+---
+
 ## 🛡️ Prevención Futura
 
 ### 1. Configurar Monitoreo de Certificados
