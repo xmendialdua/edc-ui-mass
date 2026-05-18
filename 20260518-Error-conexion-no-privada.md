@@ -494,7 +494,229 @@ Pero el **certificado real en el secret** tiene fechas:
 
 ---
 
-## 🔧 Solución Propuesta
+## � Inventario Completo de Certificados Afectados
+
+### Resumen Ejecutivo
+
+**Comando ejecutado para identificar certificados:**
+```bash
+kubectl get certificate --all-namespaces -o json | \
+  jq -r '.items[] | select(.spec.issuerRef.name == "my-ca-issuer") | 
+  "\(.metadata.namespace)/\(.metadata.name)"'
+```
+
+**Resultado:**
+```
+ds-management-ui/ds-management-cert
+umbrella/edc-ikln-control-tls
+umbrella/edc-ikln-data-tls
+umbrella/edc-mass-control-tls
+umbrella/edc-mass-data-tls
+```
+
+**Total de certificados afectados:** 5 certificados  
+**CA expirada el:** 14 de mayo de 2026 (hace 4 días)  
+**Todos verificados con CA expirada:** ✅ Confirmado
+
+---
+
+### Detalles de Cada Certificado
+
+#### 1. ds-management-cert (UI de Gestión de Datos)
+
+**Namespace:** `ds-management-ui`  
+**Secret:** `ds-management-tls`  
+**Dominio:** `ds-management.51.178.94.25.nip.io`
+
+**Fechas del certificado servidor:**
+```bash
+kubectl get secret ds-management-tls -n ds-management-ui \
+  -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -noout -dates
+```
+```
+notBefore=Apr 29 12:07:21 2026 GMT
+notAfter=Jul 28 12:07:21 2026 GMT
+```
+✅ Certificado servidor: Válido hasta 28 de julio 2026 (71 días restantes)
+
+**Fechas de CA embebida:**
+```bash
+kubectl get secret ds-management-tls -n ds-management-ui \
+  -o jsonpath='{.data.ca\.crt}' | base64 -d | openssl x509 -noout -dates
+```
+```
+notBefore=Feb 13 11:18:13 2026 GMT
+notAfter=May 14 11:18:13 2026 GMT
+```
+❌ CA embebida: **EXPIRADA el 14 de mayo 2026**
+
+**Metadata:**
+- Creado: 29 de abril de 2026 (hace 18 días)
+- Estado: Ready=True
+- Edad: 18 días
+
+**Deployments que usan este certificado:**
+- `poc-next-backend` - Backend FastAPI del dashboard
+- `poc-next-frontend` - Frontend Next.js del dashboard
+- `sharepoint-proxy` - Proxy para integración SharePoint
+
+---
+
+#### 2. edc-ikln-control-tls (Conector IKLN - Control Plane)
+
+**Namespace:** `umbrella`  
+**Secret:** `edc-ikln-control-tls`  
+**Dominio:** `edc-ikln-control.51.178.94.25.nip.io`
+
+**Fechas del certificado servidor:**
+```
+notBefore=Apr 29 11:28:37 2026 GMT
+notAfter=Jul 28 11:28:37 2026 GMT
+```
+✅ Certificado servidor: Válido hasta 28 de julio 2026
+
+**Fechas de CA embebida:**
+```
+notBefore=Feb 13 11:18:13 2026 GMT
+notAfter=May 14 11:18:13 2026 GMT
+```
+❌ CA embebida: **EXPIRADA el 14 de mayo 2026**
+
+**Metadata:**
+- Creado: 13 de febrero de 2026 (hace 93 días)
+- Estado: Ready=True
+- Edad: 93 días
+
+**Deployments que usan este certificado:**
+- `ikln-edc-controlplane` - Control Plane del conector IKERLAN
+
+---
+
+#### 3. edc-ikln-data-tls (Conector IKLN - Data Plane)
+
+**Namespace:** `umbrella`  
+**Secret:** `edc-ikln-data-tls`  
+**Dominio:** `edc-ikln-data.51.178.94.25.nip.io`
+
+**Fechas del certificado servidor:**
+```
+notBefore=Apr 29 11:28:37 2026 GMT
+notAfter=Jul 28 11:28:37 2026 GMT
+```
+✅ Certificado servidor: Válido hasta 28 de julio 2026
+
+**Fechas de CA embebida:**
+```
+notBefore=Feb 13 11:18:13 2026 GMT
+notAfter=May 14 11:18:13 2026 GMT
+```
+❌ CA embebida: **EXPIRADA el 14 de mayo 2026**
+
+**Metadata:**
+- Creado: 13 de febrero de 2026 (hace 93 días)
+- Estado: Ready=True
+- Edad: 93 días
+
+**Deployments que usan este certificado:**
+- `ikln-edc-dataplane` - Data Plane del conector IKERLAN
+
+---
+
+#### 4. edc-mass-control-tls (Conector MASS - Control Plane)
+
+**Namespace:** `umbrella`  
+**Secret:** `edc-mass-control-tls`  
+**Dominio:** `edc-mass-control.51.178.94.25.nip.io`
+
+**Fechas del certificado servidor:**
+```
+notBefore=Apr 29 11:28:37 2026 GMT
+notAfter=Jul 28 11:28:37 2026 GMT
+```
+✅ Certificado servidor: Válido hasta 28 de julio 2026
+
+**Fechas de CA embebida:**
+```
+notBefore=Feb 13 11:18:13 2026 GMT
+notAfter=May 14 11:18:13 2026 GMT
+```
+❌ CA embebida: **EXPIRADA el 14 de mayo 2026**
+
+**Metadata:**
+- Creado: 13 de febrero de 2026 (hace 93 días)
+- Estado: Ready=True
+- Edad: 93 días
+
+**Deployments que usan este certificado:**
+- `mass-edc-controlplane` - Control Plane del conector MASS
+
+---
+
+#### 5. edc-mass-data-tls (Conector MASS - Data Plane)
+
+**Namespace:** `umbrella`  
+**Secret:** `edc-mass-data-tls`  
+**Dominio:** `edc-mass-data.51.178.94.25.nip.io`
+
+**Fechas del certificado servidor:**
+```
+notBefore=Apr 29 11:28:37 2026 GMT
+notAfter=Jul 28 11:28:37 2026 GMT
+```
+✅ Certificado servidor: Válido hasta 28 de julio 2026
+
+**Fechas de CA embebida:**
+```
+notBefore=Feb 13 11:18:13 2026 GMT
+notAfter=May 14 11:18:13 2026 GMT
+```
+❌ CA embebida: **EXPIRADA el 14 de mayo 2026**
+
+**Metadata:**
+- Creado: 13 de febrero de 2026 (hace 93 días)
+- Estado: Ready=True
+- Edad: 93 días
+
+**Deployments que usan este certificado:**
+- `mass-edc-dataplane` - Data Plane del conector MASS
+
+---
+
+### Resumen de Deployments a Reiniciar
+
+**Total de deployments afectados:** 7
+
+**Namespace: ds-management-ui (3 deployments)**
+```
+NAME                READY   UP-TO-DATE   AVAILABLE   AGE
+poc-next-backend    1/1     1            1           18d
+poc-next-frontend   1/1     1            1           24d
+sharepoint-proxy    1/1     1            1           13d
+```
+
+**Namespace: umbrella (4 deployments de conectores EDC)**
+```
+NAME                     READY   UP-TO-DATE   AVAILABLE   AGE
+ikln-edc-controlplane    1/1     1            1           10d
+ikln-edc-dataplane       1/1     1            1           10d
+mass-edc-controlplane    1/1     1            1           47d
+mass-edc-dataplane       1/1     1            1           47d
+```
+
+**Nota:** Los `vault-agent-injector` no necesitan reinicio ya que no usan certificados TLS de ingress.
+
+---
+
+### Confirmación de Problema Unificado
+
+✅ **TODOS los certificados comparten la misma CA expirada:**
+- Todos tienen `notAfter=May 14 11:18:13 2026 GMT` en la CA embebida
+- Todos fueron firmados por la misma CA root (`my-selfsigned-ca`)
+- Renovar la CA root y regenerar estos 5 certificados resolverá el problema completamente
+
+---
+
+## �🔧 Solución Propuesta
 
 ### Estrategia de Resolución
 
