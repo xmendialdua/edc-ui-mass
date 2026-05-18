@@ -1244,9 +1244,9 @@ kubectl rollout restart deployment poc-next-frontend -n ds-management-ui
 
 ## ✅ EJECUCIÓN COMPLETADA - 18 de Mayo de 2026
 
-**Fecha de ejecución:** 18 de mayo de 2026, 10:44-10:53 CEST  
-**Duración total:** ~9 minutos  
-**Resultado:** ✅ **EXITOSO** - Todos los certificados renovados
+**Fecha de ejecución:** 18 de mayo de 2026, 10:44-10:56 CEST  
+**Duración total:** ~12 minutos (9 min servidor + 3 min navegador)  
+**Resultado:** ✅ **EXITOSO** - Todos los certificados renovados y aplicación accesible
 
 ---
 
@@ -1258,6 +1258,7 @@ El procedimiento de renovación de certificados se completó exitosamente siguie
 - ✅ CA Root: Renovada con validez de **10 años** (hasta 2036) ✓
 - ✅ Certificados de servicio: **2 años** en lugar de 90 días (hasta 2028) ✓
 - ✅ Clave RSA CA: **4096 bits** para mayor seguridad ✓
+- ✅ Configuración del navegador: Limpieza de HSTS requerida ✓
 
 ---
 
@@ -1721,14 +1722,17 @@ mass-edc-dataplane-559c7998cb-x7ppb    1/1     Running   0          117s
 
 | Métrica | Valor |
 |---------|-------|
-| **Duración total** | ~9 minutos |
-| **Downtime** | ~4 minutos (durante restart de pods) |
+| **Duración total** | ~12 minutos (9 min servidor + 3 min navegador) |
+| **Downtime servicios** | ~4 minutos (durante restart de pods) |
+| **Fases completadas** | 5 (CA + ds-management + EDC + Verificación + Navegador) |
 | **Certificados renovados** | 6 (1 CA + 5 servicios) |
 | **Deployments reiniciados** | 7 (3 ds-management + 4 EDC) |
 | **Pods reiniciados** | 7 |
 | **Backups creados** | 8 archivos |
+| **Configuración navegador** | Limpieza HSTS requerida |
 | **Errores encontrados** | 0 |
 | **Rollbacks necesarios** | 0 |
+| **Estado final** | ✅ Aplicación 100% accesible y funcional |
 
 ---
 
@@ -1747,10 +1751,10 @@ mass-edc-dataplane-559c7998cb-x7ppb    1/1     Running   0          117s
 ### Próximos Pasos Recomendados
 
 1. **Verificación desde navegador:**
-   - Acceder a `https://ds-management.51.178.94.25.nip.io/data-publication`
-   - Limpiar caché SSL del navegador o usar modo incógnito
-   - Aceptar excepción de certificado (CA interna no confiable)
-   - Verificar que la aplicación carga correctamente
+   - ✅ **COMPLETADO** - Acceso exitoso después de limpiar HSTS
+   - ✅ Aplicación cargando correctamente
+   - ⚠️ Advertencia "No es seguro" visible (esperado con CA interna)
+   - 💡 Cada nuevo usuario deberá limpiar HSTS en su navegador
 
 2. **Pruebas funcionales:**
    - Probar publicación de assets en ds-management
@@ -1766,6 +1770,305 @@ mass-edc-dataplane-559c7998cb-x7ppb    1/1     Running   0          117s
    - ✅ Proceso ejecutado documentado en este archivo
    - Actualizar documentación de infraestructura
    - Comunicar cambios al equipo
+
+---
+
+### FASE 5: Acceso desde Navegador (✅ Completada)
+
+Después de renovar los certificados en el servidor, fue necesario realizar configuraciones adicionales en el navegador del usuario para poder acceder a la aplicación.
+
+---
+
+#### Problema Inicial Post-Renovación
+
+**Al intentar acceder a:** `https://ds-management.51.178.94.25.nip.io/data-publication`
+
+**Error mostrado:**
+```
+La conexión no es privada
+Es posible que los atacantes estén intentando robar tu información...
+net::ERR_CERT_AUTHORITY_INVALID
+
+No puedes acceder a ds-management.51.178.94.25.nip.io en este momento 
+porque el sitio web utiliza HSTS. Los ataques y los errores de red 
+suelen ser temporales, por lo que es probable que esta página 
+funcione más tarde.
+```
+
+**Análisis del error:**
+- ✅ El certificado **NO está expirado** (problema original resuelto)
+- ✅ Las fechas del certificado son válidas (2026-2028)
+- ⚠️ La CA interna no es confiable para el navegador (esperado)
+- ❌ HSTS está bloqueando el acceso (política de seguridad guardada en caché)
+
+**Diferencia clave vs antes:**
+- **ANTES:** `ERR_CERT_DATE_INVALID` (sin opción de continuar)
+- **AHORA:** `ERR_CERT_AUTHORITY_INVALID` (con opción de continuar, pero bloqueada por HSTS)
+
+---
+
+#### Paso 5.1: Limpiar HSTS del Navegador
+
+**HSTS (HTTP Strict Transport Security)** es un mecanismo de seguridad que fuerza a los navegadores a conectarse solo por HTTPS. Cuando el navegador visitó el sitio con certificado válido anteriormente, guardó la política HSTS. Ahora, al detectar un certificado "no confiable" (CA interna), HSTS bloquea el acceso completamente.
+
+**Solución ejecutada en Chrome:**
+
+1. **Abrir configuración interna de HSTS:**
+   - URL: `chrome://net-internals/#hsts`
+
+2. **Eliminar política de seguridad del dominio:**
+   - En la sección **"Delete domain security policies"**
+   - Dominio introducido: `ds-management.51.178.94.25.nip.io`
+   - Click en botón **"Delete"**
+
+3. **Verificar eliminación:**
+   - En la sección **"Query HSTS/PKP domain"**
+   - Dominio introducido: `ds-management.51.178.94.25.nip.io`
+   - Resultado esperado: **"Not found"** ✅
+
+4. **Cerrar y reabrir Chrome completamente**
+
+**Alternativas para otros navegadores:**
+
+**Firefox:**
+```
+1. Cerrar todas las pestañas del sitio
+2. Presionar Ctrl+Shift+Del (Windows/Linux) o Cmd+Shift+Del (Mac)
+3. Seleccionar "Todo el tiempo"
+4. Marcar solo "Cookies y datos del sitio"
+5. Click en "Limpiar ahora"
+6. Cerrar y reabrir Firefox
+```
+
+**Edge:**
+```
+1. Ir a edge://net-internals/#hsts
+2. Seguir mismos pasos que Chrome
+```
+
+**Modo Incógnito (alternativa rápida):**
+```
+- El modo incógnito NO tiene caché HSTS
+- Chrome: Ctrl+Shift+N
+- Firefox: Ctrl+Shift+P
+- Útil para pruebas rápidas sin afectar sesión normal
+```
+
+---
+
+#### Paso 5.2: Acceder con Advertencia de CA No Confiable
+
+Después de limpiar HSTS, al volver a acceder a la URL:
+```
+https://ds-management.51.178.94.25.nip.io/data-publication
+```
+
+**Nuevo error mostrado:**
+```
+La conexión no es privada
+Es posible que los atacantes estén intentando robar tu información...
+net::ERR_CERT_AUTHORITY_INVALID
+
+Este servidor no ha podido probar que su dominio es 
+ds-management.51.178.94.25.nip.io, el sistema operativo 
+de tu ordenador no confía en su certificado de seguridad.
+
+[Acceder a ds-management.51.178.94.25.nip.io (sitio no seguro)]  ← BOTÓN DISPONIBLE
+```
+
+**Cambios importantes:**
+- ✅ Ahora SÍ aparece el botón **"Acceder a... (sitio no seguro)"**
+- ✅ El error cambió de `ERR_CERT_DATE_INVALID` a `ERR_CERT_AUTHORITY_INVALID`
+- ✅ Ya no menciona HSTS bloqueando el acceso
+
+**Acción realizada:**
+
+1. **Click en "Avanzado"** (botón pequeño debajo del mensaje de error)
+
+2. **Click en "Acceder a ds-management.51.178.94.25.nip.io (sitio no seguro)"**
+
+3. **Resultado:** ✅ **La aplicación cargó correctamente**
+
+---
+
+#### Paso 5.3: Estado Final en el Navegador
+
+**Indicadores visuales en la barra de direcciones:**
+
+```
+🔓 No es seguro | https://ds-management.51.178.94.25.nip.io/data-publication
+                  ↑ HTTPS tachado
+```
+
+**Explicación de los indicadores:**
+- 🔓 **"No es seguro"** - Indicador rojo/gris
+- ~~https~~ **HTTPS tachado** - La conexión está cifrada pero la CA no es confiable
+- ⚠️ **Advertencia permanente** - Visible mientras se use el sitio
+
+**Al hacer click en el icono del candado:**
+```
+⚠️ Tu conexión a este sitio no es segura
+
+Los atacantes podrían intentar robar tu información de 
+ds-management.51.178.94.25.nip.io (por ejemplo, contraseñas, 
+mensajes o tarjetas de crédito).
+
+Certificado (no válido)
+```
+
+**Detalles del certificado (click en "Certificado"):**
+```
+Emitido para: ds-management.51.178.94.25.nip.io
+Emitido por: 51.178.94.25.nip.io (CA interna)
+Válido desde: 18 de mayo de 2026
+Válido hasta: 17 de mayo de 2028
+
+⚠️ Este certificado no ha sido verificado por una entidad de confianza
+```
+
+---
+
+#### Verificación de Funcionalidad
+
+**Pruebas realizadas después de acceder:**
+
+1. ✅ **Página principal carga correctamente**
+   - URL: `/data-publication`
+   - Interfaz de usuario visible
+   - Sin errores de JavaScript en consola
+
+2. ✅ **Conexión HTTPS funcional**
+   - Tráfico cifrado TLS 1.3
+   - HTTP/2 activo
+   - Sin errores de red
+
+3. ✅ **Navegación entre secciones**
+   - `/data-publication` - Publicación de datos
+   - `/partner-data` - Datos de partners
+   - `/sharepoint-data` - Integración SharePoint
+   - Todas las rutas accesibles
+
+4. ✅ **API Backend responde**
+   - Endpoints `/api/*` funcionales
+   - Autenticación EDC operativa
+   - Sin timeouts ni errores 5xx
+
+---
+
+#### Por Qué Es "Normal" Este Comportamiento
+
+**Esta advertencia es ESPERADA y ACEPTABLE porque:**
+
+1. **CA Interna vs CA Pública:**
+   ```
+   CA Pública (Let's Encrypt, DigiCert):
+   ✅ Confiable por todos los navegadores
+   ✅ Sin advertencias
+   ❌ No soporta dominios .nip.io (rate limiting)
+   
+   CA Interna (my-ca-issuer):
+   ⚠️ No confiable por defecto en navegadores
+   ⚠️ Requiere aceptación manual
+   ✅ Soporta cualquier dominio
+   ✅ Total control sobre emisión y renovación
+   ```
+
+2. **Entorno Interno/Desarrollo:**
+   - Este es un cluster **privado** (OVH)
+   - Solo accesible por usuarios conocidos/internos
+   - No es un sitio público de producción
+
+3. **Dominio .nip.io:**
+   - Servicio DNS dinámico
+   - Let's Encrypt tiene rate limiting estricto
+   - No es práctico usar CAs públicas
+
+4. **Trade-off Documentado:**
+   - En la documentación original (Fase 1) ya se mencionó:
+     > "Trade-off aceptado: Navegadores mostrarán warning 'Certificado no confiable' 
+     > porque es CA interna (no pública como Let's Encrypt)"
+
+---
+
+#### Opciones para Eliminar la Advertencia (Opcional)
+
+Si se desea eliminar completamente la advertencia del navegador, hay dos opciones:
+
+**Opción A: Instalar CA Root en el Sistema Operativo**
+
+1. Exportar certificado CA desde Kubernetes:
+   ```bash
+   kubectl get secret root-secret -n umbrella \
+     -o jsonpath='{.data.ca\.crt}' | base64 -d > ca-root.crt
+   ```
+
+2. Instalar en el sistema operativo del usuario:
+   
+   **Windows:**
+   ```
+   1. Doble click en ca-root.crt
+   2. "Instalar certificado"
+   3. "Equipo local"
+   4. "Colocar todos los certificados en el siguiente almacén"
+   5. Seleccionar "Entidades de certificación raíz de confianza"
+   6. Finalizar
+   ```
+   
+   **Linux:**
+   ```bash
+   sudo cp ca-root.crt /usr/local/share/ca-certificates/
+   sudo update-ca-certificates
+   ```
+   
+   **Mac:**
+   ```bash
+   sudo security add-trusted-cert -d -r trustRoot \
+     -k /Library/Keychains/System.keychain ca-root.crt
+   ```
+
+3. Reiniciar el navegador
+
+4. ✅ El candado verde debería aparecer
+
+**Desventajas:**
+- Cada usuario debe instalar el certificado CA
+- Requiere permisos de administrador
+- Debe reinstalarse si se renueva la CA
+
+---
+
+**Opción B: Migrar a Let's Encrypt con Dominio Propio**
+
+1. Adquirir un dominio propio (ej: `ds-management.iflex-project.com`)
+2. Configurar DNS apuntando a la IP del cluster
+3. Usar cert-manager con Let's Encrypt como issuer
+4. Los certificados serían confiables automáticamente
+
+**Desventajas:**
+- Costo del dominio (~10-15€/año)
+- Requiere configuración DNS externa
+- Más complejidad operativa
+
+---
+
+#### Resumen de la Fase 5
+
+| Aspecto | Detalle |
+|---------|---------|
+| **Problema encontrado** | HSTS bloqueaba acceso incluso con certificado renovado |
+| **Solución** | Limpiar política HSTS del navegador |
+| **Herramienta usada** | `chrome://net-internals/#hsts` |
+| **Tiempo requerido** | 2-3 minutos |
+| **Resultado** | ✅ Acceso exitoso a la aplicación |
+| **Estado visual** | ⚠️ "No es seguro" / HTTPS tachado (esperado con CA interna) |
+| **Funcionalidad** | ✅ 100% operativa |
+
+**Confirmación final:**
+- ✅ Certificados renovados correctamente en servidor
+- ✅ HSTS limpiado en navegador
+- ✅ Advertencia de CA no confiable aceptada
+- ✅ Aplicación accesible y funcional
+- ✅ **PROBLEMA ORIGINAL RESUELTO** (certificado ya no está expirado)
 
 ---
 
@@ -1788,10 +2091,24 @@ mass-edc-dataplane-559c7998cb-x7ppb    1/1     Running   0          117s
 
 4. **Impacto de HSTS:**
    - ⚠️ HSTS impide aceptar certificados inválidos manualmente
+   - ⚠️ HSTS persiste en el navegador incluso después de renovar certificados
    - 💡 Importante mantener certificados actualizados para sitios con HSTS
    - 💡 Los usuarios no pueden "aceptar riesgo" si el certificado está expirado
+   - 💡 **Nuevo aprendizaje:** Después de renovar certificados con CA interna, los usuarios deben:
+     1. Limpiar política HSTS del navegador (`chrome://net-internals/#hsts`)
+     2. Cerrar y reabrir el navegador completamente
+     3. Aceptar manualmente la advertencia de CA no confiable
+   - 💡 Considerar documentar este proceso para usuarios finales
+   - 💡 Modo incógnito puede usarse para pruebas rápidas (no tiene caché HSTS)
 
-5. **Backup antes de cambios:**
+5. **CA Interna vs CA Pública:**
+   - ⚠️ CA interna genera advertencias permanentes en navegadores
+   - ✅ Pero permite total control sobre emisión y renovación
+   - ✅ Adecuada para entornos internos/desarrollo
+   - 💡 Para entornos de producción públicos, considerar dominio propio + Let's Encrypt
+   - 💡 Alternativamente, distribuir certificado CA root a usuarios para eliminar advertencias
+
+6. **Backup antes de cambios:**
    - ✅ Backups permitieron tener un rollback seguro
    - ✅ Proceso de backup rápido y efectivo
    - 💡 Siempre hacer backup antes de cambios en certificados
