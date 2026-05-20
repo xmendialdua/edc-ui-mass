@@ -3,9 +3,6 @@
 import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
 import { api } from '@/lib/api';
 import { Search, ChevronDown, ChevronUp } from 'lucide-react';
-import { useMsal } from "@azure/msal-react";
-import { InteractionRequiredAuthError } from "@azure/msal-browser";
-import { loginRequest } from "@/lib/authConfig";
 
 interface Transfer {
   id: string;
@@ -30,7 +27,6 @@ interface TransfersContentProps {
 
 const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentProps>(
   ({ onLog, sharePointConnected = false, sharePointUser = null, onAuthenticateSharePoint }, ref) => {
-    const { instance, accounts } = useMsal();
     const [loading, setLoading] = useState(false);
     const [transfers, setTransfers] = useState<Transfer[]>([]);
     const [autoRefreshCount, setAutoRefreshCount] = useState(0);

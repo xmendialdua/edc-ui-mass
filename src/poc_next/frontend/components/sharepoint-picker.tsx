@@ -4,9 +4,6 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogPortal } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { FolderOpen, File, ChevronRight, Home, RefreshCw, AlertCircle } from 'lucide-react';
-import { useMsal } from "@azure/msal-react";
-import { InteractionRequiredAuthError } from "@azure/msal-browser";
-import { loginRequest } from "@/lib/authConfig";
 import { api } from "@/lib/api";
 import { createPortal } from 'react-dom';
 
@@ -150,82 +147,65 @@ export function SharePointPicker({ open, onOpenChange, mode, onSelect }: SharePo
           </DialogDescription>
         </DialogHeader>
 
-        {/* Loading/Authentication State */}
-        {!accessToken && (
-          <div style={{
-            padding: '40px',
-            textAlign: 'center',
-            background: '#f9fafb',
-            borderRadius: '6px'
-          }}>
-            <RefreshCw size={32} color="#3b82f6" className="animate-spin" style={{ margin: '0 auto 12px' }} />
-            <p style={{ color: '#6b7280', marginBottom: '8px' }}>Autenticando con Azure AD...</p>
-            <p style={{ fontSize: '12px', color: '#9ca3af' }}>
-              Si aparece una ventana popup, por favor autoriza el acceso
-            </p>
+        {/* Main content */}
+        <>
+          {/* Breadcrumb */}
+          <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '8px',
+        padding: '12px',
+        background: '#f9fafb',
+        borderRadius: '6px',
+        fontSize: '14px',
+        flexWrap: 'wrap'
+      }}>
+        <button
+          onClick={() => handleBreadcrumbClick(0)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '4px 8px',
+            background: folderPath.length === 0 ? '#3b82f6' : 'transparent',
+            color: folderPath.length === 0 ? 'white' : '#3b82f6',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px'
+          }}
+        >
+          <Home size={16} />
+          IKDataSpace
+        </button>
+        
+        {folderPath.map((folder, index) => (
+          <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ChevronRight size={16} color="#9ca3af" />
+            <button
+              onClick={() => handleBreadcrumbClick(index + 1)}
+              style={{
+                padding: '4px 8px',
+                background: index === folderPath.length - 1 ? '#3b82f6' : 'transparent',
+                color: index === folderPath.length - 1 ? 'white' : '#3b82f6',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              {folder}
+            </button>
           </div>
-        )}
+        ))}
 
-        {/* Main content - only show when authenticated */}
-        {accessToken && (
-          <>
-            {/* Breadcrumb */}
-            <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '8px',
-          padding: '12px',
-          background: '#f9fafb',
-          borderRadius: '6px',
-          fontSize: '14px',
-          flexWrap: 'wrap'
-        }}>
-          <button
-            onClick={() => handleBreadcrumbClick(0)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '4px 8px',
-              background: folderPath.length === 0 ? '#3b82f6' : 'transparent',
-              color: folderPath.length === 0 ? 'white' : '#3b82f6',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}
-          >
-            <Home size={16} />
-            IKDataSpace
-          </button>
-          
-          {folderPath.map((folder, index) => (
-            <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ChevronRight size={16} color="#9ca3af" />
-              <button
-                onClick={() => handleBreadcrumbClick(index + 1)}
-                style={{
-                  padding: '4px 8px',
-                  background: index === folderPath.length - 1 ? '#3b82f6' : 'transparent',
-                  color: index === folderPath.length - 1 ? 'white' : '#3b82f6',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
-              >
-                {folder}
-              </button>
-            </div>
-          ))}
-
-          <button
-            onClick={() => loadFiles(accessToken, folderPath.length > 0 ? files[0]?.id : undefined)}
-            style={{
-              marginLeft: 'auto',
-              padding: '4px 8px',
-              background: 'transparent',
-              border: '1px solid #e5e7eb',
+        <button
+          onClick={() => loadFiles(folderPath.length > 0 ? files[0]?.id : undefined)}
+          style={{
+            marginLeft: 'auto',
+            padding: '4px 8px',
+            background: 'transparent',
+            border: '1px solid #e5e7eb',
               borderRadius: '4px',
               cursor: 'pointer',
               display: 'flex',
@@ -369,8 +349,7 @@ export function SharePointPicker({ open, onOpenChange, mode, onSelect }: SharePo
             </p>
           </div>
         )}
-          </>
-        )}
+        </>
 
         {/* Footer Buttons */}
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', paddingTop: '12px' }}>

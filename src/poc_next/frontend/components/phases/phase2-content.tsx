@@ -21,9 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useMsal } from "@azure/msal-react";
-import { InteractionRequiredAuthError } from "@azure/msal-browser";
-import { loginRequest } from "@/lib/authConfig";
 
 interface Asset {
   '@id': string;
@@ -42,7 +39,6 @@ interface Phase2ContentProps {
 }
 
 const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref }, ref) => {
-  const { instance, accounts } = useMsal();
   const [loading, setLoading] = useState<string | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
@@ -58,10 +54,8 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
   const [showSharePointPicker, setShowSharePointPicker] = useState(false);
   const [sharePointUrl, setSharePointUrl] = useState('');
   const [sharePointItemName, setSharePointItemName] = useState('');
-  const [linkType, setLinkType] = useState<'temporary' | 'sharing' | 'proxy'>('proxy'); // Default: proxy (para EDC DataPlane)
   
   // SharePoint states
-  const [sharePointAccessToken, setSharePointAccessToken] = useState('');
   const [sharePointFiles, setSharePointFiles] = useState<any[]>([]);
   const [sharePointLoading, setSharePointLoading] = useState(false);
   const [sharePointError, setSharePointError] = useState<string | null>(null);
@@ -111,46 +105,6 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
   };
 
   // ==================== SharePoint Functions ====================
-  
-  const handleSharePointLogin = async () => {
-    if (accounts.length === 0) {
-      try {
-        const response = await instance.loginPopup(loginRequest);
-        if (response.accessToken) {
-          setSharePointAccessToken(response.accessToken);
-          await loadSharePointFiles();
-        }
-      } catch (error) {
-        console.error('Login error:', error);
-        setSharePointError('Error al iniciar sesión en Azure AD');
-      }
-    } else {
-      const request = {
-        ...loginRequest,
-        account: accounts[0]
-      };
-
-      try {
-        const response = await instance.acquireTokenSilent(request);
-        setSharePointAccessToken(response.accessToken);
-        await loadSharePointFiles();
-      } catch (error) {
-        if (error instanceof InteractionRequiredAuthError) {
-          try {
-            const response = await instance.acquireTokenPopup(request);
-            setSharePointAccessToken(response.accessToken);
-            await loadSharePointFiles();
-          } catch (popupError) {
-            console.error('Popup error:', popupError);
-            setSharePointError('Error al obtener token de acceso');
-          }
-        } else {
-          console.error('Token error:', error);
-          setSharePointError('Error al obtener token de acceso');
-        }
-      }
-    }
-  };
 
   const loadSharePointFiles = async (folderId?: string) => {
     setSharePointLoading(true);
@@ -248,56 +202,12 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
         return;
       }
 
-      if (linkType === 'temporary') {
-        // Opción 1: Usar link temporal de Microsoft Graph (válido 1 hora)
-        log(`🔗 Obteniendo link temporal para: ${item.name}...`);
-
-        // Get pre-authenticated download URL
-        const response = await api.sharepoint.getDownloadUrl(
-          sharePointAccessToken!,
-          driveId,
-          itemId
-        );
-
-        if (response.success && response.download_url) {
-          setSharePointUrl(response.download_url);
-          const fullPath = [...sharePointFolderPath, item.name].join(' / ');
-          setSharePointItemName(fullPath);
-          log(`✅ Link temporal obtenido (válido 1 hora)`);
-          log(`⚠️  No válido para producción - el link expira`);
-        } else {
-          log('❌ Error: No se pudo obtener el link temporal');
-          return;
-        }
-      } else if (linkType === 'sharing') {
-        // Opción 2: Crear sharing link público permanente (válido 1 año)
-        log(`🔗 Creando sharing link público para: ${item.name}...`);
-
-        // Create public sharing link with direct download capability
-        const response = await api.sharepoint.createSharingLink(
-          sharePointAccessToken!,
-          driveId,
-          itemId,
-          365 // 1 year expiration
-        );
-
-        if (response.success && response.download_url) {
-          setSharePointUrl(response.download_url);
-          const fullPath = [...sharePointFolderPath, item.name].join(' / ');
-          setSharePointItemName(fullPath);
-          log(`✅ Sharing link público creado (expira en 1 año)`);
-          log(`🌐 URL pública - accesible sin autenticación`);
-          log(`✅ Compatible con EDC DataPlane - descarga directa`);
-        } else {
-          log('❌ Error: No se pudo crear el sharing link');
-          return;
-        }
-      } else {
-        // Opción 3: Usar URL del proxy interno del cluster (para EDC DataPlane)
-        // Codificar drive_id|item_id en base64 URL-safe
-        const fileInfo = `${driveId}|${itemId}`;
-        const encoded = btoa(fileInfo)
-          .replace(/\+/g, '-')
+      // Usar URL del proxy interno del cluster (para EDC DataPlane)
+      // Codificar drive_id|item_id en base64 URL-safe
+      log(`🔗 Generando URL de proxy autenticado para: ${item.name}...`);
+      const fileInfo = `${driveId}|${itemId}`;
+      const encoded = btoa(fileInfo)
+        .replace(/\+/g, '-')
           .replace(/\//g, '_')
           .replace(/=+$/, ''); // Base64 URL-safe encode
         
@@ -325,7 +235,6 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
         setSharePointItemName(fullPath);
         
         log(`✅ Elemento seleccionado: ${fullPath}`);
-      }
     } catch (error) {
       log(`❌ Error al procesar archivo: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return;
@@ -341,11 +250,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
   const handleSharePointToggle = () => {
     if (!showSharePointPicker) {
       setShowSharePointPicker(true);
-      if (!sharePointAccessToken) {
-        handleSharePointLogin();
-      } else {
-        loadSharePointFiles();
-      }
+      loadSharePointFiles();
     } else {
       setShowSharePointPicker(false);
       setSharePointFiles([]);
@@ -1095,10 +1000,6 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                       setSharePointUrl('');
                       setSharePointItemName('');
                     }
-                    // Auto-seleccionar opción 'proxy' para archivos de SharePoint
-                    if (newType === 'sharepoint-file' || newType === 'sharepoint-folder') {
-                      setLinkType('proxy');
-                    }
                   }}
                   style={{
                     width: '100%',
@@ -1307,30 +1208,28 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                           </div>
                         ))}
 
-                        {sharePointAccessToken && (
-                          <button
-                            onClick={() => {
-                              const currentFolderId = sharePointFolderIds[sharePointFolderIds.length - 1];
-                              // Pass the full currentFolderId (drive_id|item_id) to backend
-                              // Backend will parse it correctly
-                              loadSharePointFiles(currentFolderId);
-                            }}
-                            style={{
-                              marginLeft: 'auto',
-                              padding: '4px 8px',
-                              background: 'transparent',
-                              border: '1px solid #e5e7eb',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}
-                            disabled={sharePointLoading}
-                          >
-                            <RefreshCw size={14} className={sharePointLoading ? 'animate-spin' : ''} />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => {
+                            const currentFolderId = sharePointFolderIds[sharePointFolderIds.length - 1];
+                            // Pass the full currentFolderId (drive_id|item_id) to backend
+                            // Backend will parse it correctly
+                            loadSharePointFiles(currentFolderId);
+                          }}
+                          style={{
+                            marginLeft: 'auto',
+                            padding: '4px 8px',
+                            background: 'transparent',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                          disabled={sharePointLoading}
+                        >
+                          <RefreshCw size={14} className={sharePointLoading ? 'animate-spin' : ''} />
+                        </button>
                       </div>
 
                       {/* Info Message about allowed folder */}
@@ -1570,7 +1469,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                       )}
 
                       {/* No Files */}
-                      {!sharePointLoading && !sharePointError && sharePointFiles.length === 0 && sharePointAccessToken && (
+                      {!sharePointLoading && !sharePointError && sharePointFiles.length === 0 && (
                         <div style={{ 
                           padding: '40px', 
                           textAlign: 'center',
@@ -1578,21 +1477,6 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                           color: '#6b7280'
                         }}>
                           <p>No hay {assetUrlType === 'sharepoint-folder' ? 'carpetas' : 'archivos'} en esta ubicación</p>
-                        </div>
-                      )}
-
-                      {/* Authentication Required */}
-                      {!sharePointAccessToken && !sharePointLoading && (
-                        <div style={{ 
-                          padding: '40px', 
-                          textAlign: 'center',
-                          background: '#fff'
-                        }}>
-                          <RefreshCw size={32} color="#3b82f6" className="animate-spin" style={{ margin: '0 auto 12px' }} />
-                          <p style={{ color: '#6b7280', marginBottom: '8px' }}>Autenticando con Azure AD...</p>
-                          <p style={{ fontSize: '12px', color: '#9ca3af' }}>
-                            Si aparece una ventana popup, por favor autoriza el acceso
-                          </p>
                         </div>
                       )}
                     </div>
@@ -1605,160 +1489,36 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                 <div style={{
                   marginTop: '16px',
                   padding: '12px',
-                  backgroundColor: '#f8f9fa',
-                  border: '1px solid #e5e7eb',
+                  backgroundColor: '#eff6ff',
+                  border: '1px solid #3b82f6',
                   borderRadius: '6px'
                 }}>
-                  <div style={{ marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '20px' }}>🔒</span>
                     <label style={{ 
                       fontSize: '14px',
                       fontWeight: '600',
                       color: '#333',
-                      display: 'block',
-                      marginBottom: '8px'
+                      margin: 0
                     }}>
-                      Tipo de URL para el Asset:
+                      Proxy Autenticado (Service Principal)
                     </label>
+                    <span style={{ 
+                      color: '#059669', 
+                      fontSize: '12px',
+                      fontWeight: '600'
+                    }}>
+                      ✓ Recomendado
+                    </span>
                   </div>
-
-                  {/* Opción 1: Link temporal (1 hora) */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '12px' }}>
-                    <input
-                      type="radio"
-                      id="link-temporary"
-                      name="linkType"
-                      value="temporary"
-                      checked={linkType === 'temporary'}
-                      onChange={(e) => setLinkType('temporary')}
-                      style={{
-                        width: '18px',
-                        height: '18px',
-                        cursor: 'pointer',
-                        marginTop: '2px',
-                        accentColor: '#667eea'
-                      }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <label 
-                        htmlFor="link-temporary" 
-                        style={{ 
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          fontWeight: linkType === 'temporary' ? '600' : '400',
-                          color: '#333',
-                          display: 'block',
-                          marginBottom: '4px'
-                        }}
-                      >
-                        🕐 Link temporal (Microsoft Graph)
-                      </label>
-                      <p style={{ 
-                        fontSize: '12px', 
-                        color: '#666',
-                        margin: 0,
-                        lineHeight: '1.4'
-                      }}>
-                        URL válida durante 1 hora. <span style={{ color: '#dc2626' }}>⚠️ No válido para producción</span> - el link expira rápidamente.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Opción 2: Sharing Link Público */}
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'flex-start', 
-                    gap: '10px', 
-                    marginBottom: '12px'
+                  <p style={{ 
+                    fontSize: '12px', 
+                    color: '#666',
+                    margin: 0,
+                    lineHeight: '1.5'
                   }}>
-                    <input
-                      type="radio"
-                      id="link-sharing"
-                      name="linkType"
-                      value="sharing"
-                      checked={linkType === 'sharing'}
-                      onChange={(e) => setLinkType('sharing')}
-                      style={{
-                        width: '18px',
-                        height: '18px',
-                        cursor: 'pointer',
-                        marginTop: '2px',
-                        accentColor: '#667eea'
-                      }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <label 
-                        htmlFor="link-sharing" 
-                        style={{ 
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          fontWeight: linkType === 'sharing' ? '600' : '400',
-                          color: '#333',
-                          display: 'block',
-                          marginBottom: '4px'
-                        }}
-                      >
-                        🌐 Sharing Link Público
-                      </label>
-                      <p style={{ 
-                        fontSize: '12px', 
-                        color: '#666',
-                        margin: 0,
-                        lineHeight: '1.4'
-                      }}>
-                        URL pública válida durante <strong>1 año</strong>. Compatible con EDC DataPlane. <span style={{ color: '#f59e0b' }}>⚠️ Expira después de 1 año</span>.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Opción 3: Proxy (recomendado para producción) */}
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'flex-start', 
-                    gap: '10px',
-                    padding: '8px',
-                    backgroundColor: linkType === 'proxy' ? '#eff6ff' : 'transparent',
-                    borderRadius: '4px',
-                    border: linkType === 'proxy' ? '1px solid #3b82f6' : '1px solid transparent'
-                  }}>
-                    <input
-                      type="radio"
-                      id="link-proxy"
-                      name="linkType"
-                      value="proxy"
-                      checked={linkType === 'proxy'}
-                      onChange={(e) => setLinkType('proxy')}
-                      style={{
-                        width: '18px',
-                        height: '18px',
-                        cursor: 'pointer',
-                        marginTop: '2px',
-                        accentColor: '#667eea'
-                      }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <label 
-                        htmlFor="link-proxy" 
-                        style={{ 
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          fontWeight: linkType === 'proxy' ? '600' : '400',
-                          color: '#333',
-                          display: 'block',
-                          marginBottom: '4px'
-                        }}
-                      >
-                        🔒 Proxy Autenticado <span style={{ color: '#059669', fontSize: '12px' }}>✓ Recomendado</span>
-                      </label>
-                      <p style={{ 
-                        fontSize: '12px', 
-                        color: '#666',
-                        margin: 0,
-                        lineHeight: '1.4'
-                      }}>
-                        URL interna del cluster para EDC DataPlane. <span style={{ color: '#059669' }}>✓ Permanente</span> (no expira). Mayor control y seguridad con Service Principal.
-                      </p>
-                    </div>
-                  </div>
+                    URL interna del cluster para EDC DataPlane. <span style={{ color: '#059669', fontWeight: '600' }}>✓ Permanente</span> (no expira). Mayor control y seguridad con autenticación mediante Service Principal.
+                  </p>
                 </div>
               )}
 
@@ -1773,7 +1533,6 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                     setCustomUrl('');
                     setSharePointUrl('');
                     setSharePointItemName('');
-                    setLinkType('proxy'); // Reset to recommended option (proxy for production)
                   }}
                   style={{
                     padding: '8px 16px',
