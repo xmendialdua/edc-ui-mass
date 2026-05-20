@@ -31,6 +31,7 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
   const [loading, setLoading] = useState(false);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [expandedDatasets, setExpandedDatasets] = useState<Set<string>>(new Set());
+  const [expandedAssets, setExpandedAssets] = useState<Set<string>>(new Set());
 
   const addLog = (message: string) => {
     if (onLog) {
@@ -72,6 +73,18 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
     });
     const datasetName = datasets.find(d => d['@id'] === datasetId)?.['@id'] || datasetId;
     addLog(`📦 Dataset ${expandedDatasets.has(datasetId) ? 'colapsado' : 'expandido'}: ${datasetName}`);
+  };
+
+  const toggleAssetExpansion = (offerId: string) => {
+    setExpandedAssets(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(offerId)) {
+        newSet.delete(offerId);
+      } else {
+        newSet.add(offerId);
+      }
+      return newSet;
+    });
   };
 
   const getOffers = (dataset: Dataset): Offer[] => {
@@ -130,11 +143,163 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
         </div>
       )}
 
-      {/* Datasets Cards */}
+      {/* Assets from all datasets - MOSTRADOS PRIMERO */}
       {!loading && datasets.length > 0 && (
         <div className="space-y-3">
+          {datasets.map((dataset, datasetIndex) => {
+            const datasetId = dataset['@id'] || `dataset-${datasetIndex}`;
+            const offers = getOffers(dataset);
+            const datasetName = dataset['name'] || dataset['dct:title'] || dataset['@id'] || 'Dataset';
+            
+            if (offers.length === 0 || !offers[0]) {
+              return null;
+            }
+
+            return (
+              <div key={datasetId} className="space-y-3">
+                {offers.map((offer, index) => {
+                  const offerId = offer['@id'] || `offer-${index}`;
+                  const assetId = offer['odrl:target'] || datasetId;
+                  const assetName = dataset['name'] || dataset['dct:title'] || dataset['@id'] || 'Asset';
+                  const assetDescription = dataset['description'] || dataset['dct:description'] || '';
+                  const isExpanded = expandedAssets.has(offerId);
+                  
+                  // Truncar descripción a 2 líneas (aproximadamente 120 caracteres)
+                  const truncatedDescription = assetDescription.length > 120 
+                    ? assetDescription.substring(0, 120) + '...' 
+                    : assetDescription;
+                  
+                  return (
+                    <div 
+                      key={offerId} 
+                      style={{
+                        background: '#f5f3ff',
+                        borderRadius: '6px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                        border: '2px solid #7c3aed',
+                        overflow: 'hidden'
+                      }}
+                    >
+                      {/* Header plegable - siempre visible */}
+                      <div
+                        onClick={() => toggleAssetExpansion(offerId)}
+                        style={{
+                          padding: '14px 16px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          justifyContent: 'space-between',
+                          gap: '12px'
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ 
+                            fontSize: '13px',
+                            fontWeight: '600',
+                            color: '#5b21b6',
+                            marginBottom: '6px',
+                            fontFamily: 'monospace'
+                          }}>
+                            {assetId}
+                          </div>
+                          {!isExpanded && assetDescription && (
+                            <div style={{ 
+                              fontSize: '12px', 
+                              color: '#6b7280',
+                              lineHeight: '1.4'
+                            }}>
+                              {truncatedDescription}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ paddingTop: '2px' }}>
+                          {isExpanded ? (
+                            <ChevronUp className="h-5 w-5" style={{ color: '#7c3aed' }} />
+                          ) : (
+                            <ChevronDown className="h-5 w-5" style={{ color: '#7c3aed' }} />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Contenido expandido */}
+                      {isExpanded && (
+                        <div style={{ 
+                          borderTop: '1px solid #e9d5ff', 
+                          padding: '16px',
+                          background: 'white'
+                        }}>
+                          <div style={{ marginBottom: '16px' }}>
+                            {assetDescription && (
+                              <div style={{ 
+                                fontSize: '12px', 
+                                color: '#4b5563', 
+                                marginBottom: '12px',
+                                lineHeight: '1.5'
+                              }}>
+                                <span style={{ fontWeight: 'bold', color: '#374151' }}>Description: </span>
+                                <span>{assetDescription}</span>
+                              </div>
+                            )}
+                            <div style={{ 
+                              fontSize: '11px',
+                              marginBottom: '8px'
+                            }}>
+                              <span style={{ fontWeight: 'bold', color: '#4b5563' }}>Contract ID: </span>
+                              <span style={{ 
+                                fontFamily: 'monospace', 
+                                color: '#6b7280',
+                                wordBreak: 'break-all',
+                                lineHeight: '1.5'
+                              }}>
+                                {offerId}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* Botón de negociar */}
+                          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleNegotiate(assetId, offer);
+                              }}
+                              style={{
+                                background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)',
+                                color: 'white',
+                                padding: '8px 16px',
+                                borderRadius: '5px',
+                                border: 'none',
+                                fontSize: '13px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'linear-gradient(90deg, #059669 0%, #047857 100%)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'linear-gradient(90deg, #10b981 0%, #059669 100%)';
+                              }}
+                            >
+                              Negociar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Datasets Cards - MOSTRADOS DESPUÉS */}
+      {!loading && datasets.length > 0 && (
+        <div className="space-y-3 mt-8">
           <h3 className="text-base font-semibold" style={{ color: '#1f2937' }}>Datasets</h3>
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+          <div className="space-y-3">
             {datasets.map((dataset, index) => {
               const datasetId = dataset['@id'] || `dataset-${index}`;
               const offers = getOffers(dataset);
@@ -213,114 +378,6 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
             <Package className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
             <p className="text-sm text-muted-foreground">No hay datasets disponibles en el catálogo</p>
           </div>
-        </div>
-      )}
-
-      {/* Assets from all datasets */}
-      {!loading && datasets.length > 0 && (
-        <div className="space-y-6 mt-6">
-          {datasets.map((dataset, datasetIndex) => {
-            const datasetId = dataset['@id'] || `dataset-${datasetIndex}`;
-            const offers = getOffers(dataset);
-            const datasetName = dataset['name'] || dataset['dct:title'] || dataset['@id'] || 'Dataset';
-            
-            if (offers.length === 0 || !offers[0]) {
-              return null;
-            }
-
-            return (
-              <div key={datasetId} className="space-y-3">
-                <h3 className="text-base font-semibold" style={{ color: '#1f2937' }}>
-                  Assets in {datasetName}
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
-                  {offers.map((offer, index) => {
-                    const offerId = offer['@id'] || `offer-${index}`;
-                    const assetId = offer['odrl:target'] || datasetId;
-                    const assetName = dataset['name'] || dataset['dct:title'] || dataset['@id'] || 'Asset';
-                    const assetDescription = dataset['description'] || dataset['dct:description'] || 'Asset disponible en el catálogo';
-                    
-                    return (
-                      <div 
-                        key={offerId} 
-                        style={{
-                          background: '#f5f3ff',
-                          borderRadius: '6px',
-                          padding: '16px',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-                          border: '2px solid #7c3aed',
-                          display: 'flex',
-                          flexDirection: 'column'
-                        }}
-                      >
-                        {/* Content */}
-                        <div style={{ flex: 1, marginBottom: '12px' }}>
-                          <div style={{ marginBottom: 0 }}>
-                            <div style={{ 
-                              fontSize: '11px', 
-                              marginBottom: '6px'
-                            }}>
-                              <span style={{ fontWeight: 'bold', color: '#4b5563' }}>Asset ID: </span>
-                              <span style={{ fontFamily: 'monospace', color: '#374151' }}>{assetId}</span>
-                            </div>
-                            <div style={{ 
-                              fontSize: '12px', 
-                              color: '#6b7280', 
-                              marginBottom: '6px',
-                              lineHeight: '1.4'
-                            }}>
-                              <span style={{ fontWeight: 'bold', color: '#4b5563' }}>Description: </span>
-                              <span>{assetDescription}</span>
-                            </div>
-                            <div style={{ 
-                              fontSize: '11px'
-                            }}>
-                              <span style={{ fontWeight: 'bold', color: '#4b5563' }}>Contract ID: </span>
-                              <span style={{ 
-                                fontFamily: 'monospace', 
-                                color: '#374151',
-                                wordBreak: 'break-word',
-                                lineHeight: '1.5',
-                                display: 'inline'
-                              }}>
-                                {offerId}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Button aligned to bottom right */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                          <button
-                            onClick={() => handleNegotiate(assetId, offer)}
-                            style={{
-                              background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)',
-                              color: 'white',
-                              padding: '6px 14px',
-                              borderRadius: '5px',
-                              border: 'none',
-                              fontSize: '12px',
-                              fontWeight: '600',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s ease'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = 'linear-gradient(90deg, #059669 0%, #047857 100%)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = 'linear-gradient(90deg, #10b981 0%, #059669 100%)';
-                            }}
-                          >
-                            Negociar
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
         </div>
       )}
     </div>

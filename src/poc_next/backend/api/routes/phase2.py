@@ -33,7 +33,7 @@ async def create_asset(request: CreateAssetRequest) -> Dict[str, Any]:
     logs: List[str] = []
     asset_id = request.assetId
     asset_url = request.url if request.url else settings.pdf_url
-    asset_description = request.description if request.description else f"Asset publicado desde Data Publication UI - {asset_url}"
+    asset_description = request.description if request.description else ""
 
     logs.append(log_message(f"📦 Creando asset '{asset_id}'..."))
     logs.append(log_message(f"🔗 URL: {asset_url}"))
