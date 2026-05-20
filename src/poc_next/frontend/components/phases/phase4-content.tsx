@@ -222,6 +222,20 @@ const Phase4Content = forwardRef<any, Phase4ContentProps>(({ onLog, filter = 'al
                         <strong>Contract Policy:</strong> {contract.contractPolicyId}
                       </div>
                     )}
+                    <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #e0e0e0' }}>
+                      <div>
+                        <strong>Issued:</strong> {(contract as any)['dct:issued'] || ''}
+                      </div>
+                      <div>
+                        <strong>Last modified:</strong> {(contract as any)['dct:modified'] || ''}
+                      </div>
+                      <div>
+                        <strong>Valid From:</strong> {(contract as any)['odrl:validFrom'] || ''}
+                      </div>
+                      <div>
+                        <strong>Valid To:</strong> {(contract as any)['odrl:validUntil'] || ''}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

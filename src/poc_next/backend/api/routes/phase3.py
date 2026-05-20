@@ -34,6 +34,13 @@ async def create_access_policy(request: CreateAccessPolicyRequest) -> Dict[str, 
     policy_id = f"access-policy-{bpn.lower()}"
     logs.append(log_message(f"🔐 Creando Access Policy para BPN: {bpn}"))
 
+    # Generate timestamps for metadata
+    from datetime import datetime, timedelta
+    now = datetime.utcnow()
+    issued = now.isoformat() + "Z"
+    valid_from = now.isoformat() + "Z"
+    valid_until = (now + timedelta(days=365)).isoformat() + "Z"  # Valid for 1 year
+
     # Build access policy with Catena-X context
     # IMPORTANT: constraint MUST be an array with "and" grouping, not a direct object
     policy_data = {
@@ -48,6 +55,10 @@ async def create_access_policy(request: CreateAccessPolicyRequest) -> Dict[str, 
         "@type": "PolicyDefinition",
         "policy": {
             "@type": "Set",
+            "dct:issued": issued,
+            "dct:modified": issued,
+            "odrl:validFrom": valid_from,
+            "odrl:validUntil": valid_until,
             "permission": [{
                 "action": "access",
                 "constraint": [{
@@ -83,6 +94,9 @@ async def create_access_policy(request: CreateAccessPolicyRequest) -> Dict[str, 
         logs.append(log_message("✅ Access Policy creada exitosamente"))
         logs.append(log_message(f"   ID: {policy_id}"))
         logs.append(log_message(f"   BPN permitido: {bpn}"))
+        logs.append(log_message(f"   📅 Issued: {issued}"))
+        logs.append(log_message(f"   📅 Valid From: {valid_from}"))
+        logs.append(log_message(f"   📅 Valid Until: {valid_until}"))
 
         return {
             "success": True,
@@ -108,6 +122,13 @@ async def create_contract_policy() -> Dict[str, Any]:
     policy_id = "contract-policy-general"
     logs.append(log_message(f"📜 Creando Contract Policy General..."))
 
+    # Generate timestamps for metadata
+    from datetime import datetime, timedelta
+    now = datetime.utcnow()
+    issued = now.isoformat() + "Z"
+    valid_from = now.isoformat() + "Z"
+    valid_until = (now + timedelta(days=365)).isoformat() + "Z"  # Valid for 1 year
+
     # Build contract policy with Catena-X context
     # IMPORTANT: Contract policies require Membership, FrameworkAgreement, and UsagePurpose
     policy_data = {
@@ -122,6 +143,10 @@ async def create_contract_policy() -> Dict[str, Any]:
         "@type": "PolicyDefinition",
         "policy": {
             "@type": "Set",
+            "dct:issued": issued,
+            "dct:modified": issued,
+            "odrl:validFrom": valid_from,
+            "odrl:validUntil": valid_until,
             "permission": [{
                 "action": "use",
                 "constraint": {
@@ -164,6 +189,9 @@ async def create_contract_policy() -> Dict[str, Any]:
         logs.append(log_message("✅ Contract Policy creada exitosamente"))
         logs.append(log_message(f"   ID: {policy_id}"))
         logs.append(log_message(f"   Uso: General para todos los partners"))
+        logs.append(log_message(f"   📅 Issued: {issued}"))
+        logs.append(log_message(f"   📅 Valid From: {valid_from}"))
+        logs.append(log_message(f"   📅 Valid Until: {valid_until}"))
 
         return {
             "success": True,
