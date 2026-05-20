@@ -7,12 +7,8 @@ import TransfersContent from "@/components/phases/transfers-content";
 import { api } from "@/lib/api";
 import Image from "next/image";
 import { RefreshCw } from "lucide-react";
-import { useMsal } from "@azure/msal-react";
-import { InteractionRequiredAuthError } from "@azure/msal-browser";
-import { loginRequest } from "@/lib/authConfig";
 
 export default function PartnerDataPage() {
-  const { instance, accounts } = useMsal();
   const [connectorStatus] = useState<"checking" | "connected" | "disconnected">("connected");
   const [isMounted, setIsMounted] = useState(false);
   const [globalLogs, setGlobalLogs] = useState<string[]>([]);
@@ -25,67 +21,41 @@ export default function PartnerDataPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    // Autenticación automática con SharePoint al cargar la página
-    authenticateSharePoint();
+    // Verificar conexión SharePoint del backend al cargar la página
+    checkSharePointStatus();
   }, []);
 
-  // Autenticación silenciosa con SharePoint
-  const authenticateSharePoint = async () => {
+  // Verificar estado de conexión SharePoint del backend
+  const checkSharePointStatus = async () => {
     if (sharePointAuthenticating) return;
     
     setSharePointAuthenticating(true);
     
     try {
-      const activeAccount = accounts[0];
+      const response = await fetch('http://localhost:5001/api/sharepoint/status');
       
-      if (!activeAccount) {
-        // Si no hay cuenta, intentar login silencioso
-        console.log('No active account, attempting silent login...');
-        try {
-          const loginResult = await instance.loginPopup(loginRequest);
-          if (loginResult.account) {
-            setSharePointConnected(true);
-            setSharePointUser(loginResult.account.username || loginResult.account.name || 'Usuario');
-            console.log('✅ SharePoint authentication successful (popup)');
-          }
-        } catch (loginError: any) {
-          // Usuario canceló o error de login - no mostramos error, simplemente quedamos desconectados
-          console.log('SharePoint login not completed:', loginError.errorCode);
-          setSharePointConnected(false);
-        }
+      if (!response.ok) {
+        console.error('Error fetching SharePoint status:', response.statusText);
+        setSharePointConnected(false);
+        setSharePointUser(null);
+        return;
+      }
+      
+      const data = await response.json();
+      
+      if (data.connected) {
+        setSharePointConnected(true);
+        setSharePointUser(data.application || 'Service Principal');
+        console.log('✅ SharePoint conectado:', data.application);
       } else {
-        // Ya hay una cuenta, intentar obtener token silenciosamente
-        const request = {
-          ...loginRequest,
-          account: activeAccount,
-        };
-
-        try {
-          const tokenResponse = await instance.acquireTokenSilent(request);
-          setSharePointConnected(true);
-          setSharePointUser(activeAccount.username || activeAccount.name || 'Usuario');
-          console.log('✅ SharePoint authentication successful (silent)');
-        } catch (silentError: any) {
-          if (silentError instanceof InteractionRequiredAuthError) {
-            // Necesita interacción, intentar popup automáticamente
-            try {
-              const tokenResponse = await instance.acquireTokenPopup(request);
-              setSharePointConnected(true);
-              setSharePointUser(activeAccount.username || activeAccount.name || 'Usuario');
-              console.log('✅ SharePoint authentication successful (popup after silent fail)');
-            } catch (popupError) {
-              console.log('SharePoint popup authentication failed');
-              setSharePointConnected(false);
-            }
-          } else {
-            console.error('SharePoint authentication error:', silentError);
-            setSharePointConnected(false);
-          }
-        }
+        setSharePointConnected(false);
+        setSharePointUser(null);
+        console.log('❌ SharePoint desconectado:', data.error);
       }
     } catch (error) {
-      console.error('SharePoint authentication error:', error);
+      console.error('Error checking SharePoint status:', error);
       setSharePointConnected(false);
+      setSharePointUser(null);
     } finally {
       setSharePointAuthenticating(false);
     }
@@ -488,7 +458,7 @@ export default function PartnerDataPage() {
                 onLog={addLog}
                 sharePointConnected={sharePointConnected}
                 sharePointUser={sharePointUser}
-                onAuthenticateSharePoint={authenticateSharePoint}
+                onAuthenticateSharePoint={checkSharePointStatus}
               />
             </div>
           </div>

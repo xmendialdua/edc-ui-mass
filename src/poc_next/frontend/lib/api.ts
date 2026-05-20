@@ -305,8 +305,9 @@ export const api = {
 
     /**
      * List files from SharePoint drive
+     * Backend uses Application Permissions (no token required from frontend)
      */
-    listFiles: (accessToken: string, driveId?: string, folderId?: string) => {
+    listFiles: (driveId?: string, folderId?: string) => {
       const params = new URLSearchParams();
       if (driveId) params.append('drive_id', driveId);
       if (folderId) params.append('folder_id', folderId);
@@ -325,16 +326,16 @@ export const api = {
       }>(
         `/api/sharepoint/files${params.toString() ? '?' + params.toString() : ''}`,
         { 
-          method: 'GET',
-          headers: { Authorization: `Bearer ${accessToken}` }
+          method: 'GET'
         }
       );
     },
 
     /**
      * List files from SharePoint by site URL
+     * Backend uses Application Permissions (no token required from frontend)
      */
-    listFilesBySiteUrl: (accessToken: string, siteUrl: string, folderId?: string) => {
+    listFilesBySiteUrl: (siteUrl: string, folderId?: string) => {
       const params = new URLSearchParams({ site_url: siteUrl });
       if (folderId) params.append('folder_id', folderId);
       
@@ -353,8 +354,7 @@ export const api = {
       }>(
         `/api/sharepoint/files/by-site-url?${params.toString()}`,
         { 
-          method: 'GET',
-          headers: { Authorization: `Bearer ${accessToken}` }
+          method: 'GET'
         }
       );
     },

@@ -118,7 +118,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
         const response = await instance.loginPopup(loginRequest);
         if (response.accessToken) {
           setSharePointAccessToken(response.accessToken);
-          await loadSharePointFiles(response.accessToken);
+          await loadSharePointFiles();
         }
       } catch (error) {
         console.error('Login error:', error);
@@ -133,13 +133,13 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
       try {
         const response = await instance.acquireTokenSilent(request);
         setSharePointAccessToken(response.accessToken);
-        await loadSharePointFiles(response.accessToken);
+        await loadSharePointFiles();
       } catch (error) {
         if (error instanceof InteractionRequiredAuthError) {
           try {
             const response = await instance.acquireTokenPopup(request);
             setSharePointAccessToken(response.accessToken);
-            await loadSharePointFiles(response.accessToken);
+            await loadSharePointFiles();
           } catch (popupError) {
             console.error('Popup error:', popupError);
             setSharePointError('Error al obtener token de acceso');
@@ -152,13 +152,12 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
     }
   };
 
-  const loadSharePointFiles = async (token: string, folderId?: string) => {
+  const loadSharePointFiles = async (folderId?: string) => {
     setSharePointLoading(true);
     setSharePointError(null);
     
     try {
       const result = await api.sharepoint.listFilesBySiteUrl(
-        token,
         SHAREPOINT_SITE_URL,
         folderId
       );
@@ -207,7 +206,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
       
       // Pass the full folder.id (drive_id|item_id) to backend
       // Backend will parse it correctly
-      await loadSharePointFiles(sharePointAccessToken, folder.id);
+      await loadSharePointFiles(folder.id);
     }
   };
 
@@ -218,12 +217,12 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
     setSharePointFolderIds(newIds);
     
     if (index === 0) {
-      await loadSharePointFiles(sharePointAccessToken);
+      await loadSharePointFiles();
     } else {
       const folderId = newIds[newIds.length - 1];
       // Pass the full folderId (drive_id|item_id) to backend
       // Backend will parse it correctly
-      await loadSharePointFiles(sharePointAccessToken, folderId);
+      await loadSharePointFiles(folderId);
     }
   };
 
@@ -345,7 +344,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
       if (!sharePointAccessToken) {
         handleSharePointLogin();
       } else {
-        loadSharePointFiles(sharePointAccessToken);
+        loadSharePointFiles();
       }
     } else {
       setShowSharePointPicker(false);
@@ -1314,7 +1313,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                               const currentFolderId = sharePointFolderIds[sharePointFolderIds.length - 1];
                               // Pass the full currentFolderId (drive_id|item_id) to backend
                               // Backend will parse it correctly
-                              loadSharePointFiles(sharePointAccessToken, currentFolderId);
+                              loadSharePointFiles(currentFolderId);
                             }}
                             style={{
                               marginLeft: 'auto',

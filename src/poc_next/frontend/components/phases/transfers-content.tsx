@@ -352,66 +352,16 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
         const sharePointInfo = await api.phase6.getSharePointInfo(transferId);
         
         if (sharePointInfo.success && sharePointInfo.is_sharepoint && sharePointInfo.drive_id && sharePointInfo.item_id) {
-          // Es un asset de SharePoint - descargar con token del usuario
+          // Es un asset de SharePoint - descargar usando Application Permissions del backend
           addLog(`   ✅ Asset de SharePoint detectado`);
           addLog(`   📁 Drive ID: ${sharePointInfo.drive_id.substring(0, 20)}...`);
           addLog(`   📄 Item ID: ${sharePointInfo.item_id.substring(0, 20)}...`);
           
-          // Verificar si el usuario está autenticado
-          const activeAccount = accounts[0];
-          if (!activeAccount) {
-            addLog(`   ⚠️ No hay sesión de SharePoint activa`);
-            addLog(`   🔐 Iniciando autenticación con SharePoint...`);
-            
-            // Intentar autenticar automáticamente
-            if (onAuthenticateSharePoint) {
-              try {
-                await onAuthenticateSharePoint();
-                // Esperar un momento para que se complete la autenticación
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                // Verificar de nuevo si hay cuenta
-                const newActiveAccount = accounts[0];
-                if (!newActiveAccount) {
-                  throw new Error('No se pudo autenticar con SharePoint. Por favor, intenta de nuevo.');
-                }
-                
-                addLog(`   ✅ Autenticación completada`);
-              } catch (authError) {
-                throw new Error('Autenticación con SharePoint requerida. Por favor, recarga la página e intenta de nuevo.');
-              }
-            } else {
-              throw new Error('No se pudo iniciar la autenticación con SharePoint.');
-            }
-          }
-          
-          addLog(`   🔐 Obteniendo token de Azure AD del usuario...`);
-          const request = {
-            ...loginRequest,
-            account: accounts[0], // Usar la cuenta actualizada
-          };
-          
-          let tokenResponse;
-          try {
-            tokenResponse = await instance.acquireTokenSilent(request);
-          } catch (silentError: any) {
-            if (silentError instanceof InteractionRequiredAuthError) {
-              addLog(`   🔄 Token expirado, solicitando reautenticación...`);
-              tokenResponse = await instance.acquireTokenPopup(request);
-            } else {
-              throw silentError;
-            }
-          }
-          
-          const userToken = tokenResponse.accessToken;
-          addLog(`   ✅ Token de usuario obtenido`);
-          
-          // Descargar usando el proxy con token de usuario (delegated permissions)
-          addLog(`   📥 Descargando archivo desde SharePoint...`);
-          const { blob, filename } = await api.sharepoint.downloadFileViaProxyWithUserToken(
+          // Descargar usando el proxy del backend (Application Permissions)
+          addLog(`   📥 Descargando archivo desde SharePoint vía backend...`);
+          const { blob, filename } = await api.sharepoint.downloadFileViaProxy(
             sharePointInfo.item_id,
-            sharePointInfo.drive_id,
-            userToken
+            sharePointInfo.drive_id
           );
           
           addLog(`   📝 Nombre del archivo: ${filename}`);
@@ -431,7 +381,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
           document.body.removeChild(link);
           window.URL.revokeObjectURL(url);
           
-          addLog(`   ✅ Archivo descargado exitosamente usando token del usuario`);
+          addLog(`   ✅ Archivo descargado exitosamente usando Application Permissions`);
           
         } else {
           // Flujo tradicional para otros tipos de assets (no SharePoint)

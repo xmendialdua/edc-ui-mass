@@ -149,7 +149,7 @@ class SharePointGateway:
         Get files and folders from a SharePoint drive
         
         Args:
-            drive_id: SharePoint drive ID (optional, uses user's default drive if not provided)
+            drive_id: SharePoint drive ID (optional, uses default_drive_id if not provided)
             item_id: Folder item ID for navigation (optional, uses root if not provided)
             
         Returns:
@@ -157,21 +157,23 @@ class SharePointGateway:
             
         Raises:
             requests.HTTPError: If the API request fails
+            ValueError: If no drive_id provided and no default_drive_id configured
         """
         try:
-            # Build endpoint URL
-            if drive_id:
-                # Use specific drive
-                if item_id:
-                    endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{drive_id}/items/{item_id}/children"
-                else:
-                    endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{drive_id}/root/children"
+            # Use provided drive_id or fall back to default
+            effective_drive_id = drive_id or self.default_drive_id
+            
+            if not effective_drive_id:
+                raise ValueError(
+                    "No drive_id provided and no default_drive_id configured. "
+                    "Application Permissions require explicit drive_id."
+                )
+            
+            # Build endpoint URL using explicit drive_id (required for Application Permissions)
+            if item_id:
+                endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{effective_drive_id}/items/{item_id}/children"
             else:
-                # Use user's default drive (OneDrive or primary SharePoint)
-                if item_id:
-                    endpoint = f"{self.GRAPH_API_BASE_URL}/me/drive/items/{item_id}/children"
-                else:
-                    endpoint = f"{self.GRAPH_API_BASE_URL}/me/drive/root/children"
+                endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{effective_drive_id}/root/children"
             
             # Make API request
             response = self.session.get(endpoint)

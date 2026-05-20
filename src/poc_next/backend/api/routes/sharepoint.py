@@ -6,12 +6,20 @@ from fastapi import APIRouter, HTTPException, Header, Query, Body
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import logging
+from dotenv import load_dotenv
 
 from sharepointGateway.SharePointGateway import SharePointGateway, SharePointFile
+from sharepointGateway.SharePointAuth import SharePointAuthService
+
+# Load environment variables before initializing auth service
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/sharepoint", tags=["SharePoint"])
+
+# Global SharePoint Auth Service (uses Application Permissions)
+auth_service = SharePointAuthService()
 
 
 class FileItemResponse(BaseModel):
@@ -38,39 +46,56 @@ class ErrorResponse(BaseModel):
     detail: Optional[str] = None
 
 
+class StatusResponse(BaseModel):
+    """Response model for SharePoint connection status."""
+    connected: bool
+    application: Optional[str] = None
+    error: Optional[str] = None
+
+
 def get_gateway(authorization: Optional[str] = None) -> SharePointGateway:
     """
-    Create SharePointGateway instance from authorization header.
+    Create SharePointGateway instance using Application Permissions.
+    
+    The authorization header is now OPTIONAL (for backward compatibility).
+    If not provided, uses the global auth_service with Application Permissions.
     
     Args:
-        authorization: Authorization header (Bearer token)
+        authorization: Optional Authorization header (Bearer token) - deprecated
         
     Returns:
         SharePointGateway instance
         
     Raises:
-        HTTPException: If authorization is missing or invalid
+        HTTPException: If authentication fails
     """
+    # Try to use Application Permissions (Service Principal)
     if not authorization:
-        raise HTTPException(
-            status_code=401,
-            detail="Authorization header is required. Format: 'Bearer <token>'"
-        )
-    
-    # Extract token from "Bearer <token>" format
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization format. Expected: 'Bearer <token>'"
-        )
-    
-    access_token = authorization.replace("Bearer ", "").strip()
-    
-    if not access_token:
-        raise HTTPException(
-            status_code=401,
-            detail="Access token is empty"
-        )
+        logger.info("Using Application Permissions (Service Principal)")
+        access_token = auth_service.get_access_token()
+        
+        if not access_token:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to obtain access token using Application Permissions"
+            )
+    else:
+        # Backward compatibility: accept token from frontend (deprecated)
+        logger.warning("Using token from Authorization header (deprecated - should use Application Permissions)")
+        
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid authorization format. Expected: 'Bearer <token>'"
+            )
+        
+        access_token = authorization.replace("Bearer ", "").strip()
+        
+        if not access_token:
+            raise HTTPException(
+                status_code=401,
+                detail="Access token is empty"
+            )
     
     # Get default drive ID from environment
     default_drive_id = os.getenv("SHAREPOINT_DRIVE_ID")
@@ -89,6 +114,45 @@ async def health_check():
         "service": "sharepoint-gateway",
         "has_default_drive_id": bool(os.getenv("SHAREPOINT_DRIVE_ID"))
     }
+
+
+@router.get("/status", response_model=StatusResponse)
+async def connection_status():
+    """
+    Check SharePoint connection status using Application Permissions.
+    
+    This endpoint verifies that the backend can authenticate to SharePoint
+    using Application Permissions (Service Principal), independently of
+    any individual user authentication.
+    
+    Returns:
+        StatusResponse with connection status
+    """
+    try:
+        logger.info("Checking SharePoint connection status...")
+        
+        # Try to obtain access token using Application Permissions
+        access_token = auth_service.get_access_token()
+        
+        if access_token:
+            logger.info("✅ SharePoint connection successful (Application Permissions)")
+            return StatusResponse(
+                connected=True,
+                application="Service Principal"
+            )
+        else:
+            logger.error("❌ Failed to obtain access token")
+            return StatusResponse(
+                connected=False,
+                error="Failed to obtain access token from Azure AD"
+            )
+            
+    except Exception as e:
+        logger.error(f"❌ Exception checking SharePoint status: {str(e)}")
+        return StatusResponse(
+            connected=False,
+            error=f"Exception: {str(e)}"
+        )
 
 
 @router.get("/files", response_model=FilesListResponse)

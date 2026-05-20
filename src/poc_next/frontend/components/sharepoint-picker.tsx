@@ -28,11 +28,9 @@ interface SharePointPickerProps {
 }
 
 export function SharePointPicker({ open, onOpenChange, mode, onSelect }: SharePointPickerProps) {
-  const { instance, accounts } = useMsal();
   const [files, setFiles] = useState<SharePointFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [accessToken, setAccessToken] = useState<string>("");
   const [folderPath, setFolderPath] = useState<string[]>([]);
   const [selectedItem, setSelectedItem] = useState<SharePointFile | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -48,68 +46,20 @@ export function SharePointPicker({ open, onOpenChange, mode, onSelect }: SharePo
   }, [open, mode]);
 
   useEffect(() => {
-    if (open && !accessToken) {
-      console.log('Attempting login, accounts:', accounts.length);
-      handleLogin();
+    if (open) {
+      console.log('SharePointPicker opened, loading files...');
+      loadFiles();
     }
-  }, [open, accessToken, accounts.length]);
+  }, [open]);
 
-  const handleLogin = async () => {
-    console.log('handleLogin called, accounts:', accounts.length);
-    if (accounts.length === 0) {
-      console.log('No accounts, showing login popup...');
-      try {
-        const response = await instance.loginPopup(loginRequest);
-        console.log('Login successful, got token');
-        if (response.accessToken) {
-          setAccessToken(response.accessToken);
-          await loadFiles(response.accessToken);
-        }
-      } catch (error) {
-        console.error('Login error:', error);
-        setError('Error al iniciar sesión en Azure AD');
-      }
-    } else {
-      console.log('Account exists, acquiring token silently...');
-      const request = {
-        ...loginRequest,
-        account: accounts[0]
-      };
-
-      try {
-        const response = await instance.acquireTokenSilent(request);
-        console.log('Silent token acquisition successful');
-        setAccessToken(response.accessToken);
-        await loadFiles(response.accessToken);
-      } catch (error) {
-        console.log('Silent token failed, trying popup...');
-        if (error instanceof InteractionRequiredAuthError) {
-          try {
-            const response = await instance.acquireTokenPopup(request);
-            console.log('Popup token acquisition successful');
-            setAccessToken(response.accessToken);
-            await loadFiles(response.accessToken);
-          } catch (popupError) {
-            console.error('Popup error:', popupError);
-            setError('Error al obtener token de acceso');
-          }
-        } else {
-          console.error('Token error:', error);
-          setError('Error al obtener token de acceso');
-        }
-      }
-    }
-  };
-
-  const loadFiles = async (token: string, folderId?: string) => {
+  const loadFiles = async (folderId?: string) => {
     setLoading(true);
     setError(null);
     
     try {
       console.log('Loading files, folderId:', folderId);
-      // Note: listFiles takes (accessToken, driveId, folderId)
-      // We pass undefined for driveId to use the default one
-      const result = await api.sharepoint.listFiles(token, undefined, folderId);
+      // Backend ahora usa Application Permissions, no requiere token del frontend
+      const result = await api.sharepoint.listFiles(undefined, folderId);
       
       console.log('API result:', result);
       
@@ -135,7 +85,7 @@ export function SharePointPicker({ open, onOpenChange, mode, onSelect }: SharePo
   const handleFolderClick = async (file: SharePointFile) => {
     if (file.isFolder) {
       setFolderPath([...folderPath, file.name]);
-      await loadFiles(accessToken, file.id);
+      await loadFiles(file.id);
     }
   };
 
@@ -144,7 +94,7 @@ export function SharePointPicker({ open, onOpenChange, mode, onSelect }: SharePo
     setFolderPath(newPath);
     
     if (index === 0) {
-      await loadFiles(accessToken);
+      await loadFiles();
     }
   };
 

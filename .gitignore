@@ -22,3 +22,10 @@ src/poc_next/backend/sharepointGateway/__pycache__/SharePointGateway.cpython-312
 
 # Kubernetes secrets with sensitive credentials
 src/poc_next/k8s/sharepoint-proxy-secret.yaml
+src/poc_next/backend/__pycache__/config.cpython-312.pyc
+src/poc_next/backend/__pycache__/main.cpython-312.pyc
+src/poc_next/backend/api/routes/__pycache__/config.cpython-312.pyc
+src/poc_next/backend/api/routes/__pycache__/phase6.cpython-312.pyc
+src/poc_next/backend/api/routes/__pycache__/sharepoint_proxy.cpython-312.pyc
+src/poc_next/backend/api/routes/__pycache__/sharepoint.cpython-312.pyc
+src/poc_next/backend/sharepointGateway/__pycache__/SharePointGateway.cpython-312.pyc
