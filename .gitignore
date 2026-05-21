@@ -37,3 +37,8 @@ src/poc_next/backend/api/routes/__pycache__/__init__.cpython-312.pyc
 src/poc_next/backend/api/routes/__pycache__/partners.cpython-312.pyc
 src/poc_next/backend/api/routes/__pycache__/phase3.cpython-312.pyc
 src/poc_next/backend/api/routes/__pycache__/phase6.cpython-312.pyc
+src/poc_next/backend/__pycache__/config.cpython-312.pyc
+src/poc_next/backend/__pycache__/main.cpython-312.pyc
+src/poc_next/backend/api/routes/__pycache__/__init__.cpython-312.pyc
+src/poc_next/backend/api/routes/__pycache__/phase3.cpython-312.pyc
+src/poc_next/backend/api/routes/__pycache__/phase6.cpython-312.pyc

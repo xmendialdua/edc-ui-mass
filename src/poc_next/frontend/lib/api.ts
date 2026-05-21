@@ -206,20 +206,22 @@ export const api = {
       '/api/phase6/negotiate-asset',
       { method: 'POST', body: JSON.stringify(data) }
     ),
-    listNegotiations: (consumerManagementUrl?: string) => {
+    listNegotiations: (consumerManagementUrl?: string, negotiationType: 'consumer' | 'provider' | 'all' = 'consumer') => {
       const params = new URLSearchParams();
       if (consumerManagementUrl) params.append('consumer_management_url', consumerManagementUrl);
+      if (negotiationType) params.append('negotiation_type', negotiationType);
       
-      return apiRequest<{ success: boolean; negotiations: any[]; logs: string[] }>(
+      return apiRequest<{ success: boolean; negotiations: any[]; filter?: any; logs: string[] }>(
         `/api/phase6/list-negotiations${params.toString() ? '?' + params.toString() : ''}`,
         { method: 'GET' }
       );
     },
-    listTransfers: (consumerManagementUrl?: string) => {
+    listTransfers: (consumerManagementUrl?: string, transferType: 'consumer' | 'provider' | 'all' = 'consumer') => {
       const params = new URLSearchParams();
       if (consumerManagementUrl) params.append('consumer_management_url', consumerManagementUrl);
+      if (transferType) params.append('transfer_type', transferType);
       
-      return apiRequest<{ success: boolean; transfers: any[]; logs: string[] }>(
+      return apiRequest<{ success: boolean; transfers: any[]; filter?: any; logs: string[] }>(
         `/api/phase6/list-transfers${params.toString() ? '?' + params.toString() : ''}`,
         { method: 'GET' }
       );

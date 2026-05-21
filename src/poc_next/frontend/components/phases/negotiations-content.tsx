@@ -48,16 +48,18 @@ const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsCont
 
     async function fetchNegotiations() {
       setLoading(true);
-      addLog('🔍 Consultando negociaciones...');
+      addLog('🔍 Consultando negociaciones de tipo CONSUMER...');
       try {
+        // Only fetch CONSUMER type negotiations (initiated by this partner)
         const result = await api.phase6.listNegotiations(
-          partnerDetails?.management_url
+          partnerDetails?.management_url,
+          'consumer'
         );
         setNegotiations(result.negotiations || []);
         if (result.logs) {
           result.logs.forEach(log => addLog(log));
         }
-        addLog(`✅ ${result.negotiations?.length || 0} negociación(es) encontrada(s)`);
+        addLog(`✅ ${result.negotiations?.length || 0} negociación(es) CONSUMER encontrada(s)`);
       } catch (error) {
         addLog(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
         setNegotiations([]);
@@ -71,8 +73,16 @@ const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsCont
     }));
 
     useEffect(() => {
-      fetchNegotiations();
-    }, []);
+      // Clear previous data and fetch new data when partner changes
+      if (partnerDetails?.management_url) {
+        setNegotiations([]); // Clear old data
+        setLoading(true);
+        fetchNegotiations();
+      } else {
+        // No partner details yet, clear data
+        setNegotiations([]);
+      }
+    }, [partnerDetails?.management_url]);
 
     const getCardBorderColor = (state: string) => {
       switch (state) {

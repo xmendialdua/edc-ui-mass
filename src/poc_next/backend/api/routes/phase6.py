@@ -254,11 +254,18 @@ async def negotiate_asset(request: NegotiateAssetRequest) -> Dict[str, Any]:
 
 @router.get("/list-negotiations")
 async def list_negotiations(
-    consumer_management_url: Optional[str] = None
+    consumer_management_url: Optional[str] = None,
+    negotiation_type: Optional[str] = "consumer"
 ) -> Dict[str, Any]:
-    """List all contract negotiations from consumer connector.
+    """List contract negotiations from consumer connector.
+    
+    Args:
+        consumer_management_url: Management URL of the consumer connector
+        negotiation_type: Filter by type - 'consumer' (initiated by this connector), 
+                         'provider' (initiated by others), or 'all' (no filter)
     
     Consumer defaults to IKLN if not provided.
+    Type defaults to 'consumer' (only negotiations initiated by this connector).
     """
     consumer_mgmt = consumer_management_url or settings.ikln_management_url
     
@@ -274,9 +281,16 @@ async def list_negotiations(
     try:
         negotiations_raw = await consumer_client.list_negotiations()
 
-        # Transform to simplified format
+        # Transform to simplified format and filter by type
         negotiations = []
         for nego in negotiations_raw:
+            nego_type = nego.get("type", "").upper()
+            
+            # Filter by negotiation type
+            if negotiation_type and negotiation_type.lower() != "all":
+                if nego_type != negotiation_type.upper():
+                    continue
+            
             # Try to get timestamp with fallback options
             created_at = nego.get("createdAt") or nego.get("createdTimestamp")
             state_timestamp = nego.get("stateTimestamp") or nego.get("updatedAt")
@@ -284,6 +298,7 @@ async def list_negotiations(
             negotiations.append({
                 "id": nego.get("@id"),
                 "state": nego.get("state"),
+                "type": nego_type,
                 "assetId": nego.get("assetId", "unknown"),
                 "contractAgreementId": nego.get("contractAgreementId"),
                 "counterPartyAddress": nego.get("counterPartyAddress"),
@@ -294,7 +309,11 @@ async def list_negotiations(
 
         return {
             "success": True,
-            "negotiations": negotiations
+            "negotiations": negotiations,
+            "filter": {
+                "type": negotiation_type,
+                "total_filtered": len(negotiations)
+            }
         }
 
     except Exception as e:
@@ -445,10 +464,19 @@ async def initiate_transfer_for_contract(
 
 
 @router.get("/list-transfers")
-async def list_transfers(consumer_management_url: Optional[str] = None) -> Dict[str, Any]:
-    """List all transfer processes from consumer connector.
+async def list_transfers(
+    consumer_management_url: Optional[str] = None,
+    transfer_type: Optional[str] = "consumer"
+) -> Dict[str, Any]:
+    """List transfer processes from consumer connector.
+    
+    Args:
+        consumer_management_url: Management URL of the consumer connector
+        transfer_type: Filter by type - 'consumer' (initiated by this connector),
+                      'provider' (initiated by others), or 'all' (no filter)
     
     Consumer defaults to IKLN if not provided.
+    Type defaults to 'consumer' (only transfers initiated by this connector).
     Optimized to return immediately without waiting for EDR queries.
     """
     import time
@@ -484,12 +512,20 @@ async def list_transfers(consumer_management_url: Optional[str] = None) -> Dict[
         # Process transfers and use ONLY cached/embedded EDR data
         # Skip expensive EDR queries - the background monitor will populate the cache
         transfers_info = []
+        filtered_count = 0
         
         for idx, transfer in enumerate(transfers_raw):
             transfer_id = transfer.get("@id")
             state = transfer.get("state")
             state_code = get_state_code(state)
             data_address = transfer.get("dataAddress")
+            transfer_type_value = transfer.get("type", "").upper()
+            
+            # Filter by transfer type
+            if transfer_type and transfer_type.lower() != "all":
+                if transfer_type_value != transfer_type.upper():
+                    filtered_count += 1
+                    continue
             
             # Log primeras 3 transferencias con detalle
             if idx < 3:
@@ -535,6 +571,7 @@ async def list_transfers(consumer_management_url: Optional[str] = None) -> Dict[
                 "state": state,
                 "stateCode": get_state_code(state),
                 "rawState": state,  # Estado original sin transformar del EDC
+                "type": transfer_type_value,
                 "assetId": transfer.get("assetId", "unknown"),
                 "contractId": transfer.get("contractId"),
                 "contractAgreementId": transfer.get("contractId"),  # Alias para consistencia con negociaciones
@@ -555,6 +592,8 @@ async def list_transfers(consumer_management_url: Optional[str] = None) -> Dict[
         edr_not_available = sum(1 for t in transfers_info if not t['edrAvailable'])
         
         logger.info(f"✅ list_transfers completado en {elapsed:.2f}s")
+        logger.info(f"   Transferencias totales: {len(transfers_raw)}")
+        logger.info(f"   Filtradas (tipo != {transfer_type}): {filtered_count}")
         logger.info(f"   Transferencias procesadas: {len(transfers_info)}")
         logger.info(f"   EDR disponible: {len(transfers_info) - edr_not_available}")
         if edr_from_cache > 0:
@@ -567,7 +606,12 @@ async def list_transfers(consumer_management_url: Optional[str] = None) -> Dict[
 
         return {
             "success": True,
-            "transfers": transfers_info
+            "transfers": transfers_info,
+            "filter": {
+                "type": transfer_type,
+                "total_filtered": len(transfers_info),
+                "total_raw": len(transfers_raw)
+            }
         }
 
     except Exception as e:

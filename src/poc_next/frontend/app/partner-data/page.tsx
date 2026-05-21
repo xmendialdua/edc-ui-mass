@@ -606,6 +606,7 @@ export default function PartnerDataPage() {
                 sharePointConnected={sharePointConnected}
                 sharePointUser={sharePointUser}
                 onAuthenticateSharePoint={checkSharePointStatus}
+                partnerDetails={partnerDetails}
               />
             </div>
           </div>

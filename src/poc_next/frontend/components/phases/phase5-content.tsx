@@ -135,10 +135,17 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
     refresh: handleCatalogRequest
   }));
 
-  // Auto-load catalog on mount
+  // Auto-load catalog when partnerDetails is available
   useEffect(() => {
-    handleCatalogRequest();
-  }, []);
+    if (partnerDetails?.bpn && partnerDetails?.management_url) {
+      setDatasets([]); // Clear old catalog data
+      setLoading(true);
+      handleCatalogRequest();
+    } else {
+      // No partner details yet, clear data
+      setDatasets([]);
+    }
+  }, [partnerDetails?.bpn, partnerDetails?.management_url]);
 
   return (
     <div className="space-y-4">

@@ -59,8 +59,10 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
     // Actualización selectiva de transferencias
     const updateTransfersSelectively = async () => {
       try {
+        // Only fetch CONSUMER type transfers (initiated by this partner)
         const result = await api.phase6.listTransfers(
-          partnerDetails?.management_url
+          partnerDetails?.management_url,
+          'consumer'
         );
         const newTransfers = result.transfers || [];
         
@@ -133,10 +135,12 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
 
     async function fetchTransfers() {
       setLoading(true);
-      addLog('🔍 Consultando transferencias...');
+      addLog('🔍 Consultando transferencias de tipo CONSUMER...');
       try {
+        // Only fetch CONSUMER type transfers (initiated by this partner)
         const result = await api.phase6.listTransfers(
-          partnerDetails?.management_url
+          partnerDetails?.management_url,
+          'consumer'
         );
         setTransfers(result.transfers || []);
         previousTransferIdsRef.current = new Set(result.transfers?.map((t: Transfer) => t.id) || []);
@@ -226,8 +230,18 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
     }));
 
     useEffect(() => {
-      fetchTransfers();
-    }, []);
+      // Clear previous data and fetch new data when partner changes
+      if (partnerDetails?.management_url) {
+        setTransfers([]); // Clear old data
+        previousTransferIdsRef.current = new Set();
+        setLoading(true);
+        fetchTransfers();
+      } else {
+        // No partner details yet, clear data
+        setTransfers([]);
+        previousTransferIdsRef.current = new Set();
+      }
+    }, [partnerDetails?.management_url]);
 
     // Auto-refresh periódico con actualización selectiva
     useEffect(() => {
