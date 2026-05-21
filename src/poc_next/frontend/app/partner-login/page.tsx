@@ -58,7 +58,7 @@ export default function PartnerLoginPage() {
     e.preventDefault();
     
     if (!selectedEmail || !password) {
-      setError('Por favor, selecciona un partner e introduce la contraseña');
+      setError('Please select a partner and enter the password');
       return;
     }
     
@@ -135,7 +135,6 @@ export default function PartnerLoginPage() {
             style={{ 
               height: "40px", 
               width: "auto",
-              filter: "brightness(0) invert(1)",
               marginBottom: "15px"
             }}
           />
@@ -152,7 +151,7 @@ export default function PartnerLoginPage() {
             fontSize: "14px",
             margin: "0"
           }}>
-            Tractus-X Data Space
+            Mondragon Assembly Data Space
           </p>
         </div>
 
@@ -170,13 +169,13 @@ export default function PartnerLoginPage() {
                 animation: "spin 1s linear infinite"
               }} />
               <p style={{ marginTop: "15px", color: "#666" }}>
-                Cargando partners...
+                Loading partners...
               </p>
             </div>
           ) : partners.length === 0 ? (
             <div style={{ textAlign: "center", padding: "40px 0" }}>
               <p style={{ color: "#e74c3c", fontSize: "16px" }}>
-                No se encontraron partners registrados
+                No partners found
               </p>
               <button
                 onClick={fetchPartners}
@@ -191,7 +190,7 @@ export default function PartnerLoginPage() {
                   fontSize: "14px"
                 }}
               >
-                Reintentar
+                Retry
               </button>
             </div>
           ) : (
@@ -206,7 +205,7 @@ export default function PartnerLoginPage() {
                   fontSize: "14px"
                 }}>
                   <User size={16} style={{ verticalAlign: "middle", marginRight: "6px" }} />
-                  Selecciona Partner
+                  Select Partner
                 </label>
                 <select
                   value={selectedEmail}
@@ -241,10 +240,10 @@ export default function PartnerLoginPage() {
                     fontSize: "12px"
                   }}>
                     <div style={{ marginBottom: "4px" }}>
-                      <strong>Compañía:</strong> {selectedPartner.company_name}
+                      <strong>Company:</strong> {selectedPartner.company_name}
                     </div>
                     <div style={{ marginBottom: "4px" }}>
-                      <strong>Nombre:</strong> {selectedPartner.firstname} {selectedPartner.lastname}
+                      <strong>Name:</strong> {selectedPartner.firstname} {selectedPartner.lastname}
                     </div>
                     <div>
                       <strong>BPN:</strong> <code style={{ 
@@ -268,13 +267,13 @@ export default function PartnerLoginPage() {
                   fontSize: "14px"
                 }}>
                   <Lock size={16} style={{ verticalAlign: "middle", marginRight: "6px" }} />
-                  Contraseña
+                  Password
                 </label>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Introduce tu contraseña"
+                  placeholder="Enter your password"
                   style={{
                     width: "100%",
                     padding: "12px",
@@ -293,7 +292,7 @@ export default function PartnerLoginPage() {
                   color: "#999",
                   fontStyle: "italic"
                 }}>
-                  Contraseña por defecto: 1234
+                  Default password: 1234
                 </p>
               </div>
 
@@ -340,10 +339,92 @@ export default function PartnerLoginPage() {
                   e.currentTarget.style.boxShadow = "0 4px 6px rgba(0,0,0,0.1)";
                 }}
               >
-                {authenticating ? "Autenticando..." : "Iniciar Sesión"}
+                {authenticating ? "Authenticating..." : "Log in"}
               </button>
             </form>
           )}
+        </div>
+
+        {/* Powered by section */}
+        <div style={{
+          padding: "20px 30px",
+          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+          borderTop: "none",
+          textAlign: "center",
+          borderBottomLeftRadius: "15px",
+          borderBottomRightRadius: "15px"
+        }}>
+          <p style={{
+            fontSize: "12px",
+            color: "rgba(255, 255, 255, 0.8)",
+            margin: "0 0 10px 0"
+          }}>
+            Powered by
+          </p>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "20px"
+          }}>
+            {/* Tractus-X Logo */}
+            <a 
+              href="https://eclipse-tractusx.github.io/" 
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                textDecoration: "none",
+                display: "flex",
+                alignItems: "center",
+                transition: "opacity 0.2s"
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = "0.7"}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}
+            >
+              <Image
+                src="/tractus-x-logo.png"
+                alt="Eclipse Tractus-X"
+                width={140}
+                height={50}
+                style={{
+                  height: "auto",
+                  width: "140px",
+                  maxHeight: "36px",
+                  objectFit: "contain"
+                }}
+              />
+            </a>
+            
+            <span style={{ color: "rgba(255, 255, 255, 0.5)" }}>•</span>
+            
+            {/* Catena-X Logo */}
+            <a 
+              href="https://catena-x.net/" 
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                textDecoration: "none",
+                display: "flex",
+                alignItems: "center",
+                transition: "opacity 0.2s"
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = "0.7"}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}
+            >
+              <Image
+                src="/catena-x-logo-text-white.svg"
+                alt="Catena-X"
+                width={100}
+                height={36}
+                style={{
+                  height: "auto",
+                  width: "100px",
+                  maxHeight: "36px",
+                  objectFit: "contain"
+                }}
+              />
+            </a>
+          </div>
         </div>
       </div>
 
