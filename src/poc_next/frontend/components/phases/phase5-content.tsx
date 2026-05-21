@@ -25,9 +25,13 @@ interface Offer {
 interface Phase5ContentProps {
   onLog?: (message: string) => void;
   onNegotiationComplete?: () => void;
+  partnerDetails?: {
+    bpn: string;
+    management_url: string;
+  } | null;
 }
 
-const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({ onLog, onNegotiationComplete }, ref) => {
+const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({ onLog, onNegotiationComplete, partnerDetails }, ref) => {
   const [loading, setLoading] = useState(false);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [expandedDatasets, setExpandedDatasets] = useState<Set<string>>(new Set());
@@ -44,7 +48,10 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
     setExpandedDatasets(new Set());
     addLog('🔍 Consultando catálogo de MASS...');
     try {
-      const result = await api.phase5.catalogRequest();
+      const result = await api.phase6.catalogRequest(
+        partnerDetails?.bpn,
+        partnerDetails?.management_url
+      );
       setDatasets(result.datasets || []);
       if (result.logs) {
         result.logs.forEach(log => addLog(log));
@@ -97,7 +104,9 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
     try {
       const result = await api.phase6.negotiate({
         assetId: assetId,
-        policy: policy
+        policy: policy,
+        consumerBpn: partnerDetails?.bpn,
+        consumerManagementUrl: partnerDetails?.management_url
       });
       
       if (result.logs) {

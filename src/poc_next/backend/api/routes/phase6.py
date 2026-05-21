@@ -49,14 +49,33 @@ def log_message(message: str) -> str:
     return f"[{timestamp}] {message}"
 
 
+def get_consumer_api_key(management_url: str) -> str:
+    """Get API key for a given management URL.
+    
+    Returns the appropriate API key based on known connectors.
+    Defaults to IKLN API key for unknown connectors.
+    """
+    if management_url == settings.ikln_management_url:
+        return settings.ikln_api_key
+    elif management_url == settings.mass_management_url:
+        return settings.mass_api_key
+    else:
+        # Default to IKLN API key for unknown connectors
+        return settings.ikln_api_key
+
+
 class NegotiateAssetRequest(BaseModel):
     assetId: str
     policy: Dict[str, Any]
+    consumerBpn: Optional[str] = None  # BPN del consumer (partner autenticado)
+    consumerManagementUrl: Optional[str] = None  # Management URL del consumer
 
 
 class InitiateTransferRequest(BaseModel):
     contractAgreementId: str
     assetId: str
+    consumerBpn: Optional[str] = None  # BPN del consumer (partner autenticado)
+    consumerManagementUrl: Optional[str] = None  # Management URL del consumer
 
 
 class DownloadFileRequest(BaseModel):
@@ -66,19 +85,45 @@ class DownloadFileRequest(BaseModel):
 
 
 @router.post("/catalog-request")
-async def catalog_request() -> Dict[str, Any]:
-    """Request catalog from MASS connector."""
+async def catalog_request(
+    consumer_bpn: Optional[str] = None,
+    consumer_management_url: Optional[str] = None
+) -> Dict[str, Any]:
+    """Request catalog from MASS (provider).
+    
+    Consumer params should be provided from authenticated partner.
+    If not provided, defaults to IKLN for backwards compatibility.
+    Provider is always MASS.
+    """
     logs: List[str] = []
 
-    logs.append(log_message("🔍 Consultando catálogo de MASS desde IKLN..."))
-    logs.append(log_message(f"   Counter Party: {settings.mass_bpn}"))
-    logs.append(log_message(f"   DSP URL: {settings.mass_dsp}"))
+    # Use provided consumer values or default to IKLN
+    consumer_mgmt = consumer_management_url or settings.ikln_management_url
+    consumer_bpn_val = consumer_bpn or settings.ikln_bpn
+    
+    # Provider is always MASS
+    provider_bpn_val = settings.mass_bpn
+    provider_dsp = settings.mass_dsp
+    
+    # Get consumer API key based on known connectors
+    if consumer_mgmt == settings.ikln_management_url:
+        consumer_api_key = settings.ikln_api_key
+    elif consumer_mgmt == settings.mass_management_url:
+        consumer_api_key = settings.mass_api_key
+    else:
+        # Default to IKLN API key for unknown connectors
+        consumer_api_key = settings.ikln_api_key
 
-    ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
+    logs.append(log_message(f"🔍 Consultando catálogo de MASS..."))
+    logs.append(log_message(f"   Consumer: {consumer_bpn_val}"))
+    logs.append(log_message(f"   Provider: {provider_bpn_val}"))
+    logs.append(log_message(f"   DSP URL: {provider_dsp}"))
+
+    consumer_client = EdcManagementClient(consumer_mgmt, consumer_api_key)
     try:
-        catalog = await ikln_client.request_catalog(
-            counter_party_url=settings.mass_dsp,
-            counter_party_id=settings.mass_bpn
+        catalog = await consumer_client.request_catalog(
+            counter_party_url=provider_dsp,
+            counter_party_id=provider_bpn_val
         )
 
         # Extract datasets
@@ -112,7 +157,7 @@ async def catalog_request() -> Dict[str, Any]:
             "datasets": []
         }
     finally:
-        await ikln_client.close()
+        await consumer_client.close()
 
 
 @router.post("/negotiate-asset")
@@ -204,15 +249,30 @@ async def negotiate_asset(request: NegotiateAssetRequest) -> Dict[str, Any]:
             }
         }
     finally:
-        await ikln_client.close()
+        await consumer_client.close()
 
 
 @router.get("/list-negotiations")
-async def list_negotiations() -> Dict[str, Any]:
-    """List all contract negotiations."""
-    ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
+async def list_negotiations(
+    consumer_management_url: Optional[str] = None
+) -> Dict[str, Any]:
+    """List all contract negotiations from consumer connector.
+    
+    Consumer defaults to IKLN if not provided.
+    """
+    consumer_mgmt = consumer_management_url or settings.ikln_management_url
+    
+    # Get consumer API key
+    if consumer_mgmt == settings.ikln_management_url:
+        consumer_api_key = settings.ikln_api_key
+    elif consumer_mgmt == settings.mass_management_url:
+        consumer_api_key = settings.mass_api_key
+    else:
+        consumer_api_key = settings.ikln_api_key
+    
+    consumer_client = EdcManagementClient(consumer_mgmt, consumer_api_key)
     try:
-        negotiations_raw = await ikln_client.list_negotiations()
+        negotiations_raw = await consumer_client.list_negotiations()
 
         # Transform to simplified format
         negotiations = []
@@ -244,7 +304,7 @@ async def list_negotiations() -> Dict[str, Any]:
             "negotiations": []
         }
     finally:
-        await ikln_client.close()
+        await consumer_client.close()
 
 
 @router.post("/initiate-transfer-for-contract")
@@ -252,26 +312,47 @@ async def initiate_transfer_for_contract(
     request: InitiateTransferRequest,
     background_tasks: BackgroundTasks
 ) -> Dict[str, Any]:
-    """Initiate a data transfer for a negotiated contract."""
+    """Initiate a data transfer for a negotiated contract.
+    
+    Consumer defaults to IKLN if not provided.
+    Provider is always MASS.
+    """
     from datetime import datetime
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
     
     logs: List[str] = []
+    
+    # Use provided consumer values or default to IKLN
+    consumer_mgmt = request.consumerManagementUrl or settings.ikln_management_url
+    consumer_bpn_val = request.consumerBpn or settings.ikln_bpn
+    
+    # Provider is always MASS
+    provider_bpn_val = settings.mass_bpn
+    provider_dsp = settings.mass_dsp
+    
+    # Get consumer API key
+    if consumer_mgmt == settings.ikln_management_url:
+        consumer_api_key = settings.ikln_api_key
+    elif consumer_mgmt == settings.mass_management_url:
+        consumer_api_key = settings.mass_api_key
+    else:
+        consumer_api_key = settings.ikln_api_key
 
     logger.info(f"\n{'='*80}")
-    logger.info(f"🚀 Iniciando transferencia desde IKLN hacia MASS")
+    logger.info(f"🚀 Iniciando transferencia de {consumer_bpn_val} hacia MASS")
     logger.info(f"   Timestamp: {timestamp}")
     logger.info(f"   Contract Agreement ID: {request.contractAgreementId}")
     logger.info(f"   Asset ID: {request.assetId}")
-    logger.info(f"   Counter Party (MASS): {settings.mass_bpn}")
-    logger.info(f"   DSP Endpoint: {settings.mass_dsp}")
+    logger.info(f"   Consumer: {consumer_bpn_val}")
+    logger.info(f"   Provider (MASS): {provider_bpn_val}")
+    logger.info(f"   DSP Endpoint: {provider_dsp}")
     
     # FORCE OUTPUT - print to stdout directly
     print(f"\n{'='*80}", flush=True)
-    print(f"{timestamp} | INFO     | 🚀 Iniciando transferencia desde IKLN hacia MASS", flush=True)
+    print(f"{timestamp} | INFO     | 🚀 Iniciando transferencia de {consumer_bpn_val} hacia MASS", flush=True)
     print(f"{timestamp} | INFO     |    Contract: {request.contractAgreementId}", flush=True)
     print(f"{timestamp} | INFO     |    Asset: {request.assetId}", flush=True)
-    print(f"{timestamp} | INFO     |    MASS BPN: {settings.mass_bpn}", flush=True)
+    print(f"{timestamp} | INFO     |    MASS BPN: {provider_bpn_val}", flush=True)
     
     logs.append(log_message(f"📥 Iniciando transferencia..."))
     logs.append(log_message(f"   Contract Agreement: {request.contractAgreementId}"))
@@ -282,28 +363,28 @@ async def initiate_transfer_for_contract(
         "@type": "TransferRequest",
         "assetId": request.assetId,
         "contractId": request.contractAgreementId,
-        "counterPartyAddress": settings.mass_dsp,
-        "counterPartyId": settings.mass_bpn,
-        "connectorId": settings.mass_bpn,
+        "counterPartyAddress": provider_dsp,
+        "counterPartyId": provider_bpn_val,
+        "connectorId": provider_bpn_val,
         "protocol": "dataspace-protocol-http",
         "transferType": "HttpData-PULL",
         "dataDestination": {
-            "@type": "DataAddress",  # Include @type as per dashboard
+            "@type": "DataAddress",
             "type": "HttpProxy"
         },
         "privateProperties": {},
-        "callbackAddresses": []  # Add callback addresses
+        "callbackAddresses": []
     }
     
     logs.append(log_message(f"📤 Transfer payload:"))
     logs.append(json.dumps(transfer_data, indent=2))
 
-    ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
+    consumer_client = EdcManagementClient(consumer_mgmt, consumer_api_key)
     try:
-        logger.info(f"📤 Enviando TransferRequest al conector IKLN...")
-        print(f"{timestamp} | INFO     | 📤 Enviando TransferRequest al conector IKLN...", flush=True)
+        logger.info(f"📤 Enviando TransferRequest al conector {consumer_bpn_val}...")
+        print(f"{timestamp} | INFO     | 📤 Enviando TransferRequest al conector {consumer_bpn_val}...", flush=True)
         
-        result = await ikln_client.initiate_transfer(transfer_data)
+        result = await consumer_client.initiate_transfer(transfer_data)
 
         transfer_id = result.get("@id")
         transfer_state = result.get("state", "UNKNOWN")
@@ -364,28 +445,37 @@ async def initiate_transfer_for_contract(
 
 
 @router.get("/list-transfers")
-async def list_transfers() -> Dict[str, Any]:
-    """List all transfer processes - optimized to return immediately without waiting for EDR queries."""
+async def list_transfers(consumer_management_url: Optional[str] = None) -> Dict[str, Any]:
+    """List all transfer processes from consumer connector.
+    
+    Consumer defaults to IKLN if not provided.
+    Optimized to return immediately without waiting for EDR queries.
+    """
     import time
     from datetime import datetime
     start_time = time.time()
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
     
+    # Use provided consumer or default to IKLN
+    consumer_mgmt = consumer_management_url or settings.ikln_management_url
+    consumer_api_key = get_consumer_api_key(consumer_mgmt)
+    
     logger.info(f"\n{'~'*80}")
     logger.info(f"📋 Listando todas las transferencias")
     logger.info(f"   Timestamp: {timestamp}")
+    logger.info(f"   Consumer Management: {consumer_mgmt}")
     
     print(f"\n{'~'*80}", flush=True)
     print(f"{timestamp} | INFO     | 📋 Listando transferencias", flush=True)
     
-    ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
+    consumer_client = EdcManagementClient(consumer_mgmt, consumer_api_key)
     try:
         # Get all transfers
         t0 = time.time()
-        transfers_raw = await ikln_client.list_transfers()
+        transfers_raw = await consumer_client.list_transfers()
         query_time = time.time() - t0
         
-        logger.info(f"📦 Respuesta del conector MASS:")
+        logger.info(f"📦 Respuesta del conector:")
         logger.info(f"   Número de transferencias: {len(transfers_raw)}")
         logger.info(f"   Tiempo de consulta: {query_time:.2f}s")
         
@@ -490,7 +580,7 @@ async def list_transfers() -> Dict[str, Any]:
             "transfers": []
         }
     finally:
-        await ikln_client.close()
+        await consumer_client.close()
 
 
 @router.get("/transfer-edr/{transfer_id}")

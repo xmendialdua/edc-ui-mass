@@ -52,6 +52,13 @@ class Settings(BaseSettings):
     sharepoint_proxy_tenant_id: str | None = None
     sharepoint_proxy_base_url: str = "http://localhost:5001"
 
+    # --- Portal Database Configuration ---
+    portal_db_host: str = "localhost"
+    portal_db_port: str = "5433"
+    portal_db_name: str = "postgres"
+    portal_db_user: str = "portal"
+    portal_db_password: str = "dbpasswordportal"
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Find kubeconfig if not explicitly set

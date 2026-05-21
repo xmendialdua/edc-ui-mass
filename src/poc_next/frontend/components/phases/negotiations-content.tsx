@@ -16,10 +16,14 @@ interface Negotiation {
 interface NegotiationsContentProps {
   onLog?: (message: string) => void;
   onInitiateTransfer?: (contractId: string, assetId: string) => void;
+  partnerDetails?: {
+    bpn: string;
+    management_url: string;
+  } | null;
 }
 
 const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsContentProps>(
-  ({ onLog, onInitiateTransfer }, ref) => {
+  ({ onLog, onInitiateTransfer, partnerDetails }, ref) => {
     const [loading, setLoading] = useState(false);
     const [negotiations, setNegotiations] = useState<Negotiation[]>([]);
     const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
@@ -46,7 +50,9 @@ const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsCont
       setLoading(true);
       addLog('🔍 Consultando negociaciones...');
       try {
-        const result = await api.phase6.listNegotiations();
+        const result = await api.phase6.listNegotiations(
+          partnerDetails?.management_url
+        );
         setNegotiations(result.negotiations || []);
         if (result.logs) {
           result.logs.forEach(log => addLog(log));

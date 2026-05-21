@@ -1,14 +1,37 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import Phase5Content from "@/components/phases/phase5-content";
 import NegotiationsContent from "@/components/phases/negotiations-content";
 import TransfersContent from "@/components/phases/transfers-content";
 import { api } from "@/lib/api";
 import Image from "next/image";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, LogOut } from "lucide-react";
+
+interface PartnerInfo {
+  email: string;
+  firstname: string;
+  lastname: string;
+  company_name: string;
+  bpn: string;
+}
+
+interface PartnerDetails {
+  email: string;
+  firstname: string;
+  lastname: string;
+  company_name: string;
+  bpn: string;
+  management_url: string;
+  dsp_url: string;
+}
 
 export default function PartnerDataPage() {
+  const router = useRouter();
+  const [authenticatedPartner, setAuthenticatedPartner] = useState<PartnerInfo | null>(null);
+  const [partnerDetails, setPartnerDetails] = useState<PartnerDetails | null>(null);
+  const [loadingPartner, setLoadingPartner] = useState<boolean>(true);
   const [connectorStatus] = useState<"checking" | "connected" | "disconnected">("connected");
   const [isMounted, setIsMounted] = useState(false);
   const [globalLogs, setGlobalLogs] = useState<string[]>([]);
@@ -21,9 +44,62 @@ export default function PartnerDataPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    // Verificar conexión SharePoint del backend al cargar la página
-    checkSharePointStatus();
+    checkAuthentication();
   }, []);
+
+  const checkAuthentication = async () => {
+    setLoadingPartner(true);
+    
+    try {
+      // Check if partner is authenticated
+      const partnerJson = sessionStorage.getItem('authenticated_partner');
+      
+      if (!partnerJson) {
+        // No authentication, redirect to login
+        router.push('/partner-login');
+        return;
+      }
+      
+      const partner: PartnerInfo = JSON.parse(partnerJson);
+      setAuthenticatedPartner(partner);
+      
+      // Fetch full partner details from backend
+      await fetchPartnerDetails(partner.email);
+      
+      // Check SharePoint status
+      await checkSharePointStatus();
+      
+    } catch (error) {
+      console.error('Error checking authentication:', error);
+      router.push('/partner-login');
+    } finally {
+      setLoadingPartner(false);
+    }
+  };
+
+  const fetchPartnerDetails = async (email: string) => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+      const response = await fetch(`${apiUrl}/api/partners/${encodeURIComponent(email)}/details`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch partner details');
+      }
+      
+      const details: PartnerDetails = await response.json();
+      setPartnerDetails(details);
+      console.log('✅ Partner details loaded:', details);
+      
+    } catch (error) {
+      console.error('Error fetching partner details:', error);
+      // If fails to fetch details, still show basic info from session
+    }
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('authenticated_partner');
+    router.push('/partner-login');
+  };
 
   // Verificar estado de conexión SharePoint del backend
   const checkSharePointStatus = async () => {
@@ -75,7 +151,9 @@ export default function PartnerDataPage() {
     try {
       const result = await api.phase6.initiateTransfer({
         contractAgreementId: contractId,
-        assetId: assetId
+        assetId: assetId,
+        consumerBpn: partnerDetails?.bpn,
+        consumerManagementUrl: partnerDetails?.management_url
       });
       
       if (result.logs) {
@@ -107,6 +185,35 @@ export default function PartnerDataPage() {
       minHeight: "100vh",
       padding: "20px"
     }}>
+      {loadingPartner ? (
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "100vh"
+        }}>
+          <div style={{
+            textAlign: "center",
+            background: "white",
+            padding: "40px",
+            borderRadius: "15px",
+            boxShadow: "0 10px 25px rgba(0,0,0,0.2)"
+          }}>
+            <div style={{
+              display: "inline-block",
+              width: "50px",
+              height: "50px",
+              border: "5px solid #f3f3f3",
+              borderTop: "5px solid #667eea",
+              borderRadius: "50%",
+              animation: "spin 1s linear infinite"
+            }} />
+            <p style={{ marginTop: "20px", color: "#666", fontSize: "16px" }}>
+              Cargando información del partner...
+            </p>
+          </div>
+        </div>
+      ) : (
       <div style={{ maxWidth: "1800px", margin: "0 auto" }}>
         {/* Header */}
         <div style={{
@@ -122,7 +229,7 @@ export default function PartnerDataPage() {
             gap: "30px",
             alignItems: "center"
           }}>
-            {/* Panel A: Logo + Título */}
+            {/* Panel A: Logo + Título + User Info */}
             <div style={{
               display: "flex",
               alignItems: "center",
@@ -138,10 +245,43 @@ export default function PartnerDataPage() {
               <div>
                 <h1 style={{ 
                   color: "#333", 
-                  margin: 0,
+                  margin: "0 0 5px 0",
                   fontSize: "24px",
                   whiteSpace: "nowrap"
                 }}>Partner Data Access Dashboard</h1>
+                {authenticatedPartner && (
+                  <div style={{
+                    fontSize: "13px",
+                    color: "#666"
+                  }}>
+                    👤 {authenticatedPartner.firstname} {authenticatedPartner.lastname} 
+                    <span style={{ 
+                      marginLeft: "8px",
+                      color: "#999"
+                    }}>
+                      ({authenticatedPartner.email})
+                    </span>
+                    <button
+                      onClick={handleLogout}
+                      style={{
+                        marginLeft: "12px",
+                        padding: "4px 10px",
+                        background: "#e74c3c",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        fontSize: "11px",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px"
+                      }}
+                    >
+                      <LogOut size={12} />
+                      Cerrar Sesión
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -163,12 +303,12 @@ export default function PartnerDataPage() {
                   fontWeight: "bold",
                   color: "#555",
                   fontSize: "13px"
-                }}>IKLN Connector:</div>
+                }}>{partnerDetails?.company_name || authenticatedPartner?.company_name || 'Partner'} Connector:</div>
                 <div style={{
                   color: "#333",
                   fontFamily: "'Courier New', monospace",
                   fontSize: "13px"
-                }}>BPNL00000002IKLN</div>
+                }}>{partnerDetails?.bpn || authenticatedPartner?.bpn || 'Loading...'}</div>
               </div>
 
               <div style={{
@@ -182,15 +322,17 @@ export default function PartnerDataPage() {
                   width: "12px",
                   height: "12px",
                   borderRadius: "50%",
-                  background: "#28a745",
-                  boxShadow: "0 0 8px rgba(40, 167, 69, 0.6)"
+                  background: partnerDetails ? "#28a745" : "#ffc107",
+                  boxShadow: partnerDetails 
+                    ? "0 0 8px rgba(40, 167, 69, 0.6)" 
+                    : "0 0 8px rgba(255, 193, 7, 0.6)"
                 }} />
                 <div style={{
                   fontSize: "13px",
                   fontWeight: "600",
-                  color: "#28a745"
+                  color: partnerDetails ? "#28a745" : "#ffc107"
                 }}>
-                  Conectado
+                  {partnerDetails ? "Conectado" : "Cargando..."}
                 </div>
               </div>
 
@@ -211,8 +353,11 @@ export default function PartnerDataPage() {
                   color: "#333",
                   fontFamily: "'Courier New', monospace",
                   fontSize: "11px",
-                  whiteSpace: "nowrap"
-                }}>https://edc-ikln-control.51.178.94.25.nip.io/management</div>
+                  whiteSpace: "nowrap",
+                  maxWidth: "400px",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis"
+                }} title={partnerDetails?.management_url || 'Loading...'}>{partnerDetails?.management_url || 'Loading...'}</div>
               </div>
             </div>
           </div>
@@ -281,6 +426,7 @@ export default function PartnerDataPage() {
                 ref={phase5Ref} 
                 onLog={addLog}
                 onNegotiationComplete={() => negotiationsRef.current?.refresh()}
+                partnerDetails={partnerDetails}
               />
             </div>
           </div>
@@ -341,6 +487,7 @@ export default function PartnerDataPage() {
                 ref={negotiationsRef} 
                 onLog={addLog}
                 onInitiateTransfer={handleInitiateTransfer}
+                partnerDetails={partnerDetails}
               />
             </div>
           </div>
@@ -535,8 +682,14 @@ export default function PartnerDataPage() {
           </div>
         </div>
       </div>
+      )}
 
       <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
         @keyframes pulse {
           0%, 100% {
             opacity: 1;

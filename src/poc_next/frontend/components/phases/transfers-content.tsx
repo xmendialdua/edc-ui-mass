@@ -23,10 +23,14 @@ interface TransfersContentProps {
   sharePointConnected?: boolean;
   sharePointUser?: string | null;
   onAuthenticateSharePoint?: () => void;
+  partnerDetails?: {
+    bpn: string;
+    management_url: string;
+  } | null;
 }
 
 const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentProps>(
-  ({ onLog, sharePointConnected = false, sharePointUser = null, onAuthenticateSharePoint }, ref) => {
+  ({ onLog, sharePointConnected = false, sharePointUser = null, onAuthenticateSharePoint, partnerDetails }, ref) => {
     const [loading, setLoading] = useState(false);
     const [transfers, setTransfers] = useState<Transfer[]>([]);
     const [autoRefreshCount, setAutoRefreshCount] = useState(0);
@@ -55,7 +59,9 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
     // Actualización selectiva de transferencias
     const updateTransfersSelectively = async () => {
       try {
-        const result = await api.phase6.listTransfers();
+        const result = await api.phase6.listTransfers(
+          partnerDetails?.management_url
+        );
         const newTransfers = result.transfers || [];
         
         const newTransferIds = new Set(newTransfers.map((t: Transfer) => t.id));
@@ -129,7 +135,9 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
       setLoading(true);
       addLog('🔍 Consultando transferencias...');
       try {
-        const result = await api.phase6.listTransfers();
+        const result = await api.phase6.listTransfers(
+          partnerDetails?.management_url
+        );
         setTransfers(result.transfers || []);
         previousTransferIdsRef.current = new Set(result.transfers?.map((t: Transfer) => t.id) || []);
         
