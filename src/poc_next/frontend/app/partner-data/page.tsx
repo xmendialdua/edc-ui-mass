@@ -245,43 +245,10 @@ export default function PartnerDataPage() {
               <div>
                 <h1 style={{ 
                   color: "#333", 
-                  margin: "0 0 5px 0",
+                  margin: "0",
                   fontSize: "24px",
                   whiteSpace: "nowrap"
-                }}>Partner Data Access Dashboard</h1>
-                {authenticatedPartner && (
-                  <div style={{
-                    fontSize: "13px",
-                    color: "#666"
-                  }}>
-                    👤 {authenticatedPartner.firstname} {authenticatedPartner.lastname} 
-                    <span style={{ 
-                      marginLeft: "8px",
-                      color: "#999"
-                    }}>
-                      ({authenticatedPartner.email})
-                    </span>
-                    <button
-                      onClick={handleLogout}
-                      style={{
-                        marginLeft: "12px",
-                        padding: "4px 10px",
-                        background: "#e74c3c",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        fontSize: "11px",
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "4px"
-                      }}
-                    >
-                      <LogOut size={12} />
-                      Cerrar Sesión
-                    </button>
-                  </div>
-                )}
+                }}>Partner Dashboard</h1>
               </div>
             </div>
 
@@ -291,7 +258,7 @@ export default function PartnerDataPage() {
               padding: "12px 20px",
               borderRadius: "8px",
               display: "grid",
-              gridTemplateColumns: "auto auto auto",
+              gridTemplateColumns: "auto auto auto auto",
               gap: "20px",
               alignItems: "center",
               fontSize: "13px",
@@ -300,14 +267,10 @@ export default function PartnerDataPage() {
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <div style={{
-                  fontWeight: "bold",
-                  color: "#555",
-                  fontSize: "13px"
-                }}>{partnerDetails?.company_name || authenticatedPartner?.company_name || 'Partner'} Connector:</div>
-                <div style={{
                   color: "#333",
                   fontFamily: "'Courier New', monospace",
-                  fontSize: "13px"
+                  fontSize: "13px",
+                  fontWeight: "600"
                 }}>{partnerDetails?.bpn || authenticatedPartner?.bpn || 'Loading...'}</div>
               </div>
 
@@ -359,6 +322,54 @@ export default function PartnerDataPage() {
                   textOverflow: "ellipsis"
                 }} title={partnerDetails?.management_url || 'Loading...'}>{partnerDetails?.management_url || 'Loading...'}</div>
               </div>
+
+              {/* User Info */}
+              {authenticatedPartner && (
+                <div style={{
+                  paddingLeft: "15px",
+                  borderLeft: "2px solid #d1d5db",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "4px"
+                }}>
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px"
+                  }}>
+                    <div style={{
+                      fontSize: "13px",
+                      color: "#333",
+                      fontWeight: "600"
+                    }}>
+                      👤 {authenticatedPartner.firstname} {authenticatedPartner.lastname}
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      title="Logout"
+                      style={{
+                        padding: "4px 6px",
+                        background: "#e74c3c",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center"
+                      }}
+                    >
+                      <LogOut size={12} />
+                    </button>
+                  </div>
+                  <div style={{
+                    fontSize: "11px",
+                    color: "#666"
+                  }}>
+                    ({authenticatedPartner.email})
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
