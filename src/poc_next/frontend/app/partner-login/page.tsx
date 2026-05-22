@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Lock, User } from "lucide-react";
+import { Lock, User, Eye, EyeOff } from "lucide-react";
 
 interface Partner {
   email: string;
@@ -18,6 +18,7 @@ export default function PartnerLoginPage() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [selectedEmail, setSelectedEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [authenticating, setAuthenticating] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -269,23 +270,51 @@ export default function PartnerLoginPage() {
                   <Lock size={16} style={{ verticalAlign: "middle", marginRight: "6px" }} />
                   Password
                 </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  style={{
-                    width: "100%",
-                    padding: "12px",
-                    border: "2px solid #e0e0e0",
-                    borderRadius: "8px",
-                    fontSize: "14px",
-                    outline: "none",
-                    transition: "border 0.3s ease"
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = "#667eea"}
-                  onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
-                />
+                <div style={{ position: "relative" }}>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      paddingRight: "45px",
+                      border: "2px solid #e0e0e0",
+                      borderRadius: "8px",
+                      fontSize: "14px",
+                      outline: "none",
+                      transition: "border 0.3s ease",
+                      boxSizing: "border-box"
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = "#667eea"}
+                    onBlur={(e) => e.target.style.borderColor = "#e0e0e0"}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: "absolute",
+                      right: "10px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: "5px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#999",
+                      transition: "color 0.2s ease"
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = "#667eea"}
+                    onMouseLeave={(e) => e.currentTarget.style.color = "#999"}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
                 <p style={{
                   marginTop: "6px",
                   fontSize: "12px",
