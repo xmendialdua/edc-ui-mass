@@ -1,3 +1,5 @@
+__pycache__/
+*.pyc
 src/poc/venv
 src/poc/__pycache__
 src/poc/api/__pycache__
