@@ -6,15 +6,39 @@ Scripts para limpiar negociaciones, transferencias y EDRs de las bases de datos 
 
 ```
 scripts/cleanup-db/
-├── cleanup-negotiations-from-db.sh  (genérico)
-├── cleanup-transfers-from-db.sh     (genérico)
-├── cleanup-edrs-from-db.sh          (genérico)
-├── cleanup-db-negotiations-IKLN.sh  (wrapper IKLN)
-├── cleanup-db-negotiations-MASS.sh  (wrapper MASS)
-├── cleanup-db-transfers-IKLN.sh     (wrapper IKLN)
-├── cleanup-db-transfers-MASS.sh     (wrapper MASS)
-├── cleanup-db-edrs-IKLN.sh          (wrapper IKLN)
-└── cleanup-db-edrs-MASS.sh          (wrapper MASS)
+├── check-db-status.sh               (genérico - verificación) ⭐ NUEVO
+├── check-db-status-IKLN.sh          (wrapper IKLN - verificación) ⭐ NUEVO
+├── check-db-status-MASS.sh          (wrapper MASS - verificación) ⭐ NUEVO
+├── cleanup-negotiations-from-db.sh  (genérico - limpieza)
+├── cleanup-transfers-from-db.sh     (genérico - limpieza)
+├── cleanup-edrs-from-db.sh          (genérico - limpieza)
+├── cleanup-db-negotiations-IKLN.sh  (wrapper IKLN - limpieza)
+├── cleanup-db-negotiations-MASS.sh  (wrapper MASS - limpieza)
+├── cleanup-db-transfers-IKLN.sh     (wrapper IKLN - limpieza)
+├── cleanup-db-transfers-MASS.sh     (wrapper MASS - limpieza)
+├── cleanup-db-edrs-IKLN.sh          (wrapper IKLN - limpieza)
+└── cleanup-db-edrs-MASS.sh          (wrapper MASS - limpieza)
+```
+
+## Scripts de Verificación
+
+### check-db-status.sh
+Script genérico para verificar el estado de la base de datos de cualquier conector EDC.
+
+**Uso:**
+```bash
+./check-db-status.sh <POD_NAME> <DB_PASSWORD> <CONNECTOR_NAME>
+```
+
+**Muestra:**
+- Número de transferencias por estado
+- Número de negociaciones por estado
+- Número de EDRs almacenados
+- Sugerencias de limpieza según los datos encontrados
+
+**Ejemplo:**
+```bash
+./check-db-status.sh ikln-edc-postgresql-0 dbpassworddataconsumerone IKLN
 ```
 
 ## Scripts Genéricos
@@ -68,6 +92,41 @@ Elimina EDRs (Endpoint Data References) de cualquier conector EDC.
 - `old` - EDRs con más de 7 días
 - `<asset_id>` - EDRs de un asset específico
 
+## Verificar Estado Antes de Limpiar
+
+**⚠️ IMPORTANTE**: Antes de ejecutar los scripts de limpieza, verifica qué estados tienen tus datos:
+
+```bash
+# Ver estado de IKLN
+./check-db-status-IKLN.sh
+
+# Ver estado de MASS
+./check-db-status-MASS.sh
+```
+
+### ¿Por qué es importante?
+
+Los scripts por defecto solo limpian estados específicos:
+- **Negociaciones**: Solo `1500` (TERMINATED)
+- **Transferencias**: Solo `850` (TERMINATED)
+
+Si tus datos están en **otros estados** (ej: `600` STARTED, `1200`, `1400`), no se eliminarán.
+
+### Solución: Usar el parámetro `all`
+
+Si necesitas eliminar **todos** los datos independientemente del estado:
+
+```bash
+# Limpiar TODAS las negociaciones (cualquier estado)
+./cleanup-db-negotiations-IKLN.sh all
+
+# Limpiar TODAS las transferencias (cualquier estado)
+./cleanup-db-transfers-IKLN.sh all
+
+# Limpiar TODOS los EDRs
+./cleanup-db-edrs-IKLN.sh all
+```
+
 ## Scripts Específicos por Conector
 
 ### Para IKLN (Consumer)
@@ -88,8 +147,8 @@ Elimina EDRs (Endpoint Data References) de cualquier conector EDC.
 # Limpiar negociaciones terminadas de IKLN
 ./cleanup-db-negotiations-IKLN.sh terminated
 
-# Limpiar todas las transferencias fallidas de IKLN
-./cleanup-db-transfers-IKLN.sh failed
+# Limpiar TODAS las transferencias (cualquier estado)
+./cleanup-db-transfers-IKLN.sh all
 
 # Limpiar EDRs antiguos (>7 días) de IKLN
 ./cleanup-db-edrs-IKLN.sh old
@@ -113,17 +172,59 @@ Elimina EDRs (Endpoint Data References) de cualquier conector EDC.
 # Limpiar negociaciones terminadas de MASS
 ./cleanup-db-negotiations-MASS.sh terminated
 
-# Limpiar transferencias completadas de MASS
-./cleanup-db-transfers-MASS.sh completed
+# Limpiar TODAS las transferencias de MASS (cualquier estado)
+./cleanup-db-transfers-MASS.sh all
 
 # Limpiar todos los EDRs de MASS
 ./cleanup-db-edrs-MASS.sh all
 ```
 
+## Flujo de Trabajo Recomendado
+
+1. **Verificar estado actual:**
+   ```bash
+   ./check-db-status-IKLN.sh
+   ```
+
+2. **Analizar los resultados:**
+   - Si ves estados como `600` (STARTED), `1200`, `1400` → usa `all`
+   - Si ves estados como `850` (TERMINATED), `1500` → usa `terminated`
+
+3. **Ejecutar limpieza apropiada:**
+   ```bash
+   # Si hay datos en estados no estándar
+   ./cleanup-db-transfers-IKLN.sh all
+   ./cleanup-db-negotiations-IKLN.sh all
+   
+   # O si solo quieres limpiar terminados
+   ./cleanup-db-transfers-IKLN.sh terminated
+   ./cleanup-db-negotiations-IKLN.sh terminated
+   ```
+
+4. **Verificar que quedó limpio:**
+   ```bash
+   ./check-db-status-IKLN.sh
+   ```
+
 ## Añadir Nuevos Conectores
 
-Para añadir un nuevo conector (ej: FORD), crea 3 scripts wrapper:
+Para añadir un nuevo conector (ej: FORD), crea 4 scripts wrapper:
 
+### 1. Script de Verificación
+```bash
+# check-db-status-FORD.sh
+#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GENERIC_SCRIPT="$SCRIPT_DIR/check-db-status.sh"
+
+POD_NAME="ford-edc-postgresql-0"
+DB_PASSWORD="<password_de_ford>"
+CONNECTOR_NAME="FORD"
+
+exec "$GENERIC_SCRIPT" "$POD_NAME" "$DB_PASSWORD" "$CONNECTOR_NAME"
+```
+
+### 2. Script de Limpieza de Negociaciones
 ```bash
 # cleanup-db-negotiations-FORD.sh
 #!/bin/bash
@@ -138,9 +239,15 @@ FILTER=${1:-terminated}
 exec "$GENERIC_SCRIPT" "$POD_NAME" "$DB_PASSWORD" "$CONNECTOR_NAME" "$FILTER"
 ```
 
-Repite para transferencias y EDRs, y dale permisos:
+### 3. Script de Limpieza de Transferencias
+(Repetir patrón similar con cleanup-transfers-from-db.sh)
+
+### 4. Script de Limpieza de EDRs
+(Repetir patrón similar con cleanup-edrs-from-db.sh)
+
+Finalmente, dale permisos de ejecución:
 ```bash
-chmod +x cleanup-db-*-FORD.sh
+chmod +x check-db-status-FORD.sh cleanup-db-*-FORD.sh
 ```
 
 ## Estados de EDC
