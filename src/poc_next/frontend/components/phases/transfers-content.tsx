@@ -621,8 +621,25 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                     </div>
                   </div>
 
-                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '8px' }}>
-                    <strong>EDR Disponible:</strong> {transfer.edrAvailable ? ' ✅ Sí' : ' ❌ No'}
+                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '8px', background: '#f0fdf4', padding: '8px', borderRadius: '4px', border: '1px solid #86efac' }}>
+                    <div style={{ marginBottom: '4px' }}>
+                      <strong>Download Method:</strong>
+                    </div>
+                    {transfer.edrAvailable ? (
+                      <div style={{ fontSize: '11px', color: '#15803d', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        ✅ <strong>EDR Available</strong> - Ready to download
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '11px', color: '#0369a1', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          🔄 <strong>Auto-detect</strong>
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#64748b', marginLeft: '20px' }}>
+                          • SharePoint assets: Direct proxy download<br/>
+                          • Other assets: Waiting for EDR token
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {(transfer.stateCode === 800 || transfer.stateCode === 600) ? (
