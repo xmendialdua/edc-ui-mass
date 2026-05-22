@@ -273,11 +273,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
           return { bg: '#8b5cf6', color: 'white', label: 'REQUESTED' };
         
         case 600: // STARTED
-          if (edrAvailable) {
-            return { bg: '#22c55e', color: 'white', label: 'STARTED' };
-          } else {
-            return { bg: '#f59e0b', color: 'white', label: 'UNAVAILABLE' };
-          }
+          return { bg: '#22c55e', color: 'white', label: 'STARTED' };
         
         case 700: // SUSPENDED
           return { bg: '#6b7280', color: 'white', label: 'SUSPENDED' };
@@ -296,7 +292,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
     const getCardBorderColor = (stateCode: number | undefined, edrAvailable: boolean) => {
       switch (stateCode) {
         case 500: return '#8b5cf6'; // REQUESTED - purple
-        case 600: return edrAvailable ? '#22c55e' : '#f59e0b'; // STARTED - green if EDR, orange if unavailable
+        case 600: return '#22c55e'; // STARTED - green
         case 700: return '#6b7280'; // SUSPENDED - gray
         case 800: return '#3b82f6'; // COMPLETED - blue
         case 850: return '#ef4444'; // TERMINATED - red
@@ -307,7 +303,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
     const getCardBackground = (stateCode: number | undefined, edrAvailable: boolean) => {
       switch (stateCode) {
         case 500: return '#faf5ff'; // REQUESTED - purple background
-        case 600: return edrAvailable ? '#f0fdf4' : '#fffbeb'; // STARTED - green if EDR, yellow if unavailable
+        case 600: return '#f0fdf4'; // STARTED - green background
         case 700: return '#f9fafb'; // SUSPENDED - gray background
         case 800: return '#eff6ff'; // COMPLETED - blue background
         case 850: return '#fef2f2'; // TERMINATED - red background
@@ -640,33 +636,27 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                           e.stopPropagation();
                           handleDownloadData(transfer.id, transfer.edrEndpoint, transfer.edrToken);
                         }}
-                        disabled={!transfer.edrAvailable}
+                        disabled={false}
                         style={{
-                          background: transfer.edrAvailable 
-                            ? 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)' 
-                            : '#9ca3af',
+                          background: 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)',
                           color: 'white',
                           padding: '6px 12px',
                           borderRadius: '6px',
                           border: 'none',
                           fontSize: '11px',
                           fontWeight: '600',
-                          cursor: transfer.edrAvailable ? 'pointer' : 'not-allowed',
-                          opacity: transfer.edrAvailable ? 1 : 0.6,
+                          cursor: 'pointer',
+                          opacity: 1,
                           transition: 'all 0.2s ease',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '4px'
                         }}
                         onMouseEnter={(e) => {
-                          if (transfer.edrAvailable) {
-                            e.currentTarget.style.opacity = '0.9';
-                          }
+                          e.currentTarget.style.opacity = '0.9';
                         }}
                         onMouseLeave={(e) => {
-                          if (transfer.edrAvailable) {
-                            e.currentTarget.style.opacity = '1';
-                          }
+                          e.currentTarget.style.opacity = '1';
                         }}
                       >
                         📥 Descargar
