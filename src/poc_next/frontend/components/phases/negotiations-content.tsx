@@ -310,7 +310,7 @@ const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsCont
                           e.currentTarget.style.opacity = '1';
                         }}
                       >
-                        Init Transfer
+                        🚀 Init Transfer
                       </button>
                     </div>
                   )}

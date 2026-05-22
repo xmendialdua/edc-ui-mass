@@ -404,7 +404,7 @@ export default function PartnerDataPage() {
                 gap: "10px"
               }}>
                 <span style={{ fontSize: "24px" }}>📋</span>
-                <span>Catálogo</span>
+                <span>Catalogs</span>
               </div>
               <button
                 onClick={() => phase5Ref.current?.refresh()}
@@ -465,7 +465,7 @@ export default function PartnerDataPage() {
                 gap: "10px"
               }}>
                 <span style={{ fontSize: "24px" }}>🤝</span>
-                <span>Negociaciones</span>
+                <span>Negotiations</span>
               </div>
               <button
                 onClick={() => negotiationsRef.current?.refresh()}
@@ -526,7 +526,7 @@ export default function PartnerDataPage() {
                 gap: "10px"
               }}>
                 <span style={{ fontSize: "24px" }}>📥</span>
-                <span>Transferencias</span>
+                <span>Transfers</span>
               </div>
               <div style={{
                 display: "flex",

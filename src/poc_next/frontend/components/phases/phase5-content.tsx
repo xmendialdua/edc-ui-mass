@@ -198,23 +198,26 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
                     >
                       {/* Header plegable - siempre visible */}
                       <div
-                        onClick={() => toggleAssetExpansion(offerId)}
                         style={{
                           padding: '14px 16px',
-                          cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'flex-start',
                           justifyContent: 'space-between',
                           gap: '12px'
                         }}
                       >
-                        <div style={{ flex: 1 }}>
+                        <div 
+                          onClick={() => toggleAssetExpansion(offerId)}
+                          style={{ flex: 1, cursor: 'pointer', minWidth: 0 }}
+                        >
                           <div style={{ 
                             fontSize: '13px',
                             fontWeight: '600',
                             color: '#5b21b6',
                             marginBottom: '6px',
-                            fontFamily: 'monospace'
+                            fontFamily: 'monospace',
+                            wordBreak: 'break-word',
+                            overflowWrap: 'break-word'
                           }}>
                             {assetId}
                           </div>
@@ -222,18 +225,54 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
                             <div style={{ 
                               fontSize: '12px', 
                               color: '#6b7280',
-                              lineHeight: '1.4'
+                              lineHeight: '1.4',
+                              wordBreak: 'break-word',
+                              overflowWrap: 'break-word'
                             }}>
                               {truncatedDescription}
                             </div>
                           )}
                         </div>
-                        <div style={{ paddingTop: '2px' }}>
-                          {isExpanded ? (
-                            <ChevronUp className="h-5 w-5" style={{ color: '#7c3aed' }} />
-                          ) : (
-                            <ChevronDown className="h-5 w-5" style={{ color: '#7c3aed' }} />
-                          )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleNegotiate(assetId, offer);
+                            }}
+                            style={{
+                              background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)',
+                              color: 'white',
+                              padding: '6px 12px',
+                              borderRadius: '5px',
+                              border: 'none',
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              whiteSpace: 'nowrap'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = 'linear-gradient(90deg, #059669 0%, #047857 100%)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = 'linear-gradient(90deg, #10b981 0%, #059669 100%)';
+                            }}
+                          >
+                            🤝 Negotiate
+                          </button>
+                          <div 
+                            onClick={() => toggleAssetExpansion(offerId)}
+                            style={{ paddingTop: '2px', cursor: 'pointer' }}
+                          >
+                            {isExpanded ? (
+                              <ChevronUp className="h-5 w-5" style={{ color: '#7c3aed' }} />
+                            ) : (
+                              <ChevronDown className="h-5 w-5" style={{ color: '#7c3aed' }} />
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -250,7 +289,9 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
                                 fontSize: '12px', 
                                 color: '#4b5563', 
                                 marginBottom: '12px',
-                                lineHeight: '1.5'
+                                lineHeight: '1.5',
+                                wordBreak: 'break-word',
+                                overflowWrap: 'break-word'
                               }}>
                                 <span style={{ fontWeight: 'bold', color: '#374151' }}>Description: </span>
                                 <span>{assetDescription}</span>
@@ -270,35 +311,6 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
                                 {offerId}
                               </span>
                             </div>
-                          </div>
-                          
-                          {/* Botón de negociar */}
-                          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleNegotiate(assetId, offer);
-                              }}
-                              style={{
-                                background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)',
-                                color: 'white',
-                                padding: '8px 16px',
-                                borderRadius: '5px',
-                                border: 'none',
-                                fontSize: '13px',
-                                fontWeight: '600',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease'
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'linear-gradient(90deg, #059669 0%, #047857 100%)';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = 'linear-gradient(90deg, #10b981 0%, #059669 100%)';
-                              }}
-                            >
-                              Negociar
-                            </button>
                           </div>
                         </div>
                       )}

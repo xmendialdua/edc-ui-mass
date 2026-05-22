@@ -659,7 +659,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                           e.currentTarget.style.opacity = '1';
                         }}
                       >
-                        📥 Descargar
+                        📥 Download
                       </button>
                     </div>
                   ) : (
