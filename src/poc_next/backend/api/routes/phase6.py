@@ -606,13 +606,22 @@ async def list_transfers(
                 "createdAt": created_at,
                 "stateTimestamp": state_timestamp,
             })
+            
+            # Auto-monitor transfers in STARTED state without EDR
+            # This ensures EDRs are captured even for pre-existing transfers
+            if state == "STARTED" and not edr_available:
+                if idx < 3:
+                    logger.info(f"       🔄 Auto-iniciando monitor EDR para transfer sin EDR")
+                # Launch monitor in background (fire-and-forget)
+                asyncio.create_task(monitor_transfer_for_edr(transfer_id))
 
         elapsed = time.time() - start_time
         
-        # Count EDR sources
+        # Count EDR sources and auto-monitoring
         edr_from_cache = sum(1 for t in transfers_info if t.get('edrSource') == 'cache')
         edr_from_embedded = sum(1 for t in transfers_info if t.get('edrSource') == 'embedded')
         edr_not_available = sum(1 for t in transfers_info if not t['edrAvailable'])
+        auto_monitored = sum(1 for t in transfers_info if t.get('state') == 'STARTED' and not t.get('edrAvailable'))
         
         logger.info(f"✅ list_transfers completado en {elapsed:.2f}s")
         logger.info(f"   Transferencias totales: {len(transfers_raw)}")
@@ -623,6 +632,8 @@ async def list_transfers(
             logger.info(f"      • Desde caché: {edr_from_cache}")
         if edr_from_embedded > 0:
             logger.info(f"      • Embebido en transfer: {edr_from_embedded}")
+        if auto_monitored > 0:
+            logger.info(f"   🔄 Auto-monitoreando EDR: {auto_monitored} transfer(s)")
         if edr_not_available > 0:
             logger.info(f"   EDR no disponible: {edr_not_available}")
         logger.info(f"{'~'*80}\n")

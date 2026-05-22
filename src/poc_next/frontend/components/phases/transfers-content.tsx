@@ -361,100 +361,60 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
       addLog(`📥 Descargando datos de transferencia: ${transferId}`);
       
       try {
-        // Primero, verificar si es un asset de SharePoint consultando el backend
-        addLog(`   🔍 Verificando si es un asset de SharePoint...`);
-        const sharePointInfo = await api.phase6.getSharePointInfo(transferId);
-        
-        if (sharePointInfo.success && sharePointInfo.is_sharepoint && sharePointInfo.drive_id && sharePointInfo.item_id) {
-          // Es un asset de SharePoint - descargar usando Application Permissions del backend
-          addLog(`   ✅ Asset de SharePoint detectado`);
-          addLog(`   📁 Drive ID: ${sharePointInfo.drive_id.substring(0, 20)}...`);
-          addLog(`   📄 Item ID: ${sharePointInfo.item_id.substring(0, 20)}...`);
-          
-          // Descargar usando el proxy del backend (Application Permissions)
-          addLog(`   📥 Descargando desde SharePoint vía backend...`);
-          const { blob, filename } = await api.sharepoint.downloadFileViaProxy(
-            sharePointInfo.item_id,
-            sharePointInfo.drive_id
-          );
-          
-          const isZip = filename.endsWith('.zip');
-          const itemType = isZip ? 'Carpeta (como ZIP)' : 'Archivo';
-          
-          addLog(`   ✅ ${itemType} descargado`);
-          addLog(`   📝 Nombre: ${filename}`);
-          addLog(`   📊 Tamaño: ${(blob.size / 1024).toFixed(2)} KB`);
-          
-          // Crear un URL temporal para el blob
-          const url = window.URL.createObjectURL(blob);
-          
-          // Crear un enlace temporal y hacer click automáticamente
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = filename;
-          document.body.appendChild(link);
-          link.click();
-          
-          // Limpiar
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-          
-          addLog(`   ✅ Archivo descargado exitosamente usando Application Permissions`);
-          
-        } else {
-          // Flujo tradicional para otros tipos de assets (no SharePoint)
-          addLog(`   ${sharePointInfo.message || 'No es un asset de SharePoint'}`);
-          addLog(`   🔄 Usando descarga tradicional vía backend POC Next...`);
-          
-          // Obtener el EDR endpoint si no lo tenemos
-          let endpoint = edrEndpoint;
-          if (!endpoint) {
-            addLog(`   ⏳ Obteniendo EDR endpoint...`);
-            try {
-              const result = await api.phase6.getTransferEdr(transferId);
-              if (result.success && result.edr) {
-                endpoint = result.edr.endpoint;
-                addLog(`   ✅ EDR obtenido`);
-              } else {
-                addLog(`   ❌ No se pudo obtener el EDR`);
-                return;
-              }
-            } catch (error) {
-              addLog(`   ❌ Error al obtener EDR: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        // Obtener el EDR endpoint si no lo tenemos
+        let endpoint = edrEndpoint;
+        if (!endpoint) {
+          addLog(`   ⏳ Obteniendo EDR endpoint...`);
+          try {
+            const result = await api.phase6.getTransferEdr(transferId);
+            if (result.success && result.edr) {
+              endpoint = result.edr.endpoint;
+              addLog(`   ✅ EDR obtenido`);
+            } else {
+              addLog(`   ❌ No se pudo obtener el EDR`);
+              addLog(`   ℹ️ El EDR se genera automáticamente cuando el transfer entra en estado STARTED`);
+              addLog(`   ℹ️ Por favor espera unos segundos y vuelve a intentar`);
               return;
             }
-          }
-          
-          if (!endpoint) {
-            addLog(`   ❌ No hay endpoint EDR disponible`);
+          } catch (error) {
+            addLog(`   ❌ Error al obtener EDR: ${error instanceof Error ? error.message : 'Unknown error'}`);
             return;
           }
-          
-          const { blob, contentType, filename } = await api.phase6.downloadFile({
-            transferId: transferId,
-            endpoint: endpoint,
-            token: edrToken || ''
-          });
-
-          addLog(`   📄 Tipo de archivo: ${contentType}`);
-          addLog(`   📝 Nombre del archivo: ${filename}`);
-
-          // Crear un URL temporal para el blob
-          const url = window.URL.createObjectURL(blob);
-          
-          // Crear un enlace temporal y hacer click automáticamente
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = filename;
-          document.body.appendChild(link);
-          link.click();
-          
-          // Limpiar
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-          
-          addLog(`   ✅ Archivo descargado exitosamente`);
         }
+        
+        if (!endpoint) {
+          addLog(`   ❌ No hay endpoint EDR disponible`);
+          addLog(`   ℹ️ Esto es necesario para cumplir con el protocolo DSP de Tractus-X`);
+          return;
+        }
+        
+        addLog(`   🔐 Descargando vía EDR (cumpliendo protocolo DSP)...`);
+        addLog(`   📡 Endpoint: ${endpoint.substring(0, 50)}...`);
+        
+        const { blob, contentType, filename } = await api.phase6.downloadFile({
+          transferId: transferId,
+          endpoint: endpoint,
+          token: edrToken || ''
+        });
+
+        addLog(`   📄 Tipo de archivo: ${contentType}`);
+        addLog(`   📝 Nombre del archivo: ${filename}`);
+
+        // Crear un URL temporal para el blob
+        const url = window.URL.createObjectURL(blob);
+        
+        // Crear un enlace temporal y hacer click automáticamente
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        
+        // Limpiar
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        addLog(`   ✅ Archivo descargado exitosamente vía EDR`);
 
         // Iniciar polling individual para esta transferencia
         if (!pollingTransfers.has(transferId)) {
@@ -621,22 +581,27 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                     </div>
                   </div>
 
-                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '8px', background: '#f0fdf4', padding: '8px', borderRadius: '4px', border: '1px solid #86efac' }}>
+                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '8px', background: transfer.edrAvailable ? '#f0fdf4' : '#fef3c7', padding: '8px', borderRadius: '4px', border: transfer.edrAvailable ? '1px solid #86efac' : '1px solid #fcd34d' }}>
                     <div style={{ marginBottom: '4px' }}>
                       <strong>Download Method:</strong>
                     </div>
                     {transfer.edrAvailable ? (
-                      <div style={{ fontSize: '11px', color: '#15803d', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        ✅ <strong>EDR Available</strong> - Ready to download
+                      <div style={{ fontSize: '11px', color: '#15803d', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          ✅ <strong>EDR Available</strong> - Ready to download
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#047857', marginLeft: '20px' }}>
+                          Using DSP protocol (Tractus-X compliant)
+                        </div>
                       </div>
                     ) : (
-                      <div style={{ fontSize: '11px', color: '#0369a1', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <div style={{ fontSize: '11px', color: '#92400e', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          🔄 <strong>Auto-detect</strong>
+                          ⏳ <strong>Waiting for EDR</strong>
                         </div>
-                        <div style={{ fontSize: '10px', color: '#64748b', marginLeft: '20px' }}>
-                          • SharePoint assets: Direct proxy download<br/>
-                          • Other assets: Waiting for EDR token
+                        <div style={{ fontSize: '10px', color: '#78716c', marginLeft: '20px' }}>
+                          EDR token is being generated...<br/>
+                          Auto-monitoring active (refresh in ~5s)
                         </div>
                       </div>
                     )}
@@ -653,27 +618,33 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                           e.stopPropagation();
                           handleDownloadData(transfer.id, transfer.edrEndpoint, transfer.edrToken);
                         }}
-                        disabled={false}
+                        disabled={!transfer.edrAvailable}
                         style={{
-                          background: 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)',
+                          background: transfer.edrAvailable 
+                            ? 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)' 
+                            : 'linear-gradient(90deg, #9ca3af 0%, #6b7280 100%)',
                           color: 'white',
                           padding: '6px 12px',
                           borderRadius: '6px',
                           border: 'none',
                           fontSize: '11px',
                           fontWeight: '600',
-                          cursor: 'pointer',
-                          opacity: 1,
+                          cursor: transfer.edrAvailable ? 'pointer' : 'not-allowed',
+                          opacity: transfer.edrAvailable ? 1 : 0.6,
                           transition: 'all 0.2s ease',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '4px'
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.opacity = '0.9';
+                          if (transfer.edrAvailable) {
+                            e.currentTarget.style.opacity = '0.9';
+                          }
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.opacity = '1';
+                          if (transfer.edrAvailable) {
+                            e.currentTarget.style.opacity = '1';
+                          }
                         }}
                       >
                         📥 Download
