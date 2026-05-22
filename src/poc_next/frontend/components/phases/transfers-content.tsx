@@ -376,13 +376,17 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
           addLog(`   📄 Item ID: ${sharePointInfo.item_id.substring(0, 20)}...`);
           
           // Descargar usando el proxy del backend (Application Permissions)
-          addLog(`   📥 Descargando archivo desde SharePoint vía backend...`);
+          addLog(`   📥 Descargando desde SharePoint vía backend...`);
           const { blob, filename } = await api.sharepoint.downloadFileViaProxy(
             sharePointInfo.item_id,
             sharePointInfo.drive_id
           );
           
-          addLog(`   📝 Nombre del archivo: ${filename}`);
+          const isZip = filename.endsWith('.zip');
+          const itemType = isZip ? 'Carpeta (como ZIP)' : 'Archivo';
+          
+          addLog(`   ✅ ${itemType} descargado`);
+          addLog(`   📝 Nombre: ${filename}`);
           addLog(`   📊 Tamaño: ${(blob.size / 1024).toFixed(2)} KB`);
           
           // Crear un URL temporal para el blob

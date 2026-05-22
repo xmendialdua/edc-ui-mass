@@ -284,14 +284,19 @@ class SharePointGateway:
         item_id: str
     ) -> Tuple[bytes, str]:
         """
-        Download a file from SharePoint
+        Download a file or folder from SharePoint.
+        
+        If the item is a file, downloads it directly.
+        If the item is a folder, downloads all its contents as a ZIP file.
         
         Args:
             drive_id: SharePoint drive ID (uses default_drive_id if None)
-            item_id: File item ID
+            item_id: File or folder item ID
             
         Returns:
             Tuple of (file_content, filename)
+            - For files: returns the file content and original filename
+            - For folders: returns a ZIP archive and filename with .zip extension
             
         Raises:
             requests.HTTPError: If the API request fails
@@ -303,14 +308,25 @@ class SharePointGateway:
             raise ValueError("drive_id must be provided or default_drive_id must be set")
         
         try:
-            # First get file metadata to get the filename
+            # First get file metadata to get the filename and check if it's a folder
             metadata_endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{effective_drive_id}/items/{item_id}"
             metadata_response = self.session.get(metadata_endpoint)
             metadata_response.raise_for_status()
             metadata = metadata_response.json()
+            
+            # Check if item is a folder
+            is_folder = 'folder' in metadata
+            if is_folder:
+                # If it's a folder, download it as ZIP
+                folder_name = metadata.get('name', 'folder')
+                print(f"📁 Item is a folder: {folder_name}")
+                print(f"   Creating ZIP with all contents...")
+                
+                return self.download_folder_as_zip(drive_id=effective_drive_id, item_id=item_id)
+            
             filename = metadata.get('name', 'download')
             
-            # Then download the content
+            # Then download the content (only for files)
             content_endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{effective_drive_id}/items/{item_id}/content"
             response = self.session.get(content_endpoint)
             response.raise_for_status()
@@ -321,6 +337,102 @@ class SharePointGateway:
             print(f"Error downloading file: {error}")
             print(f"Response: {error.response.text if error.response else 'No response'}")
             raise
+    
+    def download_folder_as_zip(
+        self,
+        drive_id: Optional[str] = None,
+        item_id: Optional[str] = None,
+    ) -> Tuple[bytes, str]:
+        """
+        Download a folder from SharePoint as a ZIP file.
+        
+        This method recursively downloads all files in a folder and its subfolders,
+        creating a ZIP archive in memory.
+        
+        Args:
+            drive_id: SharePoint drive ID (uses default_drive_id if None)
+            item_id: Folder item ID
+            
+        Returns:
+            Tuple of (zip_content_bytes, zip_filename)
+            
+        Raises:
+            requests.HTTPError: If the API request fails
+            ValueError: If drive_id is None and no default_drive_id is set, or if item is not a folder
+        """
+        # Use default drive ID if not provided
+        effective_drive_id = drive_id or self.default_drive_id
+        if not effective_drive_id:
+            raise ValueError("drive_id must be provided or default_drive_id must be set")
+        
+        # Get folder metadata
+        metadata_endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{effective_drive_id}/items/{item_id}"
+        metadata_response = self.session.get(metadata_endpoint)
+        metadata_response.raise_for_status()
+        metadata = metadata_response.json()
+        
+        # Verify it's a folder
+        if 'folder' not in metadata:
+            raise ValueError(f"Item '{metadata.get('name', 'unknown')}' is not a folder")
+        
+        folder_name = metadata.get('name', 'folder')
+        
+        # Create ZIP file in memory
+        zip_buffer = io.BytesIO()
+        
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # Recursively add all files from folder
+            self._add_folder_to_zip(zip_file, effective_drive_id, item_id, folder_name)
+        
+        # Get the ZIP bytes
+        zip_content = zip_buffer.getvalue()
+        zip_filename = f"{folder_name}.zip"
+        
+        return zip_content, zip_filename
+    
+    def _add_folder_to_zip(
+        self,
+        zip_file: zipfile.ZipFile,
+        drive_id: str,
+        folder_id: str,
+        current_path: str = ""
+    ) -> None:
+        """
+        Recursively add all files from a folder to a ZIP file.
+        
+        Args:
+            zip_file: ZipFile object to add files to
+            drive_id: SharePoint drive ID
+            folder_id: Current folder item ID
+            current_path: Current path within the ZIP (for nested folders)
+        """
+        # List items in current folder
+        files = self.get_sharepoint_files(drive_id=drive_id, item_id=folder_id)
+        
+        for file in files:
+            file_path = f"{current_path}/{file.name}" if current_path else file.name
+            
+            if file.is_folder:
+                # Recursively add subfolder contents
+                # Extract just the item_id from the composite id (drive_id|item_id)
+                item_id = file.id.split('|')[1] if '|' in file.id else file.id
+                self._add_folder_to_zip(zip_file, drive_id, item_id, file_path)
+            else:
+                # Download file and add to ZIP
+                try:
+                    # Extract just the item_id from the composite id (drive_id|item_id)
+                    item_id = file.id.split('|')[1] if '|' in file.id else file.id
+                    content_endpoint = f"{self.GRAPH_API_BASE_URL}/drives/{drive_id}/items/{item_id}/content"
+                    response = self.session.get(content_endpoint)
+                    response.raise_for_status()
+                    
+                    # Add file to ZIP
+                    zip_file.writestr(file_path, response.content)
+                    print(f"  ✓ Added to ZIP: {file_path}")
+                    
+                except Exception as e:
+                    print(f"  ✗ Failed to add {file_path}: {e}")
+                    # Continue with other files even if one fails
     
     def get_download_url(
         self,
@@ -540,84 +652,6 @@ class SharePointGateway:
             print(f"Error fetching file metadata: {error}")
             print(f"Response: {error.response.text if error.response else 'No response'}")
             raise
-    
-    def download_folder_as_zip(
-        self,
-        drive_id: Optional[str],
-        folder_id: str
-    ) -> Tuple[bytes, str]:
-        """
-        Download all contents of a folder recursively and package them as a ZIP file
-        
-        Args:
-            drive_id: SharePoint drive ID (uses default_drive_id if None)
-            folder_id: Folder item ID
-            
-        Returns:
-            Tuple of (zip_content, zip_filename)
-            
-        Raises:
-            requests.HTTPError: If the API request fails
-            ValueError: If drive_id is None and no default_drive_id is set
-        """
-        # Use default drive ID if not provided
-        effective_drive_id = drive_id or self.default_drive_id
-        if not effective_drive_id:
-            raise ValueError("drive_id must be provided or default_drive_id must be set")
-        
-        # Get folder metadata to get its name
-        folder_metadata = self.get_file_metadata(effective_drive_id, folder_id)
-        if not folder_metadata.is_folder:
-            raise ValueError(f"Item {folder_id} is not a folder")
-        
-        # Create ZIP file in memory
-        zip_buffer = io.BytesIO()
-        
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            # Recursively add all files to ZIP
-            self._add_folder_to_zip(zip_file, effective_drive_id, folder_id, "")
-        
-        # Get ZIP content
-        zip_buffer.seek(0)
-        zip_content = zip_buffer.read()
-        zip_filename = f"{folder_metadata.name}.zip"
-        
-        return zip_content, zip_filename
-    
-    def _add_folder_to_zip(
-        self,
-        zip_file: zipfile.ZipFile,
-        drive_id: str,
-        folder_id: str,
-        path_in_zip: str
-    ) -> None:
-        """
-        Recursively add folder contents to ZIP file
-        
-        Args:
-            zip_file: ZipFile object to add files to
-            drive_id: SharePoint drive ID
-            folder_id: Folder item ID
-            path_in_zip: Current path within the ZIP file
-        """
-        # Get all items in the folder
-        items = self.get_sharepoint_files(drive_id=drive_id, item_id=folder_id)
-        
-        for item in items:
-            # Build the path for this item in the ZIP
-            item_path = os.path.join(path_in_zip, item.name) if path_in_zip else item.name
-            
-            if item.is_folder:
-                # Recursively add subfolder contents
-                self._add_folder_to_zip(zip_file, drive_id, item.id, item_path)
-            else:
-                # Download and add file to ZIP
-                try:
-                    file_content, _ = self.download_file(drive_id, item.id)
-                    zip_file.writestr(item_path, file_content)
-                    print(f"Added to ZIP: {item_path}")
-                except Exception as e:
-                    print(f"Warning: Could not add file {item.name} to ZIP: {e}")
 
 
 # Example usage
