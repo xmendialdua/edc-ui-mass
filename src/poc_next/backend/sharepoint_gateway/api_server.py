@@ -34,7 +34,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 import logging
 
-from poc_next.backend.sharepointGateway.SharePointGateway import SharePointGateway, SharePointFile
+from poc_next.backend.sharepoint_gateway.sharepoint_gateway import SharePointGateway, SharePointFile
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

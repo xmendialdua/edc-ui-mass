@@ -8,8 +8,8 @@ from pydantic import BaseModel
 import logging
 from dotenv import load_dotenv
 
-from sharepointGateway.SharePointGateway import SharePointGateway, SharePointFile
-from sharepointGateway.SharePointAuth import SharePointAuthService
+from sharepoint_gateway.sharepoint_gateway import SharePointGateway, SharePointFile
+from sharepoint_gateway.sharepoint_auth import SharePointAuthService
 
 # Load environment variables before initializing auth service
 load_dotenv()

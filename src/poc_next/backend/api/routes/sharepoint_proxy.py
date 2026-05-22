@@ -24,8 +24,8 @@ import mimetypes
 from fastapi import APIRouter, HTTPException, Response, Header
 from fastapi.responses import StreamingResponse
 from typing import Optional
-from sharepointGateway.SharePointAuth import SharePointAuthService
-from sharepointGateway.SharePointGateway import SharePointGateway
+from sharepoint_gateway.sharepoint_auth import SharePointAuthService
+from sharepoint_gateway.sharepoint_gateway import SharePointGateway
 from config import settings
 
 logger = logging.getLogger(__name__)
