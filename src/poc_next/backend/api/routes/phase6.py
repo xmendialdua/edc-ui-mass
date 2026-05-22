@@ -162,11 +162,34 @@ async def catalog_request(
 
 @router.post("/negotiate-asset")
 async def negotiate_asset(request: NegotiateAssetRequest) -> Dict[str, Any]:
-    """Initiate contract negotiation for an asset."""
+    """Initiate contract negotiation for an asset.
+    
+    Consumer params should be provided from authenticated partner.
+    If not provided, defaults to IKLN for backwards compatibility.
+    Provider is always MASS.
+    """
     logs: List[str] = []
 
+    # Use provided consumer values or default to IKLN
+    consumer_mgmt = request.consumerManagementUrl or settings.ikln_management_url
+    consumer_bpn_val = request.consumerBpn or settings.ikln_bpn
+    
+    # Provider is always MASS
+    provider_bpn_val = settings.mass_bpn
+    provider_dsp = settings.mass_dsp
+    
+    # Get consumer API key based on known connectors
+    if consumer_mgmt == settings.ikln_management_url:
+        consumer_api_key = settings.ikln_api_key
+    elif consumer_mgmt == settings.mass_management_url:
+        consumer_api_key = settings.mass_api_key
+    else:
+        # Default to IKLN API key for unknown connectors
+        consumer_api_key = settings.ikln_api_key
+
     logs.append(log_message(f"🤝 Iniciando negociación para asset: {request.assetId}"))
-    logs.append(log_message(f"   Counter Party: {settings.mass_bpn}"))
+    logs.append(log_message(f"   Consumer: {consumer_bpn_val}"))
+    logs.append(log_message(f"   Provider: {provider_bpn_val}"))
     
     # Log the received policy for debugging
     logs.append(log_message(f"📄 Policy recibida:"))
@@ -184,15 +207,15 @@ async def negotiate_asset(request: NegotiateAssetRequest) -> Dict[str, Any]:
     
     # Añadir assigner (counterPartyId) si no existe
     if "odrl:assigner" not in policy_with_required_fields and "assigner" not in policy_with_required_fields:
-        policy_with_required_fields["assigner"] = settings.mass_bpn
-        logs.append(log_message(f"➕ Añadido assigner = {settings.mass_bpn}"))
+        policy_with_required_fields["assigner"] = provider_bpn_val
+        logs.append(log_message(f"➕ Añadido assigner = {provider_bpn_val}"))
 
     # Build negotiation request - using the correct format that works in edc-consumer
     # IMPORTANT: Pass the policy as-is, don't reconstruct it
     negotiation_data = {
         "@type": "ContractRequest",
-        "counterPartyAddress": settings.mass_dsp,
-        "counterPartyId": settings.mass_bpn,
+        "counterPartyAddress": provider_dsp,
+        "counterPartyId": provider_bpn_val,
         "protocol": "dataspace-protocol-http",
         "policy": policy_with_required_fields,
         "callbackAddresses": []
@@ -201,9 +224,9 @@ async def negotiate_asset(request: NegotiateAssetRequest) -> Dict[str, Any]:
     logs.append(log_message(f"📤 Negotiation payload:"))
     logs.append(json.dumps(negotiation_data, indent=2))
 
-    ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
+    consumer_client = EdcManagementClient(consumer_mgmt, consumer_api_key)
     try:
-        result = await ikln_client.initiate_negotiation(negotiation_data)
+        result = await consumer_client.initiate_negotiation(negotiation_data)
 
         negotiation_id = result.get("@id")
         logs.append(log_message(f"✅ Negociación iniciada"))
@@ -220,8 +243,8 @@ async def negotiate_asset(request: NegotiateAssetRequest) -> Dict[str, Any]:
                 "state": "REQUESTED",
                 "assetId": request.assetId,
                 "contractAgreementId": None,
-                "counterPartyAddress": settings.mass_dsp,
-                "counterPartyId": settings.mass_bpn,
+                "counterPartyAddress": provider_dsp,
+                "counterPartyId": provider_bpn_val,
                 "createdAt": datetime.now().isoformat()
             }
         }
@@ -460,7 +483,7 @@ async def initiate_transfer_for_contract(
             "error": str(e)
         }
     finally:
-        await ikln_client.close()
+        await consumer_client.close()
 
 
 @router.get("/list-transfers")
