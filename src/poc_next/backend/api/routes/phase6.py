@@ -901,14 +901,49 @@ async def download_file(request: DownloadFileRequest):
                     # Get asset from MASS connector (provider)
                     asset = await mass_client.get_asset(asset_id)
                     if asset:
-                        # Try to extract filename from asset properties
-                        # Option 1: Check if there's a name property
-                        asset_name = asset.get("properties", {}).get("name", "")
-                        
-                        # Option 2: Try to extract from baseUrl
                         base_url = asset.get("dataAddress", {}).get("baseUrl", "")
-                        if base_url:
-                            # Extract filename from URL
+                        
+                        # Check if it's a SharePoint asset
+                        if base_url and "/api/sharepoint-proxy/download" in base_url:
+                            logger.info(f"📁 SharePoint asset detected, extracting real filename...")
+                            
+                            # Extract encoded info from SharePoint proxy URL
+                            import re
+                            match = re.search(r'/api/sharepoint-proxy/download(?:-folder)?/([^?]+)', base_url)
+                            if match:
+                                encoded_file_info = match.group(1)
+                                
+                                # Decode base64 to get drive_id|item_id
+                                import base64
+                                padding = '=' * (4 - len(encoded_file_info) % 4) if len(encoded_file_info) % 4 != 0 else ''
+                                padded_encoded = encoded_file_info + padding
+                                decoded_bytes = base64.urlsafe_b64decode(padded_encoded.encode())
+                                decoded_str = decoded_bytes.decode('utf-8')
+                                
+                                parts = decoded_str.split('|', 1)
+                                if len(parts) == 2:
+                                    drive_id, item_id = parts
+                                    
+                                    # Get SharePoint file metadata to extract real filename
+                                    from sharepoint_gateway.sharepoint_auth import SharePointAuthService
+                                    from sharepoint_gateway.sharepoint_gateway import SharePointGateway
+                                    
+                                    auth_service = SharePointAuthService()
+                                    sp_token = auth_service.get_access_token()
+                                    
+                                    if sp_token:
+                                        gateway = SharePointGateway(access_token=sp_token)
+                                        metadata = gateway.get_file_metadata(drive_id=drive_id, item_id=item_id)
+                                        
+                                        # Use real filename
+                                        if metadata.is_folder:
+                                            original_filename = f"{metadata.name}.zip"
+                                            logger.info(f"📁 Folder detected: {metadata.name} -> {original_filename}")
+                                        else:
+                                            original_filename = metadata.name
+                                            logger.info(f"📄 File detected: {original_filename}")
+                        else:
+                            # Non-SharePoint asset: try to extract from baseUrl
                             from urllib.parse import urlparse, unquote
                             parsed_url = urlparse(base_url)
                             path = unquote(parsed_url.path)
@@ -916,14 +951,18 @@ async def download_file(request: DownloadFileRequest):
                                 url_filename = path.split("/")[-1]
                                 if url_filename and "." in url_filename:
                                     original_filename = url_filename
+                            
+                            # Fallback to asset name
+                            if original_filename == "data.dat":
+                                asset_name = asset.get("properties", {}).get("name", "")
+                                if asset_name:
+                                    original_filename = asset_name.replace(" ", "_") + ".dat"
                         
-                        # If we got a name but no filename from URL, use the name as fallback
-                        if original_filename == "data.dat" and asset_name:
-                            original_filename = asset_name.replace(" ", "_") + ".dat"
-                        
-                        logger.info(f"📄 Extracted filename: {original_filename} from asset {asset_id}")
+                        logger.info(f"📝 Extracted filename: {original_filename} from asset {asset_id}")
                 except Exception as e:
                     logger.warning(f"⚠️ Could not extract filename from asset: {str(e)}")
+                    import traceback
+                    logger.warning(traceback.format_exc())
 
             # Log request details for debugging
             logger.info(f"🔍 Downloading from endpoint: {endpoint}")
@@ -1149,11 +1188,38 @@ async def get_sharepoint_info(transfer_id: str) -> Dict[str, Any]:
             logger.info(f"   Drive ID: {drive_id[:30]}...")
             logger.info(f"   Item ID: {item_id[:30]}...")
             
+            # Get file metadata to extract real filename
+            filename = None
+            is_folder = False
+            try:
+                from sharepoint_gateway.sharepoint_auth import SharePointAuthService
+                from sharepoint_gateway.sharepoint_gateway import SharePointGateway
+                
+                auth_service = SharePointAuthService()
+                sp_token = auth_service.get_access_token()
+                
+                if sp_token:
+                    gateway = SharePointGateway(access_token=sp_token)
+                    metadata = gateway.get_file_metadata(drive_id=drive_id, item_id=item_id)
+                    
+                    filename = metadata.name
+                    is_folder = metadata.is_folder
+                    
+                    if is_folder:
+                        filename = f"{filename}.zip"
+                    
+                    logger.info(f"📝 Real filename: {filename}")
+                    logger.info(f"📁 Is folder: {is_folder}")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not get filename from SharePoint: {str(e)}")
+            
             return {
                 "success": True,
                 "is_sharepoint": True,
                 "drive_id": drive_id,
                 "item_id": item_id,
+                "filename": filename,
+                "is_folder": is_folder,
                 "base_url": base_url
             }
             
