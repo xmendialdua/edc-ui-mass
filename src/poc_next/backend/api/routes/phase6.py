@@ -890,89 +890,15 @@ async def download_file(request: DownloadFileRequest):
             if not token or not endpoint:
                 raise HTTPException(status_code=400, detail="Token or endpoint not available")
 
-            # Get the transfer to extract assetId
+            # Get transfer to extract asset_id
             transfer = await ikln_client.get_transfer(request.transferId)
             asset_id = transfer.get("assetId", "")
-            
-            # Get original filename from asset
-            original_filename = "data.dat"
-            if asset_id:
-                try:
-                    # Get asset from MASS connector (provider)
-                    asset = await mass_client.get_asset(asset_id)
-                    if asset:
-                        base_url = asset.get("dataAddress", {}).get("baseUrl", "")
-                        
-                        # Check if it's a SharePoint asset
-                        if base_url and "/api/sharepoint-proxy/download" in base_url:
-                            logger.info(f"📁 SharePoint asset detected, extracting real filename...")
-                            
-                            # Extract encoded info from SharePoint proxy URL
-                            import re
-                            match = re.search(r'/api/sharepoint-proxy/download(?:-folder)?/([^?]+)', base_url)
-                            if match:
-                                encoded_file_info = match.group(1)
-                                
-                                # Decode base64 to get drive_id|item_id
-                                import base64
-                                padding = '=' * (4 - len(encoded_file_info) % 4) if len(encoded_file_info) % 4 != 0 else ''
-                                padded_encoded = encoded_file_info + padding
-                                decoded_bytes = base64.urlsafe_b64decode(padded_encoded.encode())
-                                decoded_str = decoded_bytes.decode('utf-8')
-                                
-                                parts = decoded_str.split('|', 1)
-                                if len(parts) == 2:
-                                    drive_id, item_id = parts
-                                    
-                                    # Get SharePoint file metadata to extract real filename
-                                    from sharepoint_gateway.sharepoint_auth import SharePointAuthService
-                                    from sharepoint_gateway.sharepoint_gateway import SharePointGateway
-                                    
-                                    auth_service = SharePointAuthService()
-                                    sp_token = auth_service.get_access_token()
-                                    
-                                    if sp_token:
-                                        gateway = SharePointGateway(access_token=sp_token)
-                                        metadata = gateway.get_file_metadata(drive_id=drive_id, item_id=item_id)
-                                        
-                                        # Use real filename
-                                        if metadata.is_folder:
-                                            original_filename = f"{metadata.name}.zip"
-                                            logger.info(f"📁 Folder detected: {metadata.name} -> {original_filename}")
-                                        else:
-                                            original_filename = metadata.name
-                                            logger.info(f"📄 File detected: {original_filename}")
-                        else:
-                            # Non-SharePoint asset: try to extract from baseUrl
-                            from urllib.parse import urlparse, unquote
-                            parsed_url = urlparse(base_url)
-                            path = unquote(parsed_url.path)
-                            if path:
-                                url_filename = path.split("/")[-1]
-                                if url_filename and "." in url_filename:
-                                    original_filename = url_filename
-                            
-                            # Fallback to asset name
-                            if original_filename == "data.dat":
-                                asset_name = asset.get("properties", {}).get("name", "")
-                                if asset_name:
-                                    original_filename = asset_name.replace(" ", "_") + ".dat"
-                        
-                        logger.info(f"📝 Extracted filename: {original_filename} from asset {asset_id}")
-                except Exception as e:
-                    logger.warning(f"⚠️ Could not extract filename from asset: {str(e)}")
-                    import traceback
-                    logger.warning(traceback.format_exc())
 
-            # Log request details for debugging
-            logger.info(f"🔍 Downloading from endpoint: {endpoint}")
-            logger.info(f"🔍 Using token: {token[:50]}..." if len(token) > 50 else f"🔍 Using token: {token}")
-            logger.info(f"📄 Original filename: {original_filename}")
-            print(f"🔍 Download request - Endpoint: {endpoint}")
-            print(f"🔍 Download request - Token length: {len(token)} chars")
-            print(f"📄 Original filename: {original_filename}")
+            # Log request details
+            logger.info(f"🔍 Downloading from EDR endpoint: {endpoint}")
+            logger.info(f"🔍 Asset ID: {asset_id}")
 
-            # Make request to data plane
+            # Make request to Consumer DataPlane
             async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
                 response = await client.get(
                     endpoint,
@@ -982,10 +908,74 @@ async def download_file(request: DownloadFileRequest):
                 )
                 response.raise_for_status()
 
-                # Use extracted filename in Content-Disposition
+                # Check if Content-Disposition comes from DataPlane
                 content_disposition = response.headers.get("content-disposition")
-                if not content_disposition or "filename" not in content_disposition.lower():
-                    content_disposition = f'attachment; filename="{original_filename}"'
+                
+                if content_disposition and "filename" in content_disposition.lower():
+                    # DataPlane propagated the header correctly (ideal case)
+                    logger.info(f"✅ Using Content-Disposition from DataPlane: {content_disposition}")
+                else:
+                    # DataPlane didn't propagate header (EDC limitation)
+                    # Extract filename intelligently based on asset type
+                    logger.warning("⚠️ No Content-Disposition from DataPlane, extracting from asset")
+                    
+                    filename = None
+                    try:
+                        # Get asset to check if it's SharePoint
+                        asset = await mass_client.get_asset(asset_id)
+                        if asset:
+                            base_url = asset.get("dataAddress", {}).get("baseUrl", "")
+                            
+                            # Check if it's a SharePoint proxy asset
+                            if base_url and "/api/sharepoint-proxy/download" in base_url:
+                                logger.info(f"📁 SharePoint asset detected")
+                                
+                                # Extract and decode the filename from SharePoint
+                                import re, base64
+                                match = re.search(r'/api/sharepoint-proxy/download(?:-folder)?/([^?]+)', base_url)
+                                if match:
+                                    encoded = match.group(1)
+                                    padding = '=' * (4 - len(encoded) % 4) if len(encoded) % 4 != 0 else ''
+                                    decoded = base64.urlsafe_b64decode((encoded + padding).encode()).decode('utf-8')
+                                    
+                                    parts = decoded.split('|', 1)
+                                    if len(parts) == 2:
+                                        drive_id, item_id = parts
+                                        
+                                        # Get real filename from SharePoint
+                                        from sharepoint_gateway.sharepoint_auth import SharePointAuthService
+                                        from sharepoint_gateway.sharepoint_gateway import SharePointGateway
+                                        
+                                        auth_service = SharePointAuthService()
+                                        sp_token = auth_service.get_access_token()
+                                        
+                                        if sp_token:
+                                            gateway = SharePointGateway(access_token=sp_token)
+                                            metadata = gateway.get_file_metadata(drive_id=drive_id, item_id=item_id)
+                                            
+                                            # Use real filename from SharePoint
+                                            filename = f"{metadata.name}.zip" if metadata.is_folder else metadata.name
+                                            logger.info(f"✅ Extracted from SharePoint: {filename}")
+                            else:
+                                # Non-SharePoint: try to extract from URL
+                                from urllib.parse import urlparse, unquote
+                                path = unquote(urlparse(base_url).path)
+                                if path:
+                                    url_filename = path.split("/")[-1]
+                                    if url_filename and "." in url_filename:
+                                        filename = url_filename
+                                        logger.info(f"✅ Extracted from URL: {filename}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not extract filename: {str(e)}")
+                    
+                    # Final fallback
+                    if not filename:
+                        filename = f"{asset_id}.dat" if asset_id else "data.dat"
+                        logger.info(f"📄 Using fallback: {filename}")
+                    
+                    content_disposition = f'attachment; filename="{filename}"'
+                
+                print(f"📄 Final Content-Disposition: {content_disposition}")
 
                 # Return the file content
                 from fastapi.responses import Response
