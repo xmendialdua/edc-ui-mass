@@ -598,12 +598,23 @@ class EdcManagementClient:
                         logger.warning(f"   Response body: {error_body}")
                         print(f"{timestamp} | WARNING  | ❌ Dataaddress failed: {dataaddress_resp.status_code}", flush=True)
                         print(f"{timestamp} | WARNING  |    Error: {error_body[:200]}", flush=True)
+                        
+                        # Detect configuration errors that won't be fixed by retrying
+                        is_config_error = False
+                        if "Unsupported JWS algorithm" in error_body or "must be ES256K" in error_body:
+                            logger.error(f"⚠️ DIM WALLET CONFIGURATION ERROR: JWS algorithm mismatch")
+                            logger.error(f"   EDC is using RS256 but DIM wallet requires ES256K")
+                            logger.error(f"   This requires EDC/DIM configuration change, not code fix")
+                            print(f"{timestamp} | ERROR    | ⚠️ DIM WALLET CONFIG ERROR: RS256 vs ES256K mismatch", flush=True)
+                            is_config_error = True
+                        
                         # If dataaddress fails but we already have data from EDR object, use that
                         if endpoint or authorization:
                             logger.info(f"✅ Using endpoint/auth from EDR object despite dataaddress failure")
                             print(f"{timestamp} | INFO     | ✅ Falling back to EDR object data", flush=True)
                         else:
-                            return None
+                            # Return error info for monitor to handle
+                            return {"error": "config_error" if is_config_error else "unavailable", "message": error_body[:200]}
                     else:
                         edr_data = dataaddress_resp.json()
                         logger.info(f"✅ Successfully retrieved EDR data from dataaddress endpoint")

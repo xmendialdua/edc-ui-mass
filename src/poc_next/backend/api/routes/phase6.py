@@ -10,7 +10,7 @@ import json
 
 from clients.edc import EdcManagementClient
 from config import settings
-from api.routes.phase6_edr_monitor import monitor_transfer_for_edr, get_cached_edr
+from api.routes.phase6_edr_monitor import monitor_transfer_for_edr, get_cached_edr, is_monitoring
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -610,10 +610,15 @@ async def list_transfers(
             # Auto-monitor transfers in STARTED state without EDR
             # This ensures EDRs are captured even for pre-existing transfers
             if state == "STARTED" and not edr_available:
-                if idx < 3:
-                    logger.info(f"       🔄 Auto-iniciando monitor EDR para transfer sin EDR")
-                # Launch monitor in background (fire-and-forget)
-                asyncio.create_task(monitor_transfer_for_edr(transfer_id))
+                # Check if already being monitored to prevent duplicates
+                if not is_monitoring(transfer_id):
+                    if idx < 3:
+                        logger.info(f"       🔄 Auto-iniciando monitor EDR para transfer sin EDR")
+                    # Launch monitor in background (fire-and-forget)
+                    asyncio.create_task(monitor_transfer_for_edr(transfer_id))
+                else:
+                    if idx < 3:
+                        logger.info(f"       ⏭️ Monitor ya activo para esta transfer, skip")
 
         elapsed = time.time() - start_time
         
