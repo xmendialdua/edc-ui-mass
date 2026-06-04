@@ -7,7 +7,8 @@
 DOCKER_USERNAME="xmendialdua"
 BACKEND_IMAGE="${DOCKER_USERNAME}/poc-next-backend"
 FRONTEND_IMAGE="${DOCKER_USERNAME}/poc-next-frontend"
-VERSION="v1.0.0"
+BACKEND_IMAGE_TAG_VERSION="v1.0.2"
+FRONTEND_IMAGE_TAG_VERSION="v1.0.3"
 
 # Production URL for Kubernetes
 PRODUCTION_API_URL="https://ds-management.51.178.94.25.nip.io"
@@ -46,7 +47,7 @@ echo ""
 # Build backend
 echo -e "${BLUE}📦 Building backend image...${NC}"
 cd backend
-if docker build -t ${BACKEND_IMAGE}:latest -t ${BACKEND_IMAGE}:${VERSION} .; then
+if docker build -t ${BACKEND_IMAGE}:latest -t ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG_VERSION} .; then
     echo -e "${GREEN}✓ Backend image built successfully${NC}"
 else
     echo -e "${RED}✗ Backend build failed${NC}"
@@ -71,7 +72,7 @@ if docker build \
     --build-arg NEXT_PUBLIC_AZURE_REDIRECT_URI="${AZURE_REDIRECT_URI}" \
     --build-arg NEXT_PUBLIC_SHAREPOINT_SITE_URL="${SHAREPOINT_SITE_URL}" \
     -t ${FRONTEND_IMAGE}:latest \
-    -t ${FRONTEND_IMAGE}:${VERSION} .; then
+    -t ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG_VERSION} .; then
     echo -e "${GREEN}✓ Frontend image built successfully${NC}"
     echo -e "${GREEN}  API URL: ${PRODUCTION_API_URL}${NC}"
     echo -e "${GREEN}  Azure Redirect: ${AZURE_REDIRECT_URI}${NC}"
@@ -91,12 +92,12 @@ if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
     
     echo -e "${YELLOW}Pushing backend image...${NC}"
     docker push ${BACKEND_IMAGE}:latest
-    docker push ${BACKEND_IMAGE}:${VERSION}
+    docker push ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG_VERSION}
     echo -e "${GREEN}✓ Backend image pushed${NC}"
     
     echo -e "${YELLOW}Pushing frontend image...${NC}"
     docker push ${FRONTEND_IMAGE}:latest
-    docker push ${FRONTEND_IMAGE}:${VERSION}
+    docker push ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG_VERSION}
     echo -e "${GREEN}✓ Frontend image pushed${NC}"
     
     echo ""
@@ -106,9 +107,9 @@ if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
     echo ""
     echo -e "${BLUE}Images:${NC}"
     echo -e "  - ${BACKEND_IMAGE}:latest"
-    echo -e "  - ${BACKEND_IMAGE}:${VERSION}"
+    echo -e "  - ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG_VERSION}"
     echo -e "  - ${FRONTEND_IMAGE}:latest (API: ${PRODUCTION_API_URL})"
-    echo -e "  - ${FRONTEND_IMAGE}:${VERSION} (API: ${PRODUCTION_API_URL})"
+    echo -e "  - ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG_VERSION} (API: ${PRODUCTION_API_URL})"
     echo ""
     echo -e "${BLUE}Next steps:${NC}"
     echo -e "  cd k8s && ./deploy.sh"
@@ -125,5 +126,7 @@ else
     echo -e "${YELLOW}Images are built but not pushed to Docker Hub${NC}"
     echo -e "${BLUE}To push manually later:${NC}"
     echo -e "  docker push ${BACKEND_IMAGE}:latest"
+    echo -e "  docker push ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG_VERSION}"
     echo -e "  docker push ${FRONTEND_IMAGE}:latest"
+    echo -e "  docker push ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG_VERSION}"
 fi

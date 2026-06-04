@@ -7,8 +7,8 @@ NAMESPACE="ds-management-ui"
 BACKEND_IMAGE="xmendialdua/poc-next-backend"
 FRONTEND_IMAGE="xmendialdua/poc-next-frontend"
 IMAGE_TAG_LATEST="latest"
-BACKEND_IMAGE_TAG_VERSION="v1.0.1"
-FRONTEND_IMAGE_TAG_VERSION="v1.0.2"
+BACKEND_IMAGE_TAG_VERSION="v1.0.2"
+FRONTEND_IMAGE_TAG_VERSION="v1.0.3"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -77,6 +77,12 @@ kubectl apply -f ingress-frontend.yaml -n $NAMESPACE
 echo -e "${GREEN}✓ Frontend Ingress applied${NC}"
 
 echo ""
+
+# Rollout the deployments to reestart them
+kubectl rollout restart deployment/poc-next-backend -n $NAMESPACE
+echo -e "${GREEN}✓ Rolling out Backend deployment${NC}"
+kubectl rollout restart deployment/poc-next-frontend -n $NAMESPACE
+echo -e "${GREEN}✓ Rolling out Frontend deployment${NC}"
 
 # Wait for deployments to be ready
 echo -e "${BLUE}Waiting for deployments to be ready...${NC}"
