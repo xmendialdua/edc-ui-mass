@@ -4,8 +4,9 @@
 NAMESPACE="ds-management-ui"
 
 # Set image names and tags
-BACKEND_IMAGE="xmendialdua/poc-next-backend"
-FRONTEND_IMAGE="xmendialdua/poc-next-frontend"
+DOCKER_USERNAME="xmendialdua"
+BACKEND_IMAGE="${DOCKER_USERNAME}/poc-next-backend"
+FRONTEND_IMAGE="${DOCKER_USERNAME}/poc-next-frontend"
 IMAGE_TAG_LATEST="latest"
 BACKEND_IMAGE_TAG_VERSION="v1.0.2"
 FRONTEND_IMAGE_TAG_VERSION="v1.0.3"
