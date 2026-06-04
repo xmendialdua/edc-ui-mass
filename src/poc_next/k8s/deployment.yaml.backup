@@ -18,7 +18,7 @@ spec:
       serviceAccountName: poc-next-sa
       containers:
       - name: backend
-        image: ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG_VERSION}
+        image: xmendialdua/poc-next-backend:v1.0.2
         ports:
         - containerPort: 5001
         envFrom:
@@ -82,7 +82,7 @@ spec:
       serviceAccountName: poc-next-sa
       containers:
       - name: frontend
-        image: ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG_VERSION}
+        image: xmendialdua/poc-next-frontend:v1.0.3
         ports:
         - containerPort: 3001
         env:

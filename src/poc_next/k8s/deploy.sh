@@ -18,6 +18,12 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+export DOCKER_USERNAME
+export FRONTEND_IMAGE
+export FRONTEND_IMAGE_TAG_VERSION
+export BACKEND_IMAGE
+export BACKEND_IMAGE_TAG_VERSION
+
 echo -e "${BLUE}════════════════════════════════════════════════════════${NC}"
 echo -e "${BLUE}   🚀 Deploying POC Next to OVH Kubernetes             ${NC}"
 echo -e "${BLUE}════════════════════════════════════════════════════════${NC}"
@@ -54,8 +60,10 @@ echo -e "  - ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG_VERSION}"
 echo ""
 
 # Update the deployment.yaml file to use the new images
-sed -i "s|image: xmendialdua/poc-next-backend:.*|image: ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG_VERSION}|g" deployment.yaml
-sed -i "s|image: xmendialdua/poc-next-frontend:.*|image: ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG_VERSION}|g" deployment.yaml
+#sed -i "s|image: xmendialdua/poc-next-backend:.*|image: ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG_VERSION}|g" deployment.yaml
+#sed -i "s|image: xmendialdua/poc-next-frontend:.*|image: ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG_VERSION}|g" deployment.yaml
+
+
 
 # Apply Kubernetes configurations
 echo -e "${BLUE}Applying Kubernetes configurations...${NC}"
@@ -65,7 +73,9 @@ echo -e "${GREEN}✓ RBAC applied${NC}"
 kubectl apply -f configmap.yaml -n $NAMESPACE
 echo -e "${GREEN}✓ ConfigMap and Secrets applied${NC}"
 
-kubectl apply -f deployment.yaml -n $NAMESPACE
+# kubectl apply -f deployment.yaml -n $NAMESPACE
+envsubst < deployment.yaml
+envsubst < deployment.yaml | kubectl apply -f - -n $NAMESPACE
 echo -e "${GREEN}✓ Deployments applied${NC}"
 
 kubectl apply -f service.yaml -n $NAMESPACE
