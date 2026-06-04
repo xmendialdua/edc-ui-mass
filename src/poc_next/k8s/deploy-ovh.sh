@@ -41,6 +41,7 @@ if [ $exit_code -eq 0 ]; then
     echo "   - Data Publication:     https://ds-management.51.178.94.25.nip.io/data-publication"
     echo "   - Partner Data:         https://ds-management.51.178.94.25.nip.io/partner-data"
     echo "   - Sharepoint Data:      https://ds-management.51.178.94.25.nip.io/sharepoint-data"
+    echo "   - Partner Login:        https://ds-management.51.178.94.25.nip.io/partner-login"
     echo ""
     echo "🔍 Comandos útiles:"
     echo "   kubectl get pods -n ds-management-ui"

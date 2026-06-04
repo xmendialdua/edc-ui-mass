@@ -7,7 +7,8 @@ NAMESPACE="ds-management-ui"
 BACKEND_IMAGE="xmendialdua/poc-next-backend"
 FRONTEND_IMAGE="xmendialdua/poc-next-frontend"
 IMAGE_TAG_LATEST="latest"
-IMAGE_TAG_VERSION="v1.0.0"
+BACKEND_IMAGE_TAG_VERSION="v1.0.1"
+FRONTEND_IMAGE_TAG_VERSION="v1.0.2"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -47,13 +48,13 @@ echo ""
 # docker push ${FRONTEND_IMAGE}:${IMAGE_TAG_VERSION}
 
 echo -e "${BLUE}Using existing Docker Hub images:${NC}"
-echo -e "  - ${BACKEND_IMAGE}:${IMAGE_TAG_LATEST}"
-echo -e "  - ${FRONTEND_IMAGE}:${IMAGE_TAG_LATEST}"
+echo -e "  - ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG_VERSION}"
+echo -e "  - ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG_VERSION}"
 echo ""
 
 # Update the deployment.yaml file to use the new images
-sed -i "s|image: xmendialdua/poc-next-backend:.*|image: ${BACKEND_IMAGE}:${IMAGE_TAG_LATEST}|g" deployment.yaml
-sed -i "s|image: xmendialdua/poc-next-frontend:.*|image: ${FRONTEND_IMAGE}:${IMAGE_TAG_LATEST}|g" deployment.yaml
+sed -i "s|image: xmendialdua/poc-next-backend:.*|image: ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG_VERSION}|g" deployment.yaml
+sed -i "s|image: xmendialdua/poc-next-frontend:.*|image: ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG_VERSION}|g" deployment.yaml
 
 # Apply Kubernetes configurations
 echo -e "${BLUE}Applying Kubernetes configurations...${NC}"

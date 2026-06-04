@@ -82,7 +82,7 @@ spec:
       serviceAccountName: poc-next-sa
       containers:
       - name: frontend
-        image: xmendialdua/poc-next-frontend:latest
+        image: xmendialdua/poc-next-frontend:v1.0.2
         ports:
         - containerPort: 3001
         env:

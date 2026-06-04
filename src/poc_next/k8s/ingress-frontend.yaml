@@ -63,3 +63,21 @@ spec:
             name: poc-next-frontend
             port:
               number: 3001
+
+      # Partner Login: autenticación de partners
+      - path: /partner-login
+        pathType: Prefix
+        backend:
+          service:
+            name: poc-next-frontend
+            port:
+              number: 3001
+
+      # Catch-all para todas las rutas de Next.js no listadas explícitamente
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: poc-next-frontend
+            port:
+              number: 3001
