@@ -14,19 +14,24 @@ echo "🔑 Generando claves ES256K (secp256k1) para ${CONNECTOR_NAME}"
 echo "=============================================================="
 echo ""
 
-# 1. Generar clave privada ES256K (NO RSA)
-echo "1️⃣ Generando clave privada ES256K (secp256k1)..."
+# 1. Generar clave privada ES256K (NO RSA) y convertir a PKCS#8 (BEGIN PRIVATE KEY)
+# El signer de EDC requiere formato PKCS#8 con saltos de línea reales para parsear la clave
+echo "1️⃣ Generando clave privada ES256K (secp256k1) en formato PKCS#8..."
 openssl ecparam -name secp256k1 -genkey -noout \
+  -out /tmp/ikln-token-signer-private-ec.pem
+openssl pkcs8 -topk8 -nocrypt \
+  -in /tmp/ikln-token-signer-private-ec.pem \
   -out /tmp/ikln-token-signer-private.pem
+rm -f /tmp/ikln-token-signer-private-ec.pem
 
 # 2. Generar clave pública correspondiente
 echo "2️⃣ Generando clave pública correspondiente..."
-openssl ec -in /tmp/ikln-token-signer-private.pem \
+openssl pkey -in /tmp/ikln-token-signer-private.pem \
   -pubout -out /tmp/ikln-token-signer-public.pem
 
 # 3. Verificar que son claves secp256k1
 echo "3️⃣ Verificando que son claves secp256k1..."
-CURVE=$(openssl ec -in /tmp/ikln-token-signer-private.pem -text -noout 2>&1 | grep -i "secp256k1" || true)
+CURVE=$(openssl pkey -in /tmp/ikln-token-signer-private.pem -text -noout 2>&1 | grep -i "secp256k1" || true)
 
 if [ -z "$CURVE" ]; then
   echo "❌ ERROR: Las claves generadas NO son secp256k1"
@@ -81,22 +86,24 @@ fi
 
 echo ""
 
-# 6. Preparar claves para Vault (escapar saltos de línea)
+# 6. Cargar claves en Vault usando kubectl cp para garantizar saltos de línea reales
+# IMPORTANTE: NO usar sed para escapar \n — el parser PEM de EDC requiere saltos reales
 # Gate de validación: solo se pondrá a true si TODAS las verificaciones pasan
 KEYS_VALID=false
 echo "6️⃣ Cargando claves ES256K en Vault..."
 
-PRIVATE_KEY=$(cat /tmp/ikln-token-signer-private.pem | sed ':a;N;$!ba;s/\n/\\n/g')
-PUBLIC_KEY=$(cat /tmp/ikln-token-signer-public.pem | sed ':a;N;$!ba;s/\n/\\n/g')
-
-# 7. Cargar en Vault
+# 7. Copiar ficheros PEM al pod y cargar desde el propio pod
 echo "   → Cargando tokenSignerPrivateKey..."
-kubectl exec -n $NAMESPACE $VAULT_POD -- sh -c \
-  "vault kv put secret/tokenSignerPrivateKey content=\"${PRIVATE_KEY}\""
+kubectl cp /tmp/ikln-token-signer-private.pem \
+  "$NAMESPACE/$VAULT_POD:/tmp/ikln-token-signer-private.pem"
+kubectl exec -n $NAMESPACE $VAULT_POD -- sh -lc \
+  'vault kv put secret/tokenSignerPrivateKey content="$(cat /tmp/ikln-token-signer-private.pem)"'
 
 echo "   → Cargando tokenSignerPublicKey..."
-kubectl exec -n $NAMESPACE $VAULT_POD -- sh -c \
-  "vault kv put secret/tokenSignerPublicKey content=\"${PUBLIC_KEY}\""
+kubectl cp /tmp/ikln-token-signer-public.pem \
+  "$NAMESPACE/$VAULT_POD:/tmp/ikln-token-signer-public.pem"
+kubectl exec -n $NAMESPACE $VAULT_POD -- sh -lc \
+  'vault kv put secret/tokenSignerPublicKey content="$(cat /tmp/ikln-token-signer-public.pem)"'
 
 echo ""
 echo "✅ Claves ES256K cargadas exitosamente en Vault"
@@ -110,8 +117,8 @@ _VAULT_PRIV_RAW=$(kubectl exec -n $NAMESPACE $VAULT_POD -- \
   jq -r '.data.data.content')
 VAULT_PRIVATE_FIRST_LINE=$(printf '%b\n' "$_VAULT_PRIV_RAW" | head -1)
 
-if [ "$VAULT_PRIVATE_FIRST_LINE" = "-----BEGIN EC PRIVATE KEY-----" ]; then
-  echo "   ✅ tokenSignerPrivateKey: Formato correcto (EC PRIVATE KEY)"
+if [ "$VAULT_PRIVATE_FIRST_LINE" = "-----BEGIN PRIVATE KEY-----" ]; then
+  echo "   ✅ tokenSignerPrivateKey: Formato correcto (PKCS#8 PRIVATE KEY)"
 else
   echo "   ❌ tokenSignerPrivateKey: ERROR - Primera línea: $VAULT_PRIVATE_FIRST_LINE"
   exit 1
@@ -134,9 +141,8 @@ echo "   → Verificando tipo EC y curva secp256k1 (leyendo clave de Vault)..."
 VAULT_PRIVATE_CONTENT=$(kubectl exec -n "$NAMESPACE" "$VAULT_POD" -- \
   vault kv get -format=json secret/tokenSignerPrivateKey | \
   jq -r '.data.data.content')
-# Convertir \n escapados a saltos de línea reales y guardar en fichero temporal
-printf '%b\n' "$VAULT_PRIVATE_CONTENT" > /tmp/ikln-vault-verify-private.pem
-VAULT_KEY_CURVE=$(openssl ec -text -noout -in /tmp/ikln-vault-verify-private.pem 2>&1 | grep -i "secp256k1" || true)
+printf '%s' "$VAULT_PRIVATE_CONTENT" > /tmp/ikln-vault-verify-private.pem
+VAULT_KEY_CURVE=$(openssl pkey -text -noout -in /tmp/ikln-vault-verify-private.pem 2>&1 | grep -i "secp256k1" || true)
 if [ -z "$VAULT_KEY_CURVE" ]; then
   echo "   ❌ ERROR: La clave almacenada en Vault NO es de curva secp256k1"
   echo "   Diagnóstico openssl:"
@@ -193,7 +199,9 @@ echo "   kubectl exec -n umbrella ikln-edc-vault-0 -- \\"
 echo "     vault kv put secret/tokenSignerPrivateKey @/tmp/ikln-vault-backup-private.json"
 echo ""
 
-# Limpiar archivos temporales locales
+# Limpiar archivos temporales locales y dentro del pod
 rm -f /tmp/ikln-token-signer-private.pem /tmp/ikln-token-signer-public.pem
+kubectl exec -n $NAMESPACE $VAULT_POD -- rm -f \
+  /tmp/ikln-token-signer-private.pem /tmp/ikln-token-signer-public.pem 2>/dev/null || true
 
 echo "✅ Script completado!"
