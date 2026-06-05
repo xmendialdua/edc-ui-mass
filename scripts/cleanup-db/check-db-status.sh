@@ -164,10 +164,10 @@ echo -e "${CYAN}═════════════════════�
 
 # Primero verificar si la tabla existe
 TABLE_EXISTS=$(kubectl -n $NAMESPACE exec -i $POD_NAME -- env PGPASSWORD=$DB_PASSWORD psql -U $DB_USER -d $DB_NAME -t -c \
-  "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'edc_data_plane_instance');" 2>&1 | tr -d ' ')
+  "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'edc_edr_entry');" 2>&1 | tr -d ' ')
 
 if [ "$TABLE_EXISTS" = "t" ]; then
-  EDR_COUNT=$(kubectl -n $NAMESPACE exec -i $POD_NAME -- env PGPASSWORD=$DB_PASSWORD psql -U $DB_USER -d $DB_NAME -t -c "SELECT COUNT(*) FROM edc_data_plane_instance;" 2>&1 | tr -d ' ')
+  EDR_COUNT=$(kubectl -n $NAMESPACE exec -i $POD_NAME -- env PGPASSWORD=$DB_PASSWORD psql -U $DB_USER -d $DB_NAME -t -c "SELECT COUNT(*) FROM edc_edr_entry;" 2>&1 | tr -d ' ')
   
   if [ -z "$EDR_COUNT" ] || [ "$EDR_COUNT" = "0" ]; then
     echo -e "${GREEN}✅ No hay EDRs en la base de datos${NC}"
@@ -178,7 +178,7 @@ if [ "$TABLE_EXISTS" = "t" ]; then
     echo "   ./cleanup-db-edrs-${CONNECTOR_NAME}.sh all  # Eliminar todos"
   fi
 else
-  echo -e "${YELLOW}⚠️  Tabla edc_data_plane_instance no existe en esta versión de EDC${NC}"
+  echo -e "${YELLOW}⚠️  Tabla edc_edr_entry no existe en esta versión de EDC${NC}"
 fi
 
 echo ""
