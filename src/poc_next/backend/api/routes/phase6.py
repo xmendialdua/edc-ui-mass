@@ -709,12 +709,7 @@ async def get_transfer_status(transfer_id: str) -> Dict[str, Any]:
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
     
     logger.info(f"\n{'-'*80}")
-    logger.info(f"🔍 Consultando estado de transferencia")
-    logger.info(f"   Timestamp: {timestamp}")
-    logger.info(f"   Transfer ID: {transfer_id}")
-    
-    print(f"\n{'-'*80}", flush=True)
-    print(f"{timestamp} | INFO     | 🔍 Consultando estado: {transfer_id}", flush=True)
+    logger.info(f"🔍 Consultando estado de transferencia {transfer_id}")
     
     ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
     try:
@@ -880,6 +875,9 @@ async def download_file(request: DownloadFileRequest):
         ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
         mass_client = EdcManagementClient(settings.mass_management_url, settings.mass_api_key)
         
+        logger.info(f"{'='*80}\n")
+        logger.info(f"🔍 Requested: download-file")
+
         try:
             if not token:
                 edr_data = await ikln_client.get_edr_for_transfer(request.transferId)
@@ -897,6 +895,8 @@ async def download_file(request: DownloadFileRequest):
             # Log request details
             logger.info(f"🔍 Downloading from EDR endpoint: {endpoint}")
             logger.info(f"🔍 Asset ID: {asset_id}")
+
+            logger.info(f"    Making request to Consumer DataPlane: {endpoint}")
 
             # Make request to Consumer DataPlane
             async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
@@ -919,12 +919,14 @@ async def download_file(request: DownloadFileRequest):
                         response_text[:200],
                     )
 
+                    logger.info(f"    Trying to get the EDR for transfer {request.transferId} with forced refresh")
                     fresh_edr = await ikln_client.get_edr_for_transfer(
                         request.transferId,
                         force_dataaddress_refresh=True,
                     )
 
                     if fresh_edr:
+                        logger.info(f" ✅ Successfully refreshed EDR token for transfer {request.transferId}: {fresh_edr}")
                         if fresh_edr.get("error") == "config_error":
                             refresh_message = fresh_edr.get("message", "Unknown configuration error")
                             logger.error("❌ Token refresh configuration error for transfer %s: %s", request.transferId, refresh_message)
@@ -946,6 +948,13 @@ async def download_file(request: DownloadFileRequest):
                                     "Authorization": token
                                 }
                             )
+                    else:
+                        logger.error("❌ Failed to refresh EDR token for transfer %s after receiving %s", request.transferId, response.status_code)
+                        raise HTTPException(
+                            status_code=response.status_code,
+                            detail=f"Initial request failed with {response.status_code} and token refresh also failed"
+                        )
+
 
                 response.raise_for_status()
 
