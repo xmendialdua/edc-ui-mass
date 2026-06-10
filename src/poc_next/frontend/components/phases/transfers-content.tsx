@@ -489,6 +489,8 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
               const backgroundColor = getCardBackground(transfer.stateCode, transfer.edrAvailable);
               const isPolling = pollingTransfers.has(transfer.id);
               const isCollapsed = collapsedCards.has(transfer.id);
+              const isFinalState = transfer.stateCode === 800 || transfer.stateCode === 850;
+              const isWaitingEdrState = (transfer.stateCode === 500 || transfer.stateCode === 600) && !transfer.edrAvailable;
 
               return (
                 <div
@@ -594,7 +596,17 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                           Using DSP protocol (Tractus-X compliant)
                         </div>
                       </div>
-                    ) : (
+                    ) : isFinalState ? (
+                      <div style={{ fontSize: '11px', color: '#b91c1c', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          ⛔ <strong>No EDR Available</strong>
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#7f1d1d', marginLeft: '20px' }}>
+                          Transfer finished in {transfer.state} without EDR.
+                          Create a new transfer to generate a fresh EDR.
+                        </div>
+                      </div>
+                    ) : isWaitingEdrState ? (
                       <div style={{ fontSize: '11px', color: '#92400e', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                           ⏳ <strong>Waiting for EDR</strong>
@@ -602,6 +614,15 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                         <div style={{ fontSize: '10px', color: '#78716c', marginLeft: '20px' }}>
                           EDR token is being generated...<br/>
                           Auto-monitoring active (refresh in ~5s)
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '11px', color: '#92400e', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          ℹ️ <strong>EDR not available yet</strong>
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#78716c', marginLeft: '20px' }}>
+                          Refresh transfer status to continue diagnosis.
                         </div>
                       </div>
                     )}

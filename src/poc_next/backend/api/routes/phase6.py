@@ -516,9 +516,6 @@ async def list_transfers(
     logger.info(f"   Timestamp: {timestamp}")
     logger.info(f"   Consumer Management: {consumer_mgmt}")
     
-    print(f"\n{'~'*80}", flush=True)
-    print(f"{timestamp} | INFO     | 📋 Listando transferencias", flush=True)
-    
     consumer_client = EdcManagementClient(consumer_mgmt, consumer_api_key)
     try:
         # Get all transfers
@@ -530,8 +527,6 @@ async def list_transfers(
         logger.info(f"   Número de transferencias: {len(transfers_raw)}")
         logger.info(f"   Tiempo de consulta: {query_time:.2f}s")
         
-        print(f"{timestamp} | INFO     | 📦 Transferencias: {len(transfers_raw)} total", flush=True)
-
         # Process transfers and use ONLY cached/embedded EDR data
         # Skip expensive EDR queries - the background monitor will populate the cache
         transfers_info = []
@@ -911,6 +906,47 @@ async def download_file(request: DownloadFileRequest):
                         "Authorization": token
                     }
                 )
+
+                # For 401/403, force EDR refresh and retry once.
+                # Some connector responses (e.g. parser/auth errors) do not include
+                # "token expired" text but still require a refreshed token.
+                if response.status_code in (401, 403):
+                    response_text = (response.text or "").lower()
+                    logger.warning(
+                        "⚠️ DataPlane returned %s for transfer %s, attempting forced EDR refresh. Body: %s",
+                        response.status_code,
+                        request.transferId,
+                        response_text[:200],
+                    )
+
+                    fresh_edr = await ikln_client.get_edr_for_transfer(
+                        request.transferId,
+                        force_dataaddress_refresh=True,
+                    )
+
+                    if fresh_edr:
+                        if fresh_edr.get("error") == "config_error":
+                            refresh_message = fresh_edr.get("message", "Unknown configuration error")
+                            logger.error("❌ Token refresh configuration error for transfer %s: %s", request.transferId, refresh_message)
+                            raise HTTPException(
+                                status_code=502,
+                                detail=f"EDR token refresh failed due to connector configuration: {refresh_message}"
+                            )
+
+                        fresh_token = fresh_edr.get("authorization")
+                        fresh_endpoint = fresh_edr.get("endpoint") or endpoint
+
+                        if fresh_token and fresh_endpoint:
+                            token = fresh_token
+                            endpoint = fresh_endpoint
+                            logger.info("🔄 Retrying download with refreshed EDR token for transfer %s", request.transferId)
+                            response = await client.get(
+                                endpoint,
+                                headers={
+                                    "Authorization": token
+                                }
+                            )
+
                 response.raise_for_status()
 
                 # Check if Content-Disposition comes from DataPlane
@@ -1007,6 +1043,8 @@ async def download_file(request: DownloadFileRequest):
             status_code=e.response.status_code,
             detail=error_detail
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Download general exception: {str(e)}")
         print(f"❌ Download exception: {type(e).__name__}: {str(e)}")
