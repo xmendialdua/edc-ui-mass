@@ -1,7 +1,10 @@
 """Phase 6 routes — Catalog, negotiations, and transfers."""
 
 import asyncio
+import base64
 import logging
+import re
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
@@ -62,6 +65,90 @@ def get_consumer_api_key(management_url: str) -> str:
     else:
         # Default to IKLN API key for unknown connectors
         return settings.ikln_api_key
+
+
+def _decode_jwt_segment(segment: str) -> Dict[str, Any]:
+    """Decode a JWT segment as JSON without verifying signature."""
+    padding = "=" * ((4 - len(segment) % 4) % 4)
+    raw = base64.urlsafe_b64decode((segment + padding).encode("ascii"))
+    return json.loads(raw.decode("utf-8"))
+
+
+def _analyze_jwt_timing(token: Optional[str]) -> Dict[str, Any]:
+    """Return lightweight timing diagnostics for a JWT token."""
+    if not token:
+        return {
+            "present": False,
+            "validFormat": False,
+            "error": "token_missing",
+        }
+
+    parts = token.split(".")
+    if len(parts) < 2:
+        return {
+            "present": True,
+            "validFormat": False,
+            "error": "not_jwt",
+            "tokenLength": len(token),
+        }
+
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+
+    try:
+        header = _decode_jwt_segment(parts[0])
+        payload = _decode_jwt_segment(parts[1])
+    except Exception as e:
+        return {
+            "present": True,
+            "validFormat": False,
+            "error": f"decode_error: {type(e).__name__}",
+            "tokenLength": len(token),
+        }
+
+    exp = payload.get("exp")
+    iat = payload.get("iat")
+    nbf = payload.get("nbf")
+
+    seconds_to_exp = None
+    expired = None
+    if isinstance(exp, (int, float)):
+        seconds_to_exp = int(exp) - now_ts
+        expired = seconds_to_exp <= 0
+
+    valid_window_seconds = None
+    if isinstance(exp, (int, float)) and isinstance(iat, (int, float)):
+        valid_window_seconds = int(exp) - int(iat)
+
+    return {
+        "present": True,
+        "validFormat": True,
+        "tokenLength": len(token),
+        "tokenPreview": f"{token[:20]}...{token[-10:]}" if len(token) > 35 else token,
+        "header": {
+            "alg": header.get("alg"),
+            "kid": header.get("kid"),
+            "typ": header.get("typ"),
+        },
+        "claims": {
+            "iss": payload.get("iss"),
+            "aud": payload.get("aud"),
+            "sub": payload.get("sub"),
+            "jti": payload.get("jti"),
+            "iat": iat,
+            "exp": exp,
+            "nbf": nbf,
+        },
+        "timing": {
+            "nowTs": now_ts,
+            "nowUtc": datetime.fromtimestamp(now_ts, tz=timezone.utc).isoformat(),
+            "iatUtc": datetime.fromtimestamp(int(iat), tz=timezone.utc).isoformat() if isinstance(iat, (int, float)) else None,
+            "expUtc": datetime.fromtimestamp(int(exp), tz=timezone.utc).isoformat() if isinstance(exp, (int, float)) else None,
+            "nbfUtc": datetime.fromtimestamp(int(nbf), tz=timezone.utc).isoformat() if isinstance(nbf, (int, float)) else None,
+            "secondsToExpiration": seconds_to_exp,
+            "expired": expired,
+            "validWindowSeconds": valid_window_seconds,
+        },
+    }
 
 
 class NegotiateAssetRequest(BaseModel):
@@ -676,6 +763,23 @@ async def get_transfer_edr(transfer_id: str) -> Dict[str, Any]:
     edr = get_cached_edr(transfer_id)
     
     if edr:
+        # Monitor may store a failure sentinel in cache (no usable token/endpoint).
+        if isinstance(edr, dict) and edr.get("error"):
+            return {
+                "success": False,
+                "error": f"cached_error:{edr.get('error')}",
+                "message": edr.get("message"),
+                "cached": True
+            }
+
+        if not (edr.get("endpoint") and edr.get("authorization")):
+            return {
+                "success": False,
+                "error": "cached_edr_incomplete",
+                "message": "Cached EDR exists but endpoint/token is missing",
+                "cached": True
+            }
+
         return {
             "success": True,
             "edr": edr,
@@ -688,7 +792,23 @@ async def get_transfer_edr(transfer_id: str) -> Dict[str, Any]:
         print(f"🔍 Fetching EDR on-demand for transfer {transfer_id}")
         edr_data = await ikln_client.get_edr_for_transfer(transfer_id)
         
+        if edr_data and isinstance(edr_data, dict) and edr_data.get("error"):
+            return {
+                "success": False,
+                "error": f"connector_error:{edr_data.get('error')}",
+                "message": edr_data.get("message"),
+                "cached": False
+            }
+
         if edr_data:
+            if not (edr_data.get("endpoint") and edr_data.get("authorization")):
+                return {
+                    "success": False,
+                    "error": "connector_edr_incomplete",
+                    "message": "Connector returned EDR without endpoint or token",
+                    "cached": False
+                }
+
             return {
                 "success": True,
                 "edr": edr_data,
@@ -705,6 +825,111 @@ async def get_transfer_edr(transfer_id: str) -> Dict[str, Any]:
             "success": False,
             "error": str(e),
             "cached": False
+        }
+    finally:
+        await ikln_client.close()
+
+
+@router.get("/edr-diagnostics/{transfer_id}")
+async def get_edr_diagnostics(transfer_id: str, force_refresh: bool = False) -> Dict[str, Any]:
+    """Detailed diagnostics for transfer/EDR status and JWT timing."""
+    ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
+    now_utc = datetime.now(timezone.utc).isoformat()
+
+    try:
+        transfer = await ikln_client.get_transfer(transfer_id)
+        state = transfer.get("state")
+        data_address = transfer.get("dataAddress") or {}
+
+        cached_edr = get_cached_edr(transfer_id)
+
+        current_endpoint = None
+        current_token = None
+        current_source = None
+        current_error = None
+        current_captured_at = None
+        current_failed_at = None
+
+        if cached_edr:
+            if cached_edr.get("error"):
+                current_error = cached_edr.get("error")
+                current_failed_at = cached_edr.get("failedAt")
+            else:
+                current_endpoint = cached_edr.get("endpoint")
+                current_token = cached_edr.get("authorization")
+                current_source = "cache"
+                current_captured_at = cached_edr.get("capturedAt")
+
+        if not current_endpoint and not current_token:
+            embedded_endpoint = data_address.get("endpoint") or data_address.get("baseUrl")
+            embedded_token = data_address.get("authCode") or data_address.get("authorization") or data_address.get("authKey")
+            if embedded_endpoint or embedded_token:
+                current_endpoint = embedded_endpoint
+                current_token = embedded_token
+                current_source = "embedded_dataAddress"
+
+        refresh_result: Dict[str, Any] = {
+            "requested": force_refresh,
+            "success": False,
+            "error": None,
+            "message": None,
+            "source": None,
+            "endpoint": None,
+            "tokenTiming": _analyze_jwt_timing(None),
+            "rejectedTokenTiming": None,
+        }
+
+        if force_refresh:
+            refreshed = await ikln_client.get_edr_for_transfer(
+                transfer_id,
+                force_dataaddress_refresh=True,
+            )
+
+            if refreshed and isinstance(refreshed, dict) and refreshed.get("error"):
+                refresh_result["error"] = refreshed.get("error")
+                refresh_result["message"] = refreshed.get("message")
+
+                # If STS reports "Invalid token -> <jwt>", decode it to expose exp/iat.
+                message_text = refreshed.get("message") or ""
+                token_match = re.search(r"Invalid token\s*->\s*([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)", message_text)
+                if token_match:
+                    rejected_token = token_match.group(1)
+                    refresh_result["rejectedTokenTiming"] = _analyze_jwt_timing(rejected_token)
+            elif refreshed:
+                refresh_result["success"] = True
+                refresh_result["source"] = "forced_dataaddress"
+                refresh_result["endpoint"] = refreshed.get("endpoint")
+                refresh_result["tokenTiming"] = _analyze_jwt_timing(refreshed.get("authorization"))
+            else:
+                refresh_result["error"] = "unavailable"
+                refresh_result["message"] = "No EDR returned by connector"
+
+        return {
+            "success": True,
+            "serverTimeUtc": now_utc,
+            "transfer": {
+                "id": transfer_id,
+                "state": state,
+                "stateCode": get_state_code(state),
+                "assetId": transfer.get("assetId"),
+                "contractId": transfer.get("contractId"),
+            },
+            "currentEdr": {
+                "available": bool(current_endpoint and current_token),
+                "source": current_source,
+                "error": current_error,
+                "capturedAt": current_captured_at,
+                "failedAt": current_failed_at,
+                "endpoint": current_endpoint,
+                "tokenTiming": _analyze_jwt_timing(current_token),
+            },
+            "refreshAttempt": refresh_result,
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "serverTimeUtc": now_utc,
         }
     finally:
         await ikln_client.close()
@@ -787,7 +1012,7 @@ async def get_transfer_status(transfer_id: str) -> Dict[str, Any]:
 
 
 @router.get("/get-fresh-token/{transfer_id}")
-async def get_fresh_token(transfer_id: str) -> Dict[str, Any]:
+async def get_fresh_token(transfer_id: str, force_refresh: bool = False) -> Dict[str, Any]:
     """Get a fresh EDR token for a transfer (bypass cache)."""
     from datetime import datetime
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
@@ -804,10 +1029,23 @@ async def get_fresh_token(transfer_id: str) -> Dict[str, Any]:
     
     ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
     try:
-        logger.info(f"🔍 Llamando a get_edr_for_transfer...")
+        logger.info(f"🔍 Llamando a get_edr_for_transfer... force_refresh={force_refresh}")
         print(f"{timestamp} | INFO     | 🔍 Consultando EDR para transfer {transfer_id}", flush=True)
         
-        edr_data = await ikln_client.get_edr_for_transfer(transfer_id)
+        edr_data = await ikln_client.get_edr_for_transfer(
+            transfer_id,
+            force_dataaddress_refresh=force_refresh,
+        )
+
+        if edr_data and isinstance(edr_data, dict) and edr_data.get("error"):
+            error_code = edr_data.get("error")
+            error_message = edr_data.get("message", "Unknown refresh error")
+            logger.error(f"❌ Error obteniendo token fresco ({error_code}): {error_message}")
+            return {
+                "success": False,
+                "error": f"{error_code}: {error_message}",
+                "tokenDiagnostics": _analyze_jwt_timing(None),
+            }
 
         if not edr_data:
             logger.warning(f"⚠️ EDR no disponible para transferencia {transfer_id}")
@@ -854,7 +1092,8 @@ async def get_fresh_token(transfer_id: str) -> Dict[str, Any]:
         return {
             "success": True,
             "token": token,
-            "endpoint": endpoint
+            "endpoint": endpoint,
+            "tokenDiagnostics": _analyze_jwt_timing(token),
         }
 
     except Exception as e:

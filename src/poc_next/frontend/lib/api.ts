@@ -227,7 +227,7 @@ export const api = {
       );
     },
     initiateTransfer: (data: { contractAgreementId: string; assetId: string; consumerBpn?: string; consumerManagementUrl?: string }) =>
-      apiRequest<{ success: boolean; logs: string[] }>(
+      apiRequest<{ success: boolean; logs: string[]; transfer?: any; error?: string }>(
         '/api/phase6/initiate-transfer-for-contract',
         { method: 'POST', body: JSON.stringify(data) }
       ),
@@ -272,12 +272,23 @@ export const api = {
 
       return { blob, contentType, filename };
     },
-    getTransferEdr: (transferId: string) => apiRequest<{ success: boolean; edr: any; cached: boolean }>(
+    getTransferEdr: (transferId: string) => apiRequest<{ success: boolean; edr?: any; cached: boolean; error?: string; message?: string }>(
       `/api/phase6/transfer-edr/${transferId}`,
       { method: 'GET' }
     ),
-    getFreshToken: (transferId: string) => apiRequest<{ success: boolean; token: string; endpoint: string; error?: string }>(
-      `/api/phase6/get-fresh-token/${transferId}`,
+    getFreshToken: (transferId: string, forceRefresh: boolean = false) => apiRequest<{ success: boolean; token?: string; endpoint?: string; error?: string; tokenDiagnostics?: any }>(
+      `/api/phase6/get-fresh-token/${transferId}?force_refresh=${forceRefresh}`,
+      { method: 'GET' }
+    ),
+    getEdrDiagnostics: (transferId: string, forceRefresh: boolean = false) => apiRequest<{
+      success: boolean;
+      serverTimeUtc?: string;
+      transfer?: any;
+      currentEdr?: any;
+      refreshAttempt?: any;
+      error?: string;
+    }>(
+      `/api/phase6/edr-diagnostics/${transferId}?force_refresh=${forceRefresh}`,
       { method: 'GET' }
     ),
     getTransferStatus: (transferId: string) => apiRequest<{ 

@@ -597,11 +597,12 @@ class EdcManagementClient:
                     logger.info(f"   Dataaddress response status: {dataaddress_resp.status_code}")
                     
                     if dataaddress_resp.status_code != 200:
-                        error_body = dataaddress_resp.text[:500]
+                        raw_error_body = dataaddress_resp.text or ""
+                        error_body = raw_error_body[:2000]
                         logger.warning(f"   ❌ Failed to get dataaddress for EDR {edr_id}")
                         logger.warning(f"   HTTP Status: {dataaddress_resp.status_code}")
                         logger.warning(f"   Response body: {error_body}")
-                        logger.warning(f"   Error: {error_body[:200]}")
+                        logger.warning(f"   Error summary: {error_body[:300]}")
                         
                         # Detect configuration errors that won't be fixed by retrying
                         is_config_error = False
@@ -612,6 +613,9 @@ class EdcManagementClient:
                             logger.error(f" ⚠️ DIM WALLET CONFIG ERROR: RS256 vs ES256K mismatch")
                             is_config_error = True
                         
+                        # Detect STS invalid token failures (commonly expired refresh token).
+                        is_invalid_token_error = "Invalid token" in raw_error_body or "token has expired" in raw_error_body.lower()
+
                         # If dataaddress fails but we already have data from EDR object, use that
                         # unless force_dataaddress_refresh is requested.
                         if not force_dataaddress_refresh and (direct_endpoint or direct_authorization):
@@ -621,7 +625,11 @@ class EdcManagementClient:
                             logger.info(f" ✅ Falling back to EDR object data")
                         else:
                             # Return error info for monitor to handle
-                            return {"error": "config_error" if is_config_error else "unavailable", "message": error_body[:200]}
+                            if is_config_error:
+                                return {"error": "config_error", "message": error_body}
+                            if is_invalid_token_error:
+                                return {"error": "invalid_token", "message": error_body}
+                            return {"error": "unavailable", "message": error_body}
                     else:
                         edr_data = dataaddress_resp.json()
                         logger.info(f"✅ Successfully retrieved EDR data from dataaddress endpoint")
@@ -645,10 +653,10 @@ class EdcManagementClient:
                     # network/timeouts from connector configuration errors.
                     if force_dataaddress_refresh:
                         if isinstance(e, httpx.TimeoutException):
-                            return {"error": "timeout", "message": error_message[:200]}
+                            return {"error": "timeout", "message": error_message[:500]}
                         if isinstance(e, httpx.RequestError):
-                            return {"error": "network", "message": error_message[:200]}
-                        return {"error": "unavailable", "message": f"{error_type}: {error_message}"[:200]}
+                            return {"error": "network", "message": error_message[:500]}
+                        return {"error": "unavailable", "message": f"{error_type}: {error_message}"[:500]}
                     if not (endpoint or authorization):
                         return None
             

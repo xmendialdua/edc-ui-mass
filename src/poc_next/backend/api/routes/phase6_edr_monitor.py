@@ -4,7 +4,7 @@ import asyncio
 import logging
 import httpx
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from clients.edc import EdcManagementClient
 from config import settings
@@ -93,7 +93,7 @@ async def monitor_transfer_for_edr(transfer_id: str, max_attempts: int = 60, int
                     edr_data = {
                         "endpoint": endpoint,
                         "authorization": auth,
-                        "capturedAt": datetime.now().isoformat(),
+                        "capturedAt": datetime.now(timezone.utc).isoformat(),
                         "transferState": state
                     }
                     logger.info(f"✅ EDR found in dataAddress for transfer {transfer_id}")
@@ -110,7 +110,7 @@ async def monitor_transfer_for_edr(transfer_id: str, max_attempts: int = 60, int
                         logger.error(f"🚫 Configuration error for transfer {transfer_id}: {edr_result.get('message')}")
                         logger.error(f"   Stopping monitor - this requires EDC/DIM configuration fix")
                         print(f"🚫 Config error for {transfer_id} - stopping monitor")
-                        _edr_cache[transfer_id] = {**edr_result, "failedAt": datetime.now().isoformat()}
+                        _edr_cache[transfer_id] = {**edr_result, "failedAt": datetime.now(timezone.utc).isoformat()}
                         return None  # Stop monitoring, can't be fixed by retrying
                     
                     # For other errors (unavailable, timeout, network) count consecutive failures
@@ -129,7 +129,7 @@ async def monitor_transfer_for_edr(transfer_id: str, max_attempts: int = 60, int
                         _edr_cache[transfer_id] = {
                             "error": "refresh_failed",
                             "message": edr_result.get("message", "STS token refresh failed persistently")[:200],
-                            "failedAt": datetime.now().isoformat(),
+                            "failedAt": datetime.now(timezone.utc).isoformat(),
                         }
                         return None
                     continue
@@ -137,7 +137,7 @@ async def monitor_transfer_for_edr(transfer_id: str, max_attempts: int = 60, int
                 if edr_result:
                     consecutive_unavailable = 0  # Reset on success
                     edr_data = edr_result
-                    edr_data["capturedAt"] = datetime.now().isoformat()
+                    edr_data["capturedAt"] = datetime.now(timezone.utc).isoformat()
                     edr_data["transferState"] = state
                     logger.info(f"✅ EDR found via EDRs endpoint for transfer {transfer_id}")
                     print(f"✅ EDR captured from EDRs endpoint for transfer {transfer_id} (state: {state})")
