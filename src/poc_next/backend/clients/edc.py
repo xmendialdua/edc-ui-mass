@@ -492,7 +492,7 @@ class EdcManagementClient:
         
         try:
             # Step 1: List all EDRs
-            logger.info(f"\n{'-'*60}")
+            logger.info(f"\n{'-'*90}")
             logger.info(f"📋 STEP 1: Listing all EDRs to find transfer {transfer_id}")
             logger.info(f"   Timestamp: {timestamp}")
             logger.info(f"   EDC URL: {self.base_url}/v3/edrs/request")
@@ -510,11 +510,9 @@ class EdcManagementClient:
             )
             
             logger.info(f"   EDR list response status: {edr_list_resp.status_code}")
-            print(f"{timestamp} | INFO     |    Response status: {edr_list_resp.status_code}", flush=True)
             
             if edr_list_resp.status_code != 200:
                 logger.warning(f"Failed to list EDRs: HTTP {edr_list_resp.status_code} - {edr_list_resp.text[:200]}")
-                print(f"{timestamp} | WARNING  | Failed to list EDRs: {edr_list_resp.status_code}", flush=True)
                 return None
             
             edr_list = edr_list_resp.json()
@@ -522,7 +520,6 @@ class EdcManagementClient:
             # Log the raw response for debugging
             logger.info(f"   Raw EDR response type: {type(edr_list)}")
             logger.info(f"   Retrieved {len(edr_list) if isinstance(edr_list, list) else 0} EDRs")
-            print(f"{timestamp} | INFO     |    Retrieved {len(edr_list) if isinstance(edr_list, list) else 0} EDRs", flush=True)
             
             if not isinstance(edr_list, list):
                 logger.warning(f"EDR list is not a list, got: {type(edr_list)}")
@@ -532,11 +529,10 @@ class EdcManagementClient:
             # Log all transfer IDs in the list
             transfer_ids_in_list = [edr.get('transferProcessId') for edr in edr_list]
             logger.info(f"   Transfer IDs in EDR list: {transfer_ids_in_list}")
-            print(f"{timestamp} | INFO     |    Transfer IDs found: {', '.join(transfer_ids_in_list[:5])}...", flush=True)
+            #print(f"{timestamp} | INFO     |    Transfer IDs found: {', '.join(transfer_ids_in_list[:5])}...", flush=True)
             
             # Step 2: Find the EDR matching this transfer_id
-            logger.info(f"\n🔍 STEP 2: Searching for matching EDR")
-            print(f"{timestamp} | INFO     | 🔍 Searching for transfer: {transfer_id}", flush=True)
+            logger.info(f"📋 STEP 2: Searching for matching EDR for transfer {transfer_id} ")
             
             matching_edr = next(
                 (edr for edr in edr_list if edr.get("transferProcessId") == transfer_id),
@@ -554,12 +550,12 @@ class EdcManagementClient:
             logger.info(f"✅ Found matching EDR for transfer {transfer_id}")
             logger.info(f"   EDR ID: {matching_edr.get('@id')}")
             logger.info(f"   EDR object keys: {list(matching_edr.keys())}")
-            print(f"{timestamp} | INFO     | ✅ Found matching EDR: {matching_edr.get('@id')}", flush=True)
+            logger.info(f"   ✅ Found matching EDR: {matching_edr.get('@id')}")
             
             # Try to extract endpoint and authorization from the EDR object directly first
             # This avoids calling the /dataaddress endpoint which may fail due to STS issues
-            logger.info(f"\n🔧 STEP 3: Extracting endpoint and authorization")
-            print(f"{timestamp} | INFO     | 🔧 Extracting endpoint/auth from EDR", flush=True)
+            logger.info(f"\n📋 STEP 3: Extracting endpoint and authorization from EDR")
+            
             
             endpoint = None
             authorization = None
@@ -567,6 +563,10 @@ class EdcManagementClient:
             # Check if EDR contains direct endpoint data
             direct_endpoint = matching_edr.get("endpoint") or matching_edr.get("baseUrl")
             direct_authorization = matching_edr.get("authCode") or matching_edr.get("authorization") or matching_edr.get("authKey")
+
+            logger.info(f"     Endpoint in EDR object: {direct_endpoint}")
+            logger.info(f"     Authorization in EDR object: {direct_authorization}")
+
             if direct_endpoint or direct_authorization:
                 logger.info(f"✅ Found endpoint/auth directly in EDR object")
                 logger.info(f"   Endpoint: {direct_endpoint}")
@@ -581,7 +581,7 @@ class EdcManagementClient:
             # If not found in EDR object, try the /dataaddress endpoint
             if force_dataaddress_refresh or not endpoint or not authorization:
                 edr_id = matching_edr.get("@id") or transfer_id
-                logger.info(f"\n🔄 STEP 4: Calling /dataaddress endpoint")
+                logger.info(f"📋 STEP 4: Calling /dataaddress endpoint")
                 logger.info(f"   EDR ID: {edr_id}")
                 logger.info(f"   Using auto_refresh=true to enable automatic token refresh")
                 logger.info(f"   URL: {self.base_url}/v3/edrs/{edr_id}/dataaddress?auto_refresh=true")
@@ -598,11 +598,10 @@ class EdcManagementClient:
                     
                     if dataaddress_resp.status_code != 200:
                         error_body = dataaddress_resp.text[:500]
-                        logger.warning(f"❌ Failed to get dataaddress for EDR {edr_id}")
+                        logger.warning(f"   ❌ Failed to get dataaddress for EDR {edr_id}")
                         logger.warning(f"   HTTP Status: {dataaddress_resp.status_code}")
                         logger.warning(f"   Response body: {error_body}")
-                        logger.warning(f"❌ Dataaddress failed: {dataaddress_resp.status_code}")
-                        logger.warning(f"    Error: {error_body[:200]}")
+                        logger.warning(f"   Error: {error_body[:200]}")
                         
                         # Detect configuration errors that won't be fixed by retrying
                         is_config_error = False
@@ -636,11 +635,20 @@ class EdcManagementClient:
                         logger.info(f"   Extracted auth (has value): {bool(authorization)}")
                         
                 except Exception as e:
-                    logger.warning(f"❌ Exception calling dataaddress endpoint: {e}")
-                    print(f"{timestamp} | WARNING  | ❌ Dataaddress exception: {str(e)}", flush=True)
-                    # Continue with data from EDR object if available and not forcing refresh
+                    error_type = type(e).__name__
+                    error_message = str(e) or repr(e)
+                    logger.warning(f"❌ Exception calling dataaddress endpoint ({error_type}): {error_message}")
+                    logger.exception("Dataaddress request failed for transfer %s", transfer_id)
+                    print(f"{timestamp} | WARNING  | ❌ Dataaddress exception ({error_type}): {error_message}", flush=True)
+                    # Continue with data from EDR object if available and not forcing refresh.
+                    # In forced refresh mode return structured error so callers can distinguish
+                    # network/timeouts from connector configuration errors.
                     if force_dataaddress_refresh:
-                        return None
+                        if isinstance(e, httpx.TimeoutException):
+                            return {"error": "timeout", "message": error_message[:200]}
+                        if isinstance(e, httpx.RequestError):
+                            return {"error": "network", "message": error_message[:200]}
+                        return {"error": "unavailable", "message": f"{error_type}: {error_message}"[:200]}
                     if not (endpoint or authorization):
                         return None
             
@@ -653,11 +661,10 @@ class EdcManagementClient:
             logger.info(f"   Endpoint: {endpoint[:50]}...")
             logger.info(f"   Has authorization: {bool(authorization)}")
             logger.info(f"   Authorization length: {len(authorization) if authorization else 0} chars")
-            logger.info(f"{'-'*60}\n")
             print(f"{timestamp} | INFO     | ✅ EDR data ready", flush=True)
             print(f"{timestamp} | INFO     |    Endpoint: {endpoint}", flush=True)
             print(f"{timestamp} | INFO     |    Token length: {len(authorization) if authorization else 0} chars", flush=True)
-            print(f"{'-'*60}\n", flush=True)
+            logger.info(f"{'-'*90}\n")
             
             return {
                 "endpoint": endpoint,

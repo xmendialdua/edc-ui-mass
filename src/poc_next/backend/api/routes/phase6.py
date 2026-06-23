@@ -557,16 +557,23 @@ async def list_transfers(
             edr_endpoint = None
             edr_token = None
             edr_source = None
+            edr_error = None
             
             # Check cached EDR first (from background monitoring)
             cached_edr = get_cached_edr(transfer_id)
             if cached_edr:
-                edr_available = True
-                edr_endpoint = cached_edr.get("endpoint")
-                edr_token = cached_edr.get("authorization")
-                edr_source = "cache"
-                if idx < 3:
-                    logger.info(f"       ✅ EDR obtenido de: CACHÉ (monitor background)")
+                if cached_edr.get("error"):
+                    # Failure sentinel stored by monitor
+                    edr_error = cached_edr.get("error")
+                    if idx < 3:
+                        logger.info(f"       ❌ EDR en caché con error: {edr_error}")
+                else:
+                    edr_available = True
+                    edr_endpoint = cached_edr.get("endpoint")
+                    edr_token = cached_edr.get("authorization")
+                    edr_source = "cache"
+                    if idx < 3:
+                        logger.info(f"       ✅ EDR obtenido de: CACHÉ (monitor background)")
             # Check if EDR is embedded in dataAddress
             elif data_address:
                 edr_endpoint = data_address.get("endpoint") or data_address.get("baseUrl")
@@ -598,13 +605,14 @@ async def list_transfers(
                 "edrEndpoint": edr_endpoint,
                 "edrToken": edr_token,
                 "edrSource": edr_source,  # cache, embedded, or None
+                "edrError": edr_error,  # set when monitor gave up (refresh_failed / config_error)
                 "createdAt": created_at,
                 "stateTimestamp": state_timestamp,
             })
             
-            # Auto-monitor transfers in STARTED state without EDR
-            # This ensures EDRs are captured even for pre-existing transfers
-            if state == "STARTED" and not edr_available:
+            # Auto-monitor transfers in STARTED state without EDR.
+            # Skip if already failed — the failure sentinel in cache prevents infinite loops.
+            if state == "STARTED" and not edr_available and not edr_error:
                 # Check if already being monitored to prevent duplicates
                 if not is_monitoring(transfer_id):
                     if idx < 3:
@@ -926,13 +934,25 @@ async def download_file(request: DownloadFileRequest):
                     )
 
                     if fresh_edr:
-                        logger.info(f" ✅ Successfully refreshed EDR token for transfer {request.transferId}: {fresh_edr}")
-                        if fresh_edr.get("error") == "config_error":
-                            refresh_message = fresh_edr.get("message", "Unknown configuration error")
-                            logger.error("❌ Token refresh configuration error for transfer %s: %s", request.transferId, refresh_message)
+                        refresh_error = fresh_edr.get("error")
+                        if refresh_error:
+                            refresh_message = fresh_edr.get("message", "Unknown refresh error")
+                            if refresh_error == "config_error":
+                                logger.error("❌ Token refresh configuration error for transfer %s: %s", request.transferId, refresh_message)
+                                raise HTTPException(
+                                    status_code=502,
+                                    detail=f"EDR token refresh failed due to connector configuration: {refresh_message}"
+                                )
+
+                            logger.error(
+                                "❌ Token refresh failed for transfer %s with error '%s': %s",
+                                request.transferId,
+                                refresh_error,
+                                refresh_message,
+                            )
                             raise HTTPException(
-                                status_code=502,
-                                detail=f"EDR token refresh failed due to connector configuration: {refresh_message}"
+                                status_code=503,
+                                detail=f"EDR token refresh failed ({refresh_error}): {refresh_message}",
                             )
 
                         fresh_token = fresh_edr.get("authorization")
@@ -941,12 +961,23 @@ async def download_file(request: DownloadFileRequest):
                         if fresh_token and fresh_endpoint:
                             token = fresh_token
                             endpoint = fresh_endpoint
+                            logger.info("✅ Successfully refreshed EDR token for transfer %s", request.transferId)
                             logger.info("🔄 Retrying download with refreshed EDR token for transfer %s", request.transferId)
                             response = await client.get(
                                 endpoint,
                                 headers={
                                     "Authorization": token
                                 }
+                            )
+                        else:
+                            logger.error(
+                                "❌ Refreshed EDR for transfer %s did not include token/endpoint: %s",
+                                request.transferId,
+                                fresh_edr,
+                            )
+                            raise HTTPException(
+                                status_code=502,
+                                detail="EDR refresh returned incomplete data (missing endpoint or token)",
                             )
                     else:
                         logger.error("❌ Failed to refresh EDR token for transfer %s after receiving %s", request.transferId, response.status_code)

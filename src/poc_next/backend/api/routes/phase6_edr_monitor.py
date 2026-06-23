@@ -58,6 +58,9 @@ async def monitor_transfer_for_edr(transfer_id: str, max_attempts: int = 60, int
     ikln_client._client = httpx.AsyncClient(timeout=60.0, verify=False)
     
     try:
+        consecutive_unavailable = 0
+        MAX_CONSECUTIVE_UNAVAILABLE = 5
+
         for attempt in range(max_attempts):
             try:
                 # Get current transfer state
@@ -100,17 +103,39 @@ async def monitor_transfer_for_edr(transfer_id: str, max_attempts: int = 60, int
             if not edr_data:
                 edr_result = await ikln_client.get_edr_for_transfer(transfer_id)
                 
-                # Check if it's a configuration error
+                # Check if it's an error dict (config error or STS unavailable)
                 if edr_result and isinstance(edr_result, dict) and "error" in edr_result:
-                    if edr_result["error"] == "config_error":
-                        logger.error(f"🚫 Configuration error for transfer {transfer_id}: {edr_result['message']}")
+                    error_type = edr_result["error"]
+                    if error_type == "config_error":
+                        logger.error(f"🚫 Configuration error for transfer {transfer_id}: {edr_result.get('message')}")
                         logger.error(f"   Stopping monitor - this requires EDC/DIM configuration fix")
                         print(f"🚫 Config error for {transfer_id} - stopping monitor")
+                        _edr_cache[transfer_id] = {**edr_result, "failedAt": datetime.now().isoformat()}
                         return None  # Stop monitoring, can't be fixed by retrying
-                    # Other errors, continue monitoring
+                    
+                    # For other errors (unavailable, timeout, network) count consecutive failures
+                    consecutive_unavailable += 1
+                    logger.warning(
+                        f"⚠️ EDR unavailable for transfer {transfer_id} "
+                        f"(attempt {attempt+1}, consecutive failures: {consecutive_unavailable}/{MAX_CONSECUTIVE_UNAVAILABLE}): "
+                        f"{edr_result.get('message', '')[:100]}"
+                    )
+                    if consecutive_unavailable >= MAX_CONSECUTIVE_UNAVAILABLE:
+                        logger.error(
+                            f"⛔ Stopping monitor for {transfer_id}: "
+                            f"{consecutive_unavailable} consecutive unavailable errors (STS refresh failing)"
+                        )
+                        print(f"⛔ Monitor stopped for {transfer_id} - persistent EDR refresh failure")
+                        _edr_cache[transfer_id] = {
+                            "error": "refresh_failed",
+                            "message": edr_result.get("message", "STS token refresh failed persistently")[:200],
+                            "failedAt": datetime.now().isoformat(),
+                        }
+                        return None
                     continue
                 
                 if edr_result:
+                    consecutive_unavailable = 0  # Reset on success
                     edr_data = edr_result
                     edr_data["capturedAt"] = datetime.now().isoformat()
                     edr_data["transferState"] = state
