@@ -52,3 +52,6 @@ src/poc_next/backend/api/routes/__pycache__/sharepoint.cpython-312.pyc
 src/poc_next/backend/sharepoint_gateway/__pycache__/api_server.cpython-312.pyc
 src/poc_next/backend/sharepoint_gateway/__pycache__/SharePointAuth.cpython-312.pyc
 src/poc_next/backend/sharepoint_gateway/__pycache__/SharePointGateway.cpython-312.pyc
+.vscode/settings.json
+.vscode/tasks.json
+src/poc_next/backend/.env
