@@ -15,6 +15,8 @@ interface Transfer {
   edrAvailable: boolean;
   edrEndpoint?: string;
   edrToken?: string;
+  edrError?: string | null;  // 'refresh_failed' | 'config_error' | 'unavailable' | null
+  edrSource?: string | null;
   contractAgreementId?: string;
 }
 
@@ -108,6 +110,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
             const hasChanged = 
               existingTransfer.state !== newData.state ||
               existingTransfer.edrAvailable !== newData.edrAvailable ||
+              existingTransfer.edrError !== newData.edrError ||
               existingTransfer.stateTimestamp !== newData.stateTimestamp;
             
             return hasChanged ? newData : existingTransfer;
@@ -245,8 +248,9 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
 
     // Auto-refresh periódico con actualización selectiva
     useEffect(() => {
+      // Only trigger auto-refresh for transfers actively waiting (not already failed)
       const hasTransfersWithoutEdr = transfers.some(
-        t => (t.stateCode === 600 || t.stateCode === 500) && !t.edrAvailable
+        t => (t.stateCode === 600 || t.stateCode === 500) && !t.edrAvailable && !t.edrError
       );
 
       if (hasTransfersWithoutEdr && autoRefreshCount < 10) {
@@ -349,6 +353,30 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
         }
       } catch {
         return 'Unknown time';
+      }
+    };
+
+    const handleReinitiateTransfer = async (transfer: Transfer) => {
+      if (!transfer.contractAgreementId || !transfer.assetId) {
+        addLog(`❌ No se puede re-iniciar: faltan contractAgreementId o assetId`);
+        return;
+      }
+      addLog(`🔄 Re-iniciando transferencia para el asset ${transfer.assetId}...`);
+      try {
+        const result = await api.phase6.initiateTransfer({
+          contractAgreementId: transfer.contractAgreementId,
+          assetId: transfer.assetId,
+          consumerManagementUrl: partnerDetails?.management_url,
+        });
+        if (result.success) {
+          addLog(`✅ Nueva transferencia iniciada correctamente`);
+          setTimeout(() => updateTransfersSelectively(), 2000);
+        } else {
+          const errMsg = result.logs?.join(', ') || JSON.stringify(result);
+          addLog(`❌ Error al re-iniciar la transferencia: ${errMsg}`);
+        }
+      } catch (error) {
+        addLog(`❌ Excepción re-iniciando: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     };
 
@@ -490,7 +518,8 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
               const isPolling = pollingTransfers.has(transfer.id);
               const isCollapsed = collapsedCards.has(transfer.id);
               const isFinalState = transfer.stateCode === 800 || transfer.stateCode === 850;
-              const isWaitingEdrState = (transfer.stateCode === 500 || transfer.stateCode === 600) && !transfer.edrAvailable;
+              const isEdrRefreshFailed = !transfer.edrAvailable && !!transfer.edrError && transfer.stateCode === 600;
+              const isWaitingEdrState = (transfer.stateCode === 500 || transfer.stateCode === 600) && !transfer.edrAvailable && !transfer.edrError;
 
               return (
                 <div
@@ -606,6 +635,17 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                           Create a new transfer to generate a fresh EDR.
                         </div>
                       </div>
+                    ) : isEdrRefreshFailed ? (
+                      <div style={{ fontSize: '11px', color: '#92400e', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          ⚠️ <strong>EDR Refresh Failed</strong>
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#78350f', marginLeft: '20px' }}>
+                          {transfer.edrError === 'config_error'
+                            ? 'Configuration error: JWS algorithm mismatch between EDC and STS. Contact administrator.'
+                            : 'The STS service could not renew the EDR token. Re-initiate the transfer to get a fresh EDR.'}
+                        </div>
+                      </div>
                     ) : isWaitingEdrState ? (
                       <div style={{ fontSize: '11px', color: '#92400e', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -632,8 +672,35 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                     <div style={{
                       display: 'flex',
                       justifyContent: 'flex-end',
+                      gap: '8px',
                       marginTop: '8px'
                     }}>
+                      {isEdrRefreshFailed && transfer.edrError !== 'config_error' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleReinitiateTransfer(transfer);
+                          }}
+                          style={{
+                            background: 'linear-gradient(90deg, #f59e0b 0%, #d97706 100%)',
+                            color: 'white',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+                        >
+                          🔄 Re-initiate Transfer
+                        </button>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

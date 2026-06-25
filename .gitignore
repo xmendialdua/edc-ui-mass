@@ -55,3 +55,4 @@ src/poc_next/backend/sharepoint_gateway/__pycache__/SharePointGateway.cpython-31
 .vscode/settings.json
 .vscode/tasks.json
 src/poc_next/backend/.env
+src/poc_next/backend/.env
