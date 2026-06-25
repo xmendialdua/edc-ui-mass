@@ -47,7 +47,7 @@ router = APIRouter(prefix="/api/phase6", tags=["Phase 6 - Discovery & Transfer"]
 
 def log_message(message: str) -> str:
     """Format a log message with timestamp."""
-    from datetime import datetime
+    from datetime import datetime, timedelta
     timestamp = datetime.now().strftime("%H:%M:%S")
     return f"[{timestamp}] {message}"
 
@@ -149,6 +149,40 @@ def _analyze_jwt_timing(token: Optional[str]) -> Dict[str, Any]:
             "validWindowSeconds": valid_window_seconds,
         },
     }
+
+
+def _parse_transfer_timestamp(value: Any) -> Optional[datetime]:
+    """Parse transfer timestamps from ISO strings or epoch values."""
+    if value is None:
+        return None
+
+    # Numeric epoch seconds/milliseconds
+    if isinstance(value, (int, float)):
+        ts = float(value)
+        # Heuristic: values bigger than 1e12 are usually milliseconds.
+        if ts > 1e12:
+            ts = ts / 1000.0
+        return datetime.fromtimestamp(ts, tz=timezone.utc)
+
+    # Strings: ISO or numeric text
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return None
+
+        if raw.isdigit():
+            ts = float(raw)
+            if ts > 1e12:
+                ts = ts / 1000.0
+            return datetime.fromtimestamp(ts, tz=timezone.utc)
+
+        normalized = raw.replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    return None
 
 
 class NegotiateAssetRequest(BaseModel):
@@ -625,6 +659,8 @@ async def list_transfers(
             state_code = get_state_code(state)
             data_address = transfer.get("dataAddress")
             transfer_type_value = transfer.get("type", "").upper()
+            created_at = transfer.get("createdAt") or transfer.get("createdTimestamp")
+            state_timestamp = transfer.get("stateTimestamp") or transfer.get("updatedAt")
             
             # Filter by transfer type
             if transfer_type and transfer_type.lower() != "all":
@@ -645,6 +681,9 @@ async def list_transfers(
             edr_token = None
             edr_source = None
             edr_error = None
+            edr_expires_at = None
+            edr_expires_at_source = None
+            edr_id = transfer_id
             
             # Check cached EDR first (from background monitoring)
             cached_edr = get_cached_edr(transfer_id)
@@ -659,6 +698,9 @@ async def list_transfers(
                     edr_endpoint = cached_edr.get("endpoint")
                     edr_token = cached_edr.get("authorization")
                     edr_source = "cache"
+                    raw_edr = cached_edr.get("raw") if isinstance(cached_edr, dict) else None
+                    if isinstance(raw_edr, dict):
+                        edr_id = raw_edr.get("@id") or transfer_id
                     if idx < 3:
                         logger.info(f"       ✅ EDR obtenido de: CACHÉ (monitor background)")
             # Check if EDR is embedded in dataAddress
@@ -673,10 +715,38 @@ async def list_transfers(
             else:
                 if idx < 3:
                     logger.info(f"       ⚠️ EDR: No disponible (ni en caché ni embebido)")
-            
-            # Get timestamps
-            created_at = transfer.get("createdAt") or transfer.get("createdTimestamp")
-            state_timestamp = transfer.get("stateTimestamp") or transfer.get("updatedAt")
+
+            # Compute EDR expiration when token is present.
+            if edr_token:
+                token_diag = _analyze_jwt_timing(edr_token)
+                edr_expires_at = token_diag.get("timing", {}).get("expUtc")
+                edr_expires_at_source = "token"
+            # If token is missing but we have a cached refresh error containing
+            # "Invalid token -> <jwt>", extract expiration from that rejected token.
+            elif cached_edr and cached_edr.get("message"):
+                message_text = cached_edr.get("message") or ""
+                token_match = re.search(r"Invalid token\s*->\s*([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)", message_text)
+                if token_match:
+                    rejected_diag = _analyze_jwt_timing(token_match.group(1))
+                    edr_expires_at = rejected_diag.get("timing", {}).get("expUtc")
+                    edr_expires_at_source = "rejected_token"
+
+            # Last fallback: estimate expiration as 5 minutes after transfer timestamp.
+            # This is approximate and only used when exact token-derived expiration is unavailable.
+            if not edr_expires_at:
+                ref_ts = state_timestamp or created_at
+                if ref_ts:
+                    try:
+                        parsed_ref = _parse_transfer_timestamp(ref_ts)
+                        if parsed_ref:
+                            edr_expires_at = (parsed_ref + timedelta(minutes=5)).isoformat()
+                            edr_expires_at_source = "estimated_from_transfer_timestamp"
+                        else:
+                            edr_expires_at = None
+                            edr_expires_at_source = None
+                    except Exception:
+                        edr_expires_at = None
+                        edr_expires_at_source = None
             
             transfers_info.append({
                 "id": transfer_id,
@@ -688,11 +758,14 @@ async def list_transfers(
                 "contractId": transfer.get("contractId"),
                 "contractAgreementId": transfer.get("contractId"),  # Alias para consistencia con negociaciones
                 "counterPartyId": transfer.get("counterPartyId"),
+                "edrId": edr_id,
                 "edrAvailable": edr_available,
                 "edrEndpoint": edr_endpoint,
                 "edrToken": edr_token,
                 "edrSource": edr_source,  # cache, embedded, or None
                 "edrError": edr_error,  # set when monitor gave up (refresh_failed / config_error)
+                "edrExpiresAt": edr_expires_at,
+                "edrExpiresAtSource": edr_expires_at_source,
                 "createdAt": created_at,
                 "stateTimestamp": state_timestamp,
             })

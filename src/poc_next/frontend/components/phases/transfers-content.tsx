@@ -17,6 +17,9 @@ interface Transfer {
   edrToken?: string;
   edrError?: string | null;  // 'refresh_failed' | 'config_error' | 'unavailable' | null
   edrSource?: string | null;
+  edrExpiresAt?: string | null;
+  edrExpiresAtSource?: string | null;
+  edrId?: string | null;
   contractAgreementId?: string;
 }
 
@@ -36,6 +39,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
     const [loading, setLoading] = useState(false);
     const [transfers, setTransfers] = useState<Transfer[]>([]);
     const [autoRefreshCount, setAutoRefreshCount] = useState(0);
+    const [showOnlyActiveTransfers, setShowOnlyActiveTransfers] = useState(true);
     const [pollingTransfers, setPollingTransfers] = useState<Set<string>>(new Set());
     const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
     const previousTransferIdsRef = useRef<Set<string>>(new Set());
@@ -66,6 +70,10 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
           partnerDetails?.management_url,
           'consumer'
         );
+        if (!result.success) {
+          addLog(`❌ Error listando transferencias: ${(result as any).error || 'sin detalle'}`);
+          return;
+        }
         const newTransfers = result.transfers || [];
         
         const newTransferIds = new Set(newTransfers.map((t: Transfer) => t.id));
@@ -145,6 +153,12 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
           partnerDetails?.management_url,
           'consumer'
         );
+        if (!result.success) {
+          addLog(`❌ Error listando transferencias: ${(result as any).error || 'sin detalle'}`);
+          setTransfers([]);
+          previousTransferIdsRef.current = new Set();
+          return;
+        }
         setTransfers(result.transfers || []);
         previousTransferIdsRef.current = new Set(result.transfers?.map((t: Transfer) => t.id) || []);
         
@@ -270,6 +284,35 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
       }
     }, [transfers, autoRefreshCount]);
 
+    const isTransferActive = (transfer: Transfer) => {
+      const code = transfer.stateCode;
+      const hasFatalEdrError = ['refresh_failed', 'config_error', 'invalid_token'].includes(transfer.edrError || '');
+      if (hasFatalEdrError) return false;
+
+      // Final/non-active states.
+      if (code === 700 || code === 800 || code === 850) return false;
+
+      if (code === 500) return true; // REQUESTED
+
+      if (code === 600) {
+        // STARTED can still be expired; use effective expiration to classify.
+        const expirationData = estimateExpirationFromTransfer(transfer);
+        if (!expirationData.expiresAt) {
+          // If no expiration info exists, only treat as active when EDR is available.
+          return !!transfer.edrAvailable;
+        }
+
+        const exp = new Date(expirationData.expiresAt).getTime();
+        if (Number.isNaN(exp)) {
+          return !!transfer.edrAvailable;
+        }
+
+        return exp > Date.now();
+      }
+
+      return false;
+    };
+
     const getStateBadgeColor = (stateCode: number | undefined, edrAvailable: boolean) => {
       // Usar código numérico para determinar el estado
       switch (stateCode) {
@@ -293,26 +336,12 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
       }
     };
 
-    const getCardBorderColor = (stateCode: number | undefined, edrAvailable: boolean) => {
-      switch (stateCode) {
-        case 500: return '#8b5cf6'; // REQUESTED - purple
-        case 600: return '#22c55e'; // STARTED - green
-        case 700: return '#6b7280'; // SUSPENDED - gray
-        case 800: return '#3b82f6'; // COMPLETED - blue
-        case 850: return '#ef4444'; // TERMINATED - red
-        default: return '#d1d5db';
-      }
+    const getCardBorderColor = (active: boolean) => {
+      return active ? '#22c55e' : '#9ca3af';
     };
 
-    const getCardBackground = (stateCode: number | undefined, edrAvailable: boolean) => {
-      switch (stateCode) {
-        case 500: return '#faf5ff'; // REQUESTED - purple background
-        case 600: return '#f0fdf4'; // STARTED - green background
-        case 700: return '#f9fafb'; // SUSPENDED - gray background
-        case 800: return '#eff6ff'; // COMPLETED - blue background
-        case 850: return '#fef2f2'; // TERMINATED - red background
-        default: return '#ffffff';
-      }
+    const getCardBackground = (active: boolean) => {
+      return active ? '#f0fdf4' : '#f3f4f6';
     };
 
     const formatDate = (dateString?: string) => {
@@ -354,6 +383,44 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
       } catch {
         return 'Unknown time';
       }
+    };
+
+    const estimateExpirationFromTransfer = (transfer: Transfer): { expiresAt: string | null; source: string | null } => {
+      if (transfer.edrExpiresAt) {
+        return { expiresAt: transfer.edrExpiresAt, source: transfer.edrExpiresAtSource || 'token' };
+      }
+
+      const refValue = transfer.stateTimestamp || transfer.createdAt;
+      if (!refValue) {
+        return { expiresAt: null, source: null };
+      }
+
+      let parsed: Date | null = null;
+      if (typeof refValue === 'string') {
+        const direct = new Date(refValue);
+        if (!Number.isNaN(direct.getTime())) {
+          parsed = direct;
+        } else if (/^\d+$/.test(refValue)) {
+          const asNum = Number(refValue);
+          const millis = asNum > 1e12 ? asNum : asNum * 1000;
+          const fromEpoch = new Date(millis);
+          if (!Number.isNaN(fromEpoch.getTime())) {
+            parsed = fromEpoch;
+          }
+        }
+      } else {
+        const fromAny = new Date(refValue as any);
+        if (!Number.isNaN(fromAny.getTime())) {
+          parsed = fromAny;
+        }
+      }
+
+      if (!parsed) {
+        return { expiresAt: null, source: null };
+      }
+
+      const estimated = new Date(parsed.getTime() + 5 * 60 * 1000).toISOString();
+      return { expiresAt: estimated, source: 'estimated_from_transfer_timestamp' };
     };
 
     const handleReinitiateTransfer = async (transfer: Transfer) => {
@@ -464,6 +531,10 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
       return dateB - dateA;
     });
 
+    const visibleTransfers = showOnlyActiveTransfers
+      ? sortedTransfers.filter(isTransferActive)
+      : sortedTransfers;
+
     return (
       <div style={{ minHeight: '200px' }}>
         {loading && (
@@ -492,6 +563,27 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
           </div>
         )}
 
+        {!loading && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: '10px',
+            fontSize: '12px',
+            color: '#374151'
+          }}>
+            <input
+              id="show-only-active-transfers"
+              type="checkbox"
+              checked={showOnlyActiveTransfers}
+              onChange={(e) => setShowOnlyActiveTransfers(e.target.checked)}
+            />
+            <label htmlFor="show-only-active-transfers" style={{ cursor: 'pointer', userSelect: 'none' }}>
+              Show only active transfers
+            </label>
+          </div>
+        )}
+
         {!loading && transfers.length === 0 && (
           <div style={{
             display: 'flex',
@@ -509,12 +601,13 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
           </div>
         )}
 
-        {!loading && sortedTransfers.length > 0 && (
+        {!loading && visibleTransfers.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {sortedTransfers.map((transfer) => {
+            {visibleTransfers.map((transfer) => {
+              const isActiveCard = isTransferActive(transfer);
               const badgeColor = getStateBadgeColor(transfer.stateCode, transfer.edrAvailable);
-              const borderColor = getCardBorderColor(transfer.stateCode, transfer.edrAvailable);
-              const backgroundColor = getCardBackground(transfer.stateCode, transfer.edrAvailable);
+              const borderColor = getCardBorderColor(isActiveCard);
+              const backgroundColor = getCardBackground(isActiveCard);
               const isPolling = pollingTransfers.has(transfer.id);
               const isCollapsed = collapsedCards.has(transfer.id);
               const isFinalState = transfer.stateCode === 800 || transfer.stateCode === 850;
@@ -563,10 +656,12 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                     display: 'flex', 
                     justifyContent: 'space-between', 
                     alignItems: 'center',
-                    marginBottom: isCollapsed ? '0' : '12px',
-                    cursor: 'pointer'
+                    marginBottom: (isCollapsed || !isActiveCard) ? '0' : '12px',
+                    cursor: isActiveCard ? 'pointer' : 'default'
                   }}
-                  onClick={() => toggleCard(transfer.id)}
+                  onClick={() => {
+                    if (isActiveCard) toggleCard(transfer.id);
+                  }}
                   >
                     <div style={{ flex: 1 }}>
                       <div style={{ 
@@ -581,12 +676,31 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                         {getTimeAgo(transfer.stateTimestamp || transfer.createdAt)} ({formatDate(transfer.stateTimestamp || transfer.createdAt)})
                       </div>
                     </div>
-                    <div style={{ marginLeft: '12px' }}>
-                      {isCollapsed ? <ChevronDown size={20} color="#6b7280" /> : <ChevronUp size={20} color="#6b7280" />}
-                    </div>
+                    {isActiveCard && (
+                      <div style={{ marginLeft: '12px' }}>
+                        {isCollapsed ? <ChevronDown size={20} color="#6b7280" /> : <ChevronUp size={20} color="#6b7280" />}
+                      </div>
+                    )}
                   </div>
 
-                  {!isCollapsed && (<>
+                  {!isActiveCard && (
+                    <div style={{
+                      marginTop: '10px',
+                      paddingTop: '10px',
+                      borderTop: '1px solid #d1d5db',
+                      fontSize: '12px',
+                      color: '#4b5563'
+                    }}>
+                      <div style={{ marginBottom: '4px' }}>
+                        <strong>Transfer ID:</strong> {transfer.id}
+                      </div>
+                      <div style={{ marginBottom: '4px' }}>
+                        <strong>Agreement ID:</strong> {transfer.contractAgreementId || 'N/A'}
+                      </div>
+                    </div>
+                  )}
+
+                  {isActiveCard && !isCollapsed && (<>
                     <div style={{ height: '1px', background: '#e5e7eb', marginBottom: '12px' }}></div>
 
                   <div style={{ fontSize: '11px', color: '#666', marginBottom: '3px' }}>
@@ -780,6 +894,23 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {!loading && transfers.length > 0 && visibleTransfers.length === 0 && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            textAlign: 'center',
+            color: '#6b7280',
+            fontSize: '13px',
+            border: '1px dashed #d1d5db',
+            borderRadius: '8px',
+            background: '#f9fafb'
+          }}>
+            No active transfers available with current filter.
           </div>
         )}
 
