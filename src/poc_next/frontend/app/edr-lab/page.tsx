@@ -101,6 +101,80 @@ export default function EdrLabPage() {
     return `Vigente (${ttl}s para expirar)`;
   }, [diagnostics]);
 
+  const formatTimingSummary = (timing?: JwtTiming | null) => {
+    if (!timing || typeof timing.secondsToExpiration !== "number") {
+      return "n/a";
+    }
+
+    const ttl = timing.secondsToExpiration;
+    const expired = timing.expUtc ? new Date(timing.expUtc).getTime() <= Date.now() : false;
+    return `${expired ? "expirado" : "vigente"} (${ttl}s)`;
+  };
+
+  const probeRealRenewal = async () => {
+    if (!transferId.trim()) {
+      addLog("Indica un transferId para probar la renovacion real");
+      return;
+    }
+
+    setRunningAction("probe-renewal");
+    try {
+      addLog(`🔬 Comprobando renovacion real para ${transferId.trim()}...`);
+
+      const before = await api.phase6.getEdrDiagnostics(transferId.trim(), false);
+      if (!before.success) {
+        addLog(`❌ No se pudo leer el estado inicial: ${before.error || "sin detalle"}`);
+        return;
+      }
+
+      const beforeTiming = before.currentEdr?.tokenTiming?.timing as JwtTiming | undefined;
+      addLog(`   Antes: ${formatTimingSummary(beforeTiming)}`);
+
+      const after = await api.phase6.getEdrDiagnostics(transferId.trim(), true);
+      setDiagnostics(after);
+
+      if (!after.success) {
+        addLog(`❌ No se pudo forzar la renovacion: ${after.error || "sin detalle"}`);
+        return;
+      }
+
+      const refreshedTiming = after.refreshAttempt?.tokenTiming?.timing as JwtTiming | undefined;
+      const rejectedTiming = after.refreshAttempt?.rejectedTokenTiming?.timing as JwtTiming | undefined;
+      const currentTiming = after.currentEdr?.tokenTiming?.timing as JwtTiming | undefined;
+
+      addLog(`   Actual: ${formatTimingSummary(currentTiming)}`);
+
+      if (after.refreshAttempt?.success) {
+        addLog(`   Forzado: ${formatTimingSummary(refreshedTiming)}`);
+
+        const beforeTtl = beforeTiming?.secondsToExpiration;
+        const afterTtl = refreshedTiming?.secondsToExpiration;
+
+        if (typeof beforeTtl === "number" && typeof afterTtl === "number") {
+          const delta = afterTtl - beforeTtl;
+          if (delta > 0) {
+            addLog(`✅ Renovacion real detectada: el TTL aumento en +${delta}s`);
+          } else if (delta === 0) {
+            addLog("⚠️ El refresh se ejecuto, pero el TTL quedo igual");
+          } else {
+            addLog(`⚠️ El refresh se ejecuto, pero el TTL disminuyo en ${Math.abs(delta)}s`);
+          }
+        } else {
+          addLog("ℹ️ Renovacion forzada ejecutada, pero no se pudo comparar TTL numérico");
+        }
+      } else {
+        addLog(`⚠️ Renovacion forzada no aplicada: ${after.refreshAttempt?.error || "sin detalle"}`);
+        if (rejectedTiming?.secondsToExpiration) {
+          addLog(`   Token rechazado por STS: ${formatTimingSummary(rejectedTiming)}`);
+        }
+      }
+    } catch (e) {
+      addLog(`❌ Error probando renovacion real: ${e instanceof Error ? e.message : "Unknown"}`);
+    } finally {
+      setRunningAction(null);
+    }
+  };
+
   const fetchPartnerDetails = async (email: string) => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
     const resp = await fetch(`${apiUrl}/api/partners/${encodeURIComponent(email)}/details`);
@@ -150,11 +224,20 @@ export default function EdrLabPage() {
     setRunningAction("latest");
     try {
       const result = await api.phase6.listTransfers(partnerDetails.management_url, "consumer");
-      const latest = (result.transfers || [])[0];
+      const transfers = result.transfers || [];
+      const latest = transfers
+        .slice()
+        .sort((a, b) => {
+          const timeA = new Date(a.stateTimestamp || a.createdAt || 0).getTime();
+          const timeB = new Date(b.stateTimestamp || b.createdAt || 0).getTime();
+          return timeB - timeA;
+        })[0];
+
       if (!latest) {
         addLog("No hay transferencias disponibles");
         return;
       }
+
       setTransferId(latest.id || "");
       setAssetId(latest.assetId || assetId);
       setContractAgreementId(latest.contractAgreementId || latest.contractId || contractAgreementId);
@@ -432,11 +515,14 @@ export default function EdrLabPage() {
               <button onClick={() => requestFreshToken(true)} disabled={!!runningAction} style={{ padding: "8px 10px", borderRadius: "8px", border: "none", background: "#dc2626", color: "white", cursor: "pointer" }}>
                 6) Refresh forzado (auto_refresh)
               </button>
-              <button onClick={() => runDiagnostics(true)} disabled={!!runningAction} style={{ padding: "8px 10px", borderRadius: "8px", border: "none", background: "#be123c", color: "white", cursor: "pointer" }}>
-                7) Diagnostico + refresh forzado
+              <button onClick={probeRealRenewal} disabled={!!runningAction} style={{ padding: "8px 10px", borderRadius: "8px", border: "none", background: "#be123c", color: "white", cursor: "pointer" }}>
+                7) Probar renovacion real
+              </button>
+              <button onClick={() => runDiagnostics(true)} disabled={!!runningAction} style={{ padding: "8px 10px", borderRadius: "8px", border: "none", background: "#7c3aed", color: "white", cursor: "pointer" }}>
+                8) Diagnostico + refresh forzado
               </button>
               <button onClick={tryDownload} disabled={!!runningAction} style={{ padding: "8px 10px", borderRadius: "8px", border: "none", background: "#16a34a", color: "white", cursor: "pointer" }}>
-                8) Probar Download
+                9) Probar Download
               </button>
             </div>
 
