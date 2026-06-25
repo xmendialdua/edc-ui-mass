@@ -148,6 +148,13 @@ export default function PartnerDataPage() {
 
   const handleInitiateTransfer = async (contractId: string, assetId: string) => {
     addLog(`📥 Iniciando transferencia para contrato: ${contractId}`);
+
+    // Refrescar inmediatamente el panel de transferencias al pulsar "Init Transfer"
+    if (transfersRef.current) {
+      transfersRef.current.refresh();
+      addLog(`🔄 Refrescando panel Transfers...`);
+    }
+
     try {
       const result = await api.phase6.initiateTransfer({
         contractAgreementId: contractId,
