@@ -710,22 +710,6 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                     <strong>Agreement ID:</strong> {transfer.contractAgreementId || 'N/A'}
                   </div>
                   
-                  {/* Mostrar los 3 campos de estado para debugging */}
-                  <div style={{ fontSize: '11px', color: '#666', marginBottom: '8px', background: '#f0f9ff', padding: '8px', borderRadius: '4px', border: '1px solid #bfdbfe' }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#1e40af' }}>📊 Estados del Conector EDC:</div>
-                    <div style={{ fontFamily: 'monospace', fontSize: '10px', lineHeight: '1.6' }}>
-                      <div style={{ marginBottom: '2px' }}>
-                        <strong style={{ color: '#1e3a8a' }}>rawState:</strong> {JSON.stringify(transfer.rawState)}
-                      </div>
-                      <div style={{ marginBottom: '2px' }}>
-                        <strong style={{ color: '#1e3a8a' }}>state:</strong> {JSON.stringify(transfer.state)}
-                      </div>
-                      <div>
-                        <strong style={{ color: '#1e3a8a' }}>stateCode:</strong> {JSON.stringify(transfer.stateCode)}
-                      </div>
-                    </div>
-                  </div>
-
                   <div style={{ fontSize: '12px', color: '#666', marginBottom: '8px', background: transfer.edrAvailable ? '#f0fdf4' : '#fef3c7', padding: '8px', borderRadius: '4px', border: transfer.edrAvailable ? '1px solid #86efac' : '1px solid #fcd34d' }}>
                     <div style={{ marginBottom: '4px' }}>
                       <strong>Download Method:</strong>
