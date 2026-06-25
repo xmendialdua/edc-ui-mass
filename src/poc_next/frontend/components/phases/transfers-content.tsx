@@ -2,7 +2,7 @@
 
 import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
 import { api } from '@/lib/api';
-import { Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 
 interface Transfer {
   id: string;
@@ -42,6 +42,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
     const [showOnlyActiveTransfers, setShowOnlyActiveTransfers] = useState(true);
     const [pollingTransfers, setPollingTransfers] = useState<Set<string>>(new Set());
     const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
+    const [now, setNow] = useState(Date.now());
     const previousTransferIdsRef = useRef<Set<string>>(new Set());
 
     const toggleCard = (id: string) => {
@@ -61,6 +62,11 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
         onLog(message);
       }
     };
+
+    useEffect(() => {
+      const timer = setInterval(() => setNow(Date.now()), 5000);
+      return () => clearInterval(timer);
+    }, []);
 
     // Actualización selectiva de transferencias
     const updateTransfersSelectively = async () => {
@@ -307,7 +313,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
           return !!transfer.edrAvailable;
         }
 
-        return exp > Date.now();
+        return exp > now;
       }
 
       return false;
@@ -385,6 +391,39 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
       }
     };
 
+    const formatTimeRemaining = (dateString?: string) => {
+      if (!dateString) return null;
+
+      try {
+        const expiry = new Date(dateString).getTime();
+        if (Number.isNaN(expiry)) return null;
+
+        const diffMs = expiry - now;
+        if (diffMs <= 0) return null;
+
+        const diffSecs = Math.floor(diffMs / 1000);
+        const diffMins = Math.floor(diffSecs / 60);
+        const diffHours = Math.floor(diffMins / 60);
+        const diffDays = Math.floor(diffHours / 24);
+
+        if (diffDays > 0) {
+          return `Expira en ${diffDays}d ${diffHours % 24}h`;
+        }
+
+        if (diffHours > 0) {
+          return `Expira en ${diffHours}h ${diffMins % 60}m`;
+        }
+
+        if (diffMins > 0) {
+          return `Expira en ${diffMins}m ${diffSecs % 60}s`;
+        }
+
+        return `Expira en ${diffSecs}s`;
+      } catch {
+        return null;
+      }
+    };
+
     const estimateExpirationFromTransfer = (transfer: Transfer): { expiresAt: string | null; source: string | null } => {
       if (transfer.edrExpiresAt) {
         return { expiresAt: transfer.edrExpiresAt, source: transfer.edrExpiresAtSource || 'token' };
@@ -421,6 +460,24 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
 
       const estimated = new Date(parsed.getTime() + 5 * 60 * 1000).toISOString();
       return { expiresAt: estimated, source: 'estimated_from_transfer_timestamp' };
+    };
+
+    const handleRefreshTransferValidity = async (transfer: Transfer) => {
+      addLog(`🔄 Solicitando refresh de validez para transfer ${transfer.id}...`);
+      try {
+        const result = await api.phase6.getFreshToken(transfer.id, true);
+
+        if (!result.success) {
+          addLog(`❌ No se pudo refrescar la validez: ${result.error || 'sin detalle'}`);
+          return;
+        }
+
+        const ttl = result.tokenDiagnostics?.timing?.secondsToExpiration;
+        addLog(`✅ Validez refrescada para ${transfer.id} (ttl=${typeof ttl === 'number' ? ttl : 'n/a'})`);
+        setTimeout(() => updateTransfersSelectively(), 1000);
+      } catch (error) {
+        addLog(`❌ Excepción refrescando validez: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     };
 
     const handleReinitiateTransfer = async (transfer: Transfer) => {
@@ -613,6 +670,8 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
               const isFinalState = transfer.stateCode === 800 || transfer.stateCode === 850;
               const isEdrRefreshFailed = !transfer.edrAvailable && !!transfer.edrError && transfer.stateCode === 600;
               const isWaitingEdrState = (transfer.stateCode === 500 || transfer.stateCode === 600) && !transfer.edrAvailable && !transfer.edrError;
+              const expirationData = estimateExpirationFromTransfer(transfer);
+              const timeRemaining = isActiveCard ? formatTimeRemaining(expirationData.expiresAt || undefined) : null;
 
               return (
                 <div
@@ -665,16 +724,54 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
                   >
                     <div style={{ flex: 1 }}>
                       <div style={{ 
-                        fontSize: '14px', 
-                        fontWeight: 'bold',
-                        color: '#1f2937',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
                         marginBottom: '2px'
                       }}>
-                        {transfer.assetId}
+                        <div style={{ 
+                          fontSize: '14px', 
+                          fontWeight: 'bold',
+                          color: '#1f2937'
+                        }}>
+                          {transfer.assetId}
+                        </div>
+                        {isActiveCard && (
+                          <button
+                            type="button"
+                            title="Solicitar refresh de validez"
+                            aria-label="Solicitar refresh de validez"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRefreshTransferValidity(transfer);
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '22px',
+                              height: '22px',
+                              padding: 0,
+                              border: '1px solid #86efac',
+                              borderRadius: '6px',
+                              background: '#ecfdf5',
+                              color: '#16a34a',
+                              cursor: 'pointer',
+                              flexShrink: 0
+                            }}
+                          >
+                            <RefreshCw size={11} />
+                          </button>
+                        )}
                       </div>
                       <div style={{ fontSize: '11px', color: '#6b7280' }}>
                         {getTimeAgo(transfer.stateTimestamp || transfer.createdAt)} ({formatDate(transfer.stateTimestamp || transfer.createdAt)})
                       </div>
+                      {timeRemaining && (
+                        <div style={{ fontSize: '11px', color: '#b45309', marginTop: '2px', fontWeight: 600 }}>
+                          {timeRemaining}
+                        </div>
+                      )}
                     </div>
                     {isActiveCard && (
                       <div style={{ marginLeft: '12px' }}>
