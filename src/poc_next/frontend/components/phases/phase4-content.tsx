@@ -4,7 +4,7 @@ import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { FileText, RefreshCw, Trash2 } from 'lucide-react';
-import { getAvailablePartners, getPartnerName } from '@/lib/partners';
+import { fetchAvailablePartners, Partner } from '@/lib/partners';
 
 interface ContractDefinition {
   '@id': string;
@@ -22,6 +22,8 @@ interface Phase4ContentProps {
 const Phase4Content = forwardRef<any, Phase4ContentProps>(({ onLog, filter = 'all' }, ref) => {
   const [loading, setLoading] = useState<string | null>(null);
   const [contracts, setContracts] = useState<ContractDefinition[]>([]);
+  const [policies, setPolicies] = useState<any[]>([]);
+  const [availablePartners, setAvailablePartners] = useState<Partner[]>([]);
 
   const log = (message: string) => {
     if (onLog) {
@@ -66,26 +68,76 @@ const Phase4Content = forwardRef<any, Phase4ContentProps>(({ onLog, filter = 'al
 
   useEffect(() => {
     loadContracts();
+    api.phase3.listPolicies()
+      .then(result => setPolicies(result.policies || []))
+      .catch(err => console.error('Error loading policies:', err));
+    fetchAvailablePartners()
+      .then(setAvailablePartners)
+      .catch(err => console.error('Error loading partners:', err));
   }, []);
 
   useImperativeHandle(ref, () => ({
     refresh: loadContracts
   }));
 
-  // Extract partner BPN from contract data
+  // Recursively search a policy object for BusinessPartnerNumber constraints
+  // and return the associated rightOperand BPN values.
+  function extractBPNsFromPolicyContent(node: any): string[] {
+    if (!node || typeof node !== 'object') return [];
+
+    if (Array.isArray(node)) {
+      return node.flatMap(extractBPNsFromPolicyContent);
+    }
+
+    // Check if this object is a constraint with leftOperand = BusinessPartnerNumber
+    const leftOperandKey = Object.keys(node).find(k => k === 'leftOperand' || k.endsWith(':leftOperand') || k.endsWith('/leftOperand'));
+    if (leftOperandKey) {
+      const leftVal = node[leftOperandKey];
+      const isBusinessPartner =
+        (typeof leftVal === 'string' && leftVal.toLowerCase().includes('businesspartnernumber')) ||
+        (typeof leftVal === 'object' && JSON.stringify(leftVal).toLowerCase().includes('businesspartnernumber'));
+
+      if (isBusinessPartner) {
+        const rightOperandKey = Object.keys(node).find(k => k === 'rightOperand' || k.endsWith(':rightOperand') || k.endsWith('/rightOperand'));
+        if (rightOperandKey) {
+          const rv = node[rightOperandKey];
+          const candidates = Array.isArray(rv) ? rv : [rv];
+          return candidates
+            .map((v: any) => (typeof v === 'string' ? v : (v?.['@value'] ?? '')))
+            .filter((v: string) => v.toUpperCase().startsWith('BPNL'))
+            .map((v: string) => v.toUpperCase());
+        }
+      }
+    }
+
+    // Recurse into all values
+    return Object.values(node).flatMap((v: any) => extractBPNsFromPolicyContent(v));
+  }
+
+  // Extract partner BPN from contract data.
+  // Primary: look up the access policy by ID and read the BusinessPartnerNumber constraint.
+  // Fallback: scan full contract JSON for known partner BPNs.
   const extractPartnerBPN = (contract: ContractDefinition): string => {
-    // Convert entire contract to JSON string and search for BPN
+    // Primary: find the access policy and extract BPN from its content
+    if (contract.accessPolicyId && policies.length > 0) {
+      const policy = policies.find(
+        (p: any) => p['@id'] === contract.accessPolicyId || p.id === contract.accessPolicyId
+      );
+      if (policy) {
+        const bpns = extractBPNsFromPolicyContent(policy);
+        if (bpns.length > 0) return bpns[0];
+      }
+    }
+
+    // Fallback: scan full contract JSON for known partner BPNs
     const contractJson = JSON.stringify(contract);
-    const availablePartners = getAvailablePartners();
-    
-    // Search for BPN or partner name in the contract JSON
     for (const partner of availablePartners) {
-      if (contractJson.includes(partner.bpn) || 
+      if (contractJson.includes(partner.bpn) ||
           contractJson.toLowerCase().includes(partner.name.toLowerCase())) {
         return partner.bpn;
       }
     }
-    
+
     return 'Unknown';
   };
 
@@ -129,7 +181,7 @@ const Phase4Content = forwardRef<any, Phase4ContentProps>(({ onLog, filter = 'al
         }}>
           {filteredContracts.map((contract) => {
             const partnerBPN = extractPartnerBPN(contract);
-            const partnerName = getPartnerName(partnerBPN);
+            const partnerName = availablePartners.find(p => p.bpn === partnerBPN)?.name || partnerBPN;
             const badgeColor = getPartnerBadgeColor(partnerBPN);
             
             // Extract asset ID from contract

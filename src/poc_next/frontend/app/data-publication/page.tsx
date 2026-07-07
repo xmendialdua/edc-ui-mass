@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getAvailablePartners } from "@/lib/partners";
+import { fetchAvailablePartners, Partner } from "@/lib/partners";
 
 export default function DataPublicationPage() {
   const [connectorStatus] = useState<"checking" | "connected" | "disconnected">("connected");
@@ -24,17 +24,19 @@ export default function DataPublicationPage() {
   const [sharePointConnected, setSharePointConnected] = useState(false);
   const [sharePointUser, setSharePointUser] = useState<string | null>(null);
   const [sharePointAuthenticating, setSharePointAuthenticating] = useState(false);
+  const [partners, setPartners] = useState<Partner[]>([]);
   const phase2Ref = useRef<any>(null);
   const phase3Ref = useRef<any>(null);
   const phase4Ref = useRef<any>(null);
-  
-  // Get partners list
-  const partners = getAvailablePartners();
 
   useEffect(() => {
     setIsMounted(true);
     // Verificar conexión SharePoint del backend al cargar la página
     checkSharePointStatus();
+    // Cargar partners desde la base de datos
+    fetchAvailablePartners()
+      .then(setPartners)
+      .catch(err => console.error('Error loading partners:', err));
   }, []);
 
   // Verificar estado de conexión SharePoint del backend

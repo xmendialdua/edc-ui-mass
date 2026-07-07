@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { fetchAvailablePartners, Partner } from '@/lib/partners';
 import { Button } from '@/components/ui/button';
 import { api, getApiBaseUrl } from '@/lib/api';
 import { Package, Plus, RefreshCw, Trash2, Upload, ChevronDown, ChevronUp, FolderOpen, File, ChevronRight, Home, CheckCircle } from 'lucide-react';
@@ -67,36 +68,17 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
   // SharePoint site URL
   const SHAREPOINT_SITE_URL = 'https://ikerlan.sharepoint.com/sites/IKDataSpace';
 
-  // Lista de partners disponibles (hardcoded)
-  function getAvailablePartners() {
-    return [
-      {
-        bpn: "BPNL00000002IKLN",
-        name: "Ikerlan",
-        description: "IKERLAN Technology Centre"
-      },
-      {
-        bpn: "BPNL00000000MASS",
-        name: "MondragonAssembly",
-        description: "Mondragon Assembly"
-      },
-      {
-        bpn: "BPNL00000001PTR1",
-        name: "Partner1",
-        description: "Partner 1"
-      },
-      {
-        bpn: "BPNL00000001PTR2",
-        name: "Partner2",
-        description: "Partner 2"
-      },
-      {
-        bpn: "BPNL00000001PTR3",
-        name: "Partner3",
-        description: "Partner 3"
-      }
-    ];
-  }
+  // Partners disponibles cargados desde la base de datos
+  const [availablePartners, setAvailablePartners] = useState<Partner[]>([]);
+  const [partnersLoading, setPartnersLoading] = useState(false);
+
+  useEffect(() => {
+    setPartnersLoading(true);
+    fetchAvailablePartners()
+      .then(setAvailablePartners)
+      .catch(err => console.error('Error loading partners:', err))
+      .finally(() => setPartnersLoading(false));
+  }, []);
 
   const log = (message: string) => {
     if (onLog) {
@@ -518,7 +500,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
     setLoading('publish');
     
     const selectedPartnerList = Array.from(selectedPartners).map(bpn => {
-      const partner = getAvailablePartners().find(p => p.bpn === bpn);
+      const partner = availablePartners.find(p => p.bpn === bpn);
       return partner;
     }).filter(p => p) as { bpn: string; name: string; description: string }[];
     
@@ -1730,7 +1712,9 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                   maxHeight: '300px',
                   overflowY: 'auto'
                 }}>
-                  {getAvailablePartners().map(partner => (
+                  {partnersLoading ? (
+                    <div style={{ padding: '10px', color: '#666', textAlign: 'center' }}>Cargando partners...</div>
+                  ) : availablePartners.map(partner => (
                     <div
                       key={partner.bpn}
                       style={{
