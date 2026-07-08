@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     ikln_bpn: str = "BPNL00000002IKLN"
     ikln_dsp: str = "https://edc-ikln-control.51.178.94.25.nip.io/api/v1/dsp"
 
+    # --- PRTA Connector (Consumer) ---
+    prta_management_url: str = "https://edc-prta-control.51.178.94.25.nip.io/management"
+    prta_api_key: str = "prta-api-key-change-in-production"
+    prta_bpn: str = "BPNL00000003PRTA"
+    prta_dsp: str = "https://edc-prta-control.51.178.94.25.nip.io/api/v1/dsp"
+
     # --- Kubernetes ---
     kubeconfig_path: str | None = None
 

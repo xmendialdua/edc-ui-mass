@@ -4,7 +4,7 @@ import asyncio
 import base64
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
@@ -52,19 +52,71 @@ def log_message(message: str) -> str:
     return f"[{timestamp}] {message}"
 
 
+def describe_exception(error: Exception) -> Dict[str, Any]:
+    """Build a frontend-friendly error payload with HTTP details when available."""
+    detail: Dict[str, Any] = {
+        "type": type(error).__name__,
+        "message": str(error),
+    }
+
+    if isinstance(error, httpx.HTTPStatusError):
+        response = error.response
+        detail.update(
+            {
+                "status": response.status_code,
+                "url": str(response.request.url) if response.request else None,
+                "reason": response.reason_phrase,
+                "body": response.text[:2000] if response.text else "",
+            }
+        )
+    elif isinstance(error, ValueError):
+        detail["category"] = "configuration"
+
+    return detail
+
+
+def append_error_logs(logs: List[str], detail: Dict[str, Any]) -> None:
+    """Append normalized, readable error diagnostics to operation logs."""
+    logs.append(log_message(f"❌ Error: {detail.get('message', 'unknown error')}"))
+    logs.append(log_message(f"   Tipo: {detail.get('type', 'unknown')}"))
+
+    if detail.get("url"):
+        logs.append(log_message(f"   URL: {detail['url']}"))
+    if detail.get("status") is not None:
+        logs.append(log_message(f"   HTTP status: {detail['status']} {detail.get('reason', '')}".strip()))
+    if detail.get("category"):
+        logs.append(log_message(f"   Categoría: {detail['category']}"))
+    if detail.get("body"):
+        logs.append(log_message(f"   Response body: {detail['body']}"))
+
+
 def get_consumer_api_key(management_url: str) -> str:
     """Get API key for a given management URL.
-    
+
     Returns the appropriate API key based on known connectors.
-    Defaults to IKLN API key for unknown connectors.
+    Raises an explicit error for PRTA if its API key is not configured,
+    instead of silently falling back to IKLN and triggering 401 responses.
     """
-    if management_url == settings.ikln_management_url:
+    normalized_url = (management_url or "").rstrip("/")
+
+    if normalized_url == settings.ikln_management_url.rstrip("/"):
         return settings.ikln_api_key
-    elif management_url == settings.mass_management_url:
+
+    if normalized_url == settings.mass_management_url.rstrip("/"):
         return settings.mass_api_key
-    else:
-        # Default to IKLN API key for unknown connectors
-        return settings.ikln_api_key
+
+    if normalized_url == settings.prta_management_url.rstrip("/"):
+        prta_api_key = (settings.prta_api_key or "").strip()
+        if not prta_api_key or prta_api_key.endswith("change-in-production"):
+            raise ValueError(
+                "PRTA API key no configurada. Define PRTA_API_KEY en el backend antes de usar este conector."
+            )
+        return prta_api_key
+
+    raise ValueError(
+        f"No hay API key configurada para el management_url '{management_url}'. "
+        "Añade una clave explícita en la configuración del backend."
+    )
 
 
 def resolve_consumer_context(
@@ -301,10 +353,13 @@ async def catalog_request(
         }
 
     except Exception as e:
-        logs.append(log_message(f"❌ Error: {str(e)}"))
+        detail = describe_exception(e)
+        append_error_logs(logs, detail)
         return {
             "success": False,
             "logs": logs,
+            "error": detail.get("message"),
+            "error_detail": detail,
             "datasets": []
         }
     finally:
@@ -407,15 +462,8 @@ async def negotiate_asset(request: NegotiateAssetRequest) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logs.append(log_message(f"❌ Error: {str(e)}"))
-        
-        # Try to extract more details from HTTPStatusError if available
-        if hasattr(e, 'response'):
-            try:
-                error_body = e.response.text
-                logs.append(log_message(f"📋 Error details: {error_body}"))
-            except:
-                pass
+        detail = describe_exception(e)
+        append_error_logs(logs, detail)
         
         return {
             "success": False,
@@ -424,7 +472,8 @@ async def negotiate_asset(request: NegotiateAssetRequest) -> Dict[str, Any]:
                 "id": f"failed-{request.assetId}",
                 "state": "FAILED",
                 "assetId": request.assetId,
-                "errorDetail": str(e),
+                "errorDetail": detail.get("message"),
+                "errorMetadata": detail,
                 "createdAt": None
             }
         }
@@ -447,15 +496,21 @@ async def list_negotiations(
     Consumer defaults to IKLN if not provided.
     Type defaults to 'consumer' (only negotiations initiated by this connector).
     """
+    logs: List[str] = []
     consumer_mgmt = consumer_management_url or settings.ikln_management_url
-    
-    # Get consumer API key
-    if consumer_mgmt == settings.ikln_management_url:
-        consumer_api_key = settings.ikln_api_key
-    elif consumer_mgmt == settings.mass_management_url:
-        consumer_api_key = settings.mass_api_key
-    else:
-        consumer_api_key = settings.ikln_api_key
+
+    try:
+        consumer_api_key = get_consumer_api_key(consumer_mgmt)
+    except Exception as e:
+        detail = describe_exception(e)
+        append_error_logs(logs, detail)
+        return {
+            "success": False,
+            "error": detail.get("message"),
+            "error_detail": detail,
+            "logs": logs,
+            "negotiations": [],
+        }
     
     consumer_client = EdcManagementClient(consumer_mgmt, consumer_api_key)
     try:
@@ -490,6 +545,7 @@ async def list_negotiations(
         return {
             "success": True,
             "negotiations": negotiations,
+            "logs": logs,
             "filter": {
                 "type": negotiation_type,
                 "total_filtered": len(negotiations)
@@ -497,9 +553,13 @@ async def list_negotiations(
         }
 
     except Exception as e:
+        detail = describe_exception(e)
+        append_error_logs(logs, detail)
         return {
             "success": False,
-            "error": str(e),
+            "error": detail.get("message"),
+            "error_detail": detail,
+            "logs": logs,
             "negotiations": []
         }
     finally:
@@ -625,20 +685,14 @@ async def initiate_transfer_for_contract(
         }
 
     except Exception as e:
-        logs.append(log_message(f"❌ Error: {str(e)}"))
-        
-        # Try to extract more details from HTTPStatusError if available
-        if hasattr(e, 'response'):
-            try:
-                error_body = e.response.text
-                logs.append(log_message(f"📋 Error details: {error_body}"))
-            except:
-                pass
+        detail = describe_exception(e)
+        append_error_logs(logs, detail)
         
         return {
             "success": False,
             "logs": logs,
-            "error": str(e)
+            "error": detail.get("message"),
+            "error_detail": detail,
         }
     finally:
         await consumer_client.close()
@@ -666,8 +720,20 @@ async def list_transfers(
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
     
     # Use provided consumer or default to IKLN
+    logs: List[str] = []
     consumer_mgmt = consumer_management_url or settings.ikln_management_url
-    consumer_api_key = get_consumer_api_key(consumer_mgmt)
+    try:
+        consumer_api_key = get_consumer_api_key(consumer_mgmt)
+    except Exception as e:
+        detail = describe_exception(e)
+        append_error_logs(logs, detail)
+        return {
+            "success": False,
+            "error": detail.get("message"),
+            "error_detail": detail,
+            "logs": logs,
+            "transfers": []
+        }
     
     logger.info(f"\n{'~'*80}")
     logger.info(f"📋 Listando todas las transferencias")
@@ -857,9 +923,13 @@ async def list_transfers(
         print(f"❌ Error in list_transfers: {str(e)}")
         import traceback
         traceback.print_exc()
+        detail = describe_exception(e)
+        append_error_logs(logs, detail)
         return {
             "success": False,
-            "error": str(e),
+            "error": detail.get("message"),
+            "error_detail": detail,
+            "logs": logs,
             "transfers": []
         }
     finally:
