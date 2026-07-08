@@ -31,8 +31,8 @@ export default function PartnerDataPage() {
   const router = useRouter();
   const [authenticatedPartner, setAuthenticatedPartner] = useState<PartnerInfo | null>(null);
   const [partnerDetails, setPartnerDetails] = useState<PartnerDetails | null>(null);
+  const [partnerDetailsError, setPartnerDetailsError] = useState<string | null>(null);
   const [loadingPartner, setLoadingPartner] = useState<boolean>(true);
-  const [connectorStatus] = useState<"checking" | "connected" | "disconnected">("connected");
   const [isMounted, setIsMounted] = useState(false);
   const [globalLogs, setGlobalLogs] = useState<string[]>([]);
   const [sharePointConnected, setSharePointConnected] = useState(false);
@@ -88,13 +88,36 @@ export default function PartnerDataPage() {
       
       const details: PartnerDetails = await response.json();
       setPartnerDetails(details);
+      setPartnerDetailsError(null);
       console.log('✅ Partner details loaded:', details);
+
+      if (!details.management_url?.trim()) {
+        setPartnerDetailsError('Falta management_url para este partner. Registra el conector en la DB del portal.');
+        addLog('⚠️ Partner autenticado sin Management API URL. Falta connector_url en portal.connectors.');
+      } else {
+        addLog(`✅ Management API detectada: ${details.management_url}`);
+      }
       
     } catch (error) {
       console.error('Error fetching partner details:', error);
+      setPartnerDetailsError('No se pudieron cargar los detalles del partner desde backend.');
+      addLog('❌ Error cargando detalles del partner desde backend.');
       // If fails to fetch details, still show basic info from session
     }
   };
+
+  const hasManagementUrl = Boolean(partnerDetails?.management_url?.trim());
+  const connectorStatus: "checking" | "connected" | "disconnected" = !partnerDetails
+    ? "checking"
+    : hasManagementUrl
+      ? "connected"
+      : "disconnected";
+
+  const connectorUrlDisplay = !partnerDetails
+    ? 'Loading...'
+    : hasManagementUrl
+      ? partnerDetails.management_url
+      : 'No configurada';
 
   const handleLogout = () => {
     sessionStorage.removeItem('authenticated_partner');
@@ -292,17 +315,34 @@ export default function PartnerDataPage() {
                   width: "12px",
                   height: "12px",
                   borderRadius: "50%",
-                  background: partnerDetails ? "#28a745" : "#ffc107",
-                  boxShadow: partnerDetails 
-                    ? "0 0 8px rgba(40, 167, 69, 0.6)" 
-                    : "0 0 8px rgba(255, 193, 7, 0.6)"
+                  background:
+                    connectorStatus === "connected"
+                      ? "#28a745"
+                      : connectorStatus === "disconnected"
+                        ? "#dc3545"
+                        : "#ffc107",
+                  boxShadow:
+                    connectorStatus === "connected"
+                      ? "0 0 8px rgba(40, 167, 69, 0.6)"
+                      : connectorStatus === "disconnected"
+                        ? "0 0 8px rgba(220, 53, 69, 0.6)"
+                        : "0 0 8px rgba(255, 193, 7, 0.6)"
                 }} />
                 <div style={{
                   fontSize: "13px",
                   fontWeight: "600",
-                  color: partnerDetails ? "#28a745" : "#ffc107"
+                  color:
+                    connectorStatus === "connected"
+                      ? "#28a745"
+                      : connectorStatus === "disconnected"
+                        ? "#dc3545"
+                        : "#ffc107"
                 }}>
-                  {partnerDetails ? "Conectado" : "Cargando..."}
+                  {connectorStatus === "connected"
+                    ? "Conectado"
+                    : connectorStatus === "disconnected"
+                      ? "Sin URL"
+                      : "Cargando..."}
                 </div>
               </div>
 
@@ -327,7 +367,7 @@ export default function PartnerDataPage() {
                   maxWidth: "400px",
                   overflow: "hidden",
                   textOverflow: "ellipsis"
-                }} title={partnerDetails?.management_url || 'Loading...'}>{partnerDetails?.management_url || 'Loading...'}</div>
+                }} title={connectorUrlDisplay}>{connectorUrlDisplay}</div>
               </div>
 
               {/* User Info */}
@@ -382,6 +422,21 @@ export default function PartnerDataPage() {
         </div>
 
         {/* Main Panels: 3 Columns */}
+        {partnerDetailsError && (
+          <div style={{
+            marginBottom: "20px",
+            background: "#fff5f5",
+            border: "1px solid #fecaca",
+            color: "#991b1b",
+            borderRadius: "10px",
+            padding: "12px 16px",
+            fontSize: "14px",
+            fontWeight: 500
+          }}>
+            ⚠️ {partnerDetailsError}
+          </div>
+        )}
+
         <div style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr 1fr",

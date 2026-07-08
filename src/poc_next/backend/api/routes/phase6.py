@@ -67,6 +67,35 @@ def get_consumer_api_key(management_url: str) -> str:
         return settings.ikln_api_key
 
 
+def resolve_consumer_context(
+    logs: List[str],
+    consumer_bpn: Optional[str],
+    consumer_management_url: Optional[str],
+) -> tuple[str, str, str]:
+    """Resolve consumer connector context.
+
+    If an authenticated consumer BPN is provided but management URL is missing,
+    return an explicit error instead of silently falling back to IKLN.
+    """
+    bpn = (consumer_bpn or "").strip()
+    mgmt = (consumer_management_url or "").strip()
+
+    if bpn and not mgmt:
+        error = (
+            f"Partner autenticado ({bpn}) sin management_url configurada. "
+            "No se aplicará fallback a IKLN. "
+            "Configura el connector_url del partner en portal.connectors."
+        )
+        logs.append(log_message(f"❌ {error}"))
+        raise ValueError(error)
+
+    # Backwards compatibility for legacy non-partner flows.
+    consumer_mgmt = mgmt or settings.ikln_management_url
+    consumer_bpn_val = bpn or settings.ikln_bpn
+    consumer_api_key = get_consumer_api_key(consumer_mgmt)
+    return consumer_mgmt, consumer_bpn_val, consumer_api_key
+
+
 def _decode_jwt_segment(segment: str) -> Dict[str, Any]:
     """Decode a JWT segment as JSON without verifying signature."""
     padding = "=" * ((4 - len(segment) % 4) % 4)
@@ -218,23 +247,24 @@ async def catalog_request(
     """
     logs: List[str] = []
 
-    # Use provided consumer values or default to IKLN
-    consumer_mgmt = consumer_management_url or settings.ikln_management_url
-    consumer_bpn_val = consumer_bpn or settings.ikln_bpn
+    try:
+        consumer_mgmt, consumer_bpn_val, consumer_api_key = resolve_consumer_context(
+            logs,
+            consumer_bpn,
+            consumer_management_url,
+        )
+    except ValueError as e:
+        return {
+            "success": False,
+            "logs": logs,
+            "error": str(e),
+            "datasets": [],
+        }
     
     # Provider is always MASS
     provider_bpn_val = settings.mass_bpn
     provider_dsp = settings.mass_dsp
     
-    # Get consumer API key based on known connectors
-    if consumer_mgmt == settings.ikln_management_url:
-        consumer_api_key = settings.ikln_api_key
-    elif consumer_mgmt == settings.mass_management_url:
-        consumer_api_key = settings.mass_api_key
-    else:
-        # Default to IKLN API key for unknown connectors
-        consumer_api_key = settings.ikln_api_key
-
     logs.append(log_message(f"🔍 Consultando catálogo de MASS..."))
     logs.append(log_message(f"   Consumer: {consumer_bpn_val}"))
     logs.append(log_message(f"   Provider: {provider_bpn_val}"))
@@ -291,23 +321,29 @@ async def negotiate_asset(request: NegotiateAssetRequest) -> Dict[str, Any]:
     """
     logs: List[str] = []
 
-    # Use provided consumer values or default to IKLN
-    consumer_mgmt = request.consumerManagementUrl or settings.ikln_management_url
-    consumer_bpn_val = request.consumerBpn or settings.ikln_bpn
+    try:
+        consumer_mgmt, consumer_bpn_val, consumer_api_key = resolve_consumer_context(
+            logs,
+            request.consumerBpn,
+            request.consumerManagementUrl,
+        )
+    except ValueError as e:
+        return {
+            "success": False,
+            "logs": logs,
+            "negotiation": {
+                "id": f"failed-{request.assetId}",
+                "state": "FAILED",
+                "assetId": request.assetId,
+                "errorDetail": str(e),
+                "createdAt": None
+            }
+        }
     
     # Provider is always MASS
     provider_bpn_val = settings.mass_bpn
     provider_dsp = settings.mass_dsp
     
-    # Get consumer API key based on known connectors
-    if consumer_mgmt == settings.ikln_management_url:
-        consumer_api_key = settings.ikln_api_key
-    elif consumer_mgmt == settings.mass_management_url:
-        consumer_api_key = settings.mass_api_key
-    else:
-        # Default to IKLN API key for unknown connectors
-        consumer_api_key = settings.ikln_api_key
-
     logs.append(log_message(f"🤝 Iniciando negociación para asset: {request.assetId}"))
     logs.append(log_message(f"   Consumer: {consumer_bpn_val}"))
     logs.append(log_message(f"   Provider: {provider_bpn_val}"))
@@ -485,22 +521,23 @@ async def initiate_transfer_for_contract(
     
     logs: List[str] = []
     
-    # Use provided consumer values or default to IKLN
-    consumer_mgmt = request.consumerManagementUrl or settings.ikln_management_url
-    consumer_bpn_val = request.consumerBpn or settings.ikln_bpn
+    try:
+        consumer_mgmt, consumer_bpn_val, consumer_api_key = resolve_consumer_context(
+            logs,
+            request.consumerBpn,
+            request.consumerManagementUrl,
+        )
+    except ValueError as e:
+        return {
+            "success": False,
+            "logs": logs,
+            "error": str(e),
+        }
     
     # Provider is always MASS
     provider_bpn_val = settings.mass_bpn
     provider_dsp = settings.mass_dsp
     
-    # Get consumer API key
-    if consumer_mgmt == settings.ikln_management_url:
-        consumer_api_key = settings.ikln_api_key
-    elif consumer_mgmt == settings.mass_management_url:
-        consumer_api_key = settings.mass_api_key
-    else:
-        consumer_api_key = settings.ikln_api_key
-
     logger.info(f"\n{'='*80}")
     logger.info(f"🚀 Iniciando transferencia de {consumer_bpn_val} hacia MASS")
     logger.info(f"   Timestamp: {timestamp}")
