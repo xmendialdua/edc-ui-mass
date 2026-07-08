@@ -191,7 +191,29 @@ class EdcManagementClient:
         if resp.status_code == 409:
             logger.info("EDC policy already exists (409): %s", policy_data.get("@id"))
             return {"@id": policy_data.get("@id"), "already_exists": True}
-        resp.raise_for_status()
+        if resp.is_error:
+            policy_id = policy_data.get("@id", "unknown")
+            raw_body = (resp.text or "").strip()
+            response_body = raw_body if raw_body else "<empty>"
+            if len(response_body) > 1200:
+                response_body = response_body[:1200] + "..."
+
+            logger.error(
+                "EDC policy creation failed (%s) for %s. Response body: %s",
+                resp.status_code,
+                policy_id,
+                response_body,
+            )
+            raise httpx.HTTPStatusError(
+                (
+                    "EDC policy creation failed "
+                    f"({resp.status_code}) for {policy_id}. "
+                    f"Response body: {response_body}"
+                ),
+                request=resp.request,
+                response=resp,
+            )
+
         logger.info("EDC policy created: %s", policy_data.get("@id"))
         return resp.json()
 

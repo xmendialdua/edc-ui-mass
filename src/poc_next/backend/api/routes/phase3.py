@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Dict, Any, List
+import httpx
 
 from clients.edc import EdcManagementClient
 from config import settings
@@ -34,73 +35,176 @@ async def create_access_policy(request: CreateAccessPolicyRequest) -> Dict[str, 
     policy_id = f"access-policy-{bpn.lower()}"
     logs.append(log_message(f"🔐 Creando Access Policy para BPN: {bpn}"))
 
-    # Generate timestamps for metadata
-    from datetime import datetime, timedelta
-    now = datetime.utcnow()
-    issued = now.isoformat() + "Z"
-    valid_from = now.isoformat() + "Z"
-    valid_until = (now + timedelta(days=365)).isoformat() + "Z"  # Valid for 1 year
-
-    # Build access policy with Catena-X context
-    # IMPORTANT: constraint MUST be an array with "and" grouping, not a direct object
-    policy_data = {
-        "@context": [
-            "https://w3id.org/catenax/2025/9/policy/odrl.jsonld",
-            "https://w3id.org/catenax/2025/9/policy/context.jsonld",
-            {
-                "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
-            }
-        ],
-        "@id": policy_id,
-        "@type": "PolicyDefinition",
-        "policy": {
-            "@type": "Set",
-            "dct:issued": issued,
-            "dct:modified": issued,
-            "odrl:validFrom": valid_from,
-            "odrl:validUntil": valid_until,
-            "permission": [{
-                "action": "access",
-                "constraint": [{
-                    "and": [
-                        {
-                            "leftOperand": "Membership",
-                            "operator": "eq",
-                            "rightOperand": "active"
-                        },
-                        {
-                            "leftOperand": "BusinessPartnerNumber",
-                            "operator": "isAnyOf",
-                            "rightOperand": [bpn]
-                        }
-                    ]
-                }]
-            }]
+    context = [
+        "https://w3id.org/catenax/2025/9/policy/odrl.jsonld",
+        "https://w3id.org/catenax/2025/9/policy/context.jsonld",
+        {
+            "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
         }
-    }
+    ]
+
+    # Try multiple policy variants because some EDC validators are strict
+    # about operator/rightOperand and constraint container shapes.
+    policy_variants = [
+        {
+            "name": "C (use + Membership/FrameworkAgreement/UsagePurpose/BPN)",
+            "data": {
+                "@context": context,
+                "@id": policy_id,
+                "@type": "PolicyDefinition",
+                "policy": {
+                    "@type": "Set",
+                    "permission": [{
+                        "action": "use",
+                        "constraint": {
+                            "and": [
+                                {
+                                    "leftOperand": "Membership",
+                                    "operator": "eq",
+                                    "rightOperand": "active"
+                                },
+                                {
+                                    "leftOperand": "FrameworkAgreement",
+                                    "operator": "eq",
+                                    "rightOperand": "DataExchangeGovernance:1.0"
+                                },
+                                {
+                                    "leftOperand": "UsagePurpose",
+                                    "operator": "isAnyOf",
+                                    "rightOperand": ["cx.core.industrycore:1"]
+                                },
+                                {
+                                    "leftOperand": "BusinessPartnerNumber",
+                                    "operator": "isAnyOf",
+                                    "rightOperand": [bpn]
+                                }
+                            ]
+                        }
+                    }],
+                    "prohibition": [],
+                    "obligation": []
+                }
+            }
+        },
+        {
+            "name": "A (isAnyOf + array + constraint list)",
+            "data": {
+                "@context": context,
+                "@id": policy_id,
+                "@type": "PolicyDefinition",
+                "policy": {
+                    "@type": "Set",
+                    "permission": [{
+                        "action": "access",
+                        "constraint": [{
+                            "and": [
+                                {
+                                    "leftOperand": "Membership",
+                                    "operator": "eq",
+                                    "rightOperand": "active"
+                                },
+                                {
+                                    "leftOperand": "BusinessPartnerNumber",
+                                    "operator": "isAnyOf",
+                                    "rightOperand": [bpn]
+                                }
+                            ]
+                        }]
+                    }]
+                }
+            }
+        },
+        {
+            "name": "B (eq + string + constraint object)",
+            "data": {
+                "@context": context,
+                "@id": policy_id,
+                "@type": "PolicyDefinition",
+                "policy": {
+                    "@type": "Set",
+                    "permission": [{
+                        "action": "access",
+                        "constraint": {
+                            "and": [
+                                {
+                                    "leftOperand": "Membership",
+                                    "operator": "eq",
+                                    "rightOperand": "active"
+                                },
+                                {
+                                    "leftOperand": "BusinessPartnerNumber",
+                                    "operator": "eq",
+                                    "rightOperand": bpn
+                                }
+                            ]
+                        }
+                    }]
+                }
+            }
+        }
+    ]
 
     mass_client = EdcManagementClient(settings.mass_management_url, settings.mass_api_key)
     try:
-        result = await mass_client.create_policy_with_custom_context(policy_data)
+        last_error = ""
 
-        if result.get("already_exists"):
-            logs.append(log_message(f"⚠️  La Access Policy ya existe: {policy_id}"))
-            return {
-                "success": False,
-                "logs": logs,
-                "error": "POLICY_EXISTS"
-            }
+        for idx, variant in enumerate(policy_variants, start=1):
+            logs.append(log_message(f"🧪 Intento {idx}: {variant['name']}"))
+            try:
+                result = await mass_client.create_policy_with_custom_context(variant["data"])
 
-        logs.append(log_message("✅ Access Policy creada exitosamente"))
-        logs.append(log_message(f"   ID: {policy_id}"))
-        logs.append(log_message(f"   BPN permitido: {bpn}"))
-        logs.append(log_message(f"   📅 Issued: {issued}"))
-        logs.append(log_message(f"   📅 Valid From: {valid_from}"))
-        logs.append(log_message(f"   📅 Valid Until: {valid_until}"))
+                if result.get("already_exists"):
+                    logs.append(log_message(f"⚠️  La Access Policy ya existe: {policy_id}"))
+                    return {
+                        "success": False,
+                        "logs": logs,
+                        "error": "POLICY_EXISTS"
+                    }
 
+                logs.append(log_message("✅ Access Policy creada exitosamente"))
+                logs.append(log_message(f"   Variante aplicada: {variant['name']}"))
+                logs.append(log_message(f"   ID: {policy_id}"))
+                logs.append(log_message(f"   BPN permitido: {bpn}"))
+
+                return {
+                    "success": True,
+                    "logs": logs
+                }
+
+            except httpx.HTTPStatusError as e:
+                status_code = e.response.status_code if e.response else None
+                response_text = ""
+                if e.response is not None:
+                    response_text = (e.response.text or "").strip()
+                if len(response_text) > 1000:
+                    response_text = response_text[:1000] + "..."
+
+                detail = response_text or str(e)
+                last_error = f"HTTP {status_code}: {detail}" if status_code else detail
+                logs.append(log_message(f"⚠️  Falló intento {idx} ({variant['name']}): {last_error}"))
+
+                # Only fallback on validation errors. Any other status should stop here.
+                if status_code != 400:
+                    return {
+                        "success": False,
+                        "logs": logs,
+                        "error": last_error
+                    }
+
+            except Exception as e:
+                last_error = str(e)
+                logs.append(log_message(f"⚠️  Falló intento {idx} ({variant['name']}): {last_error}"))
+                return {
+                    "success": False,
+                    "logs": logs,
+                    "error": last_error
+                }
+
+        logs.append(log_message("❌ Ninguna variante de Access Policy fue aceptada por el EDC"))
         return {
-            "success": True,
-            "logs": logs
+            "success": False,
+            "logs": logs,
+            "error": last_error or "No se pudo crear Access Policy"
         }
 
     except Exception as e:
@@ -122,13 +226,6 @@ async def create_contract_policy() -> Dict[str, Any]:
     policy_id = "contract-policy-general"
     logs.append(log_message(f"📜 Creando Contract Policy General..."))
 
-    # Generate timestamps for metadata
-    from datetime import datetime, timedelta
-    now = datetime.utcnow()
-    issued = now.isoformat() + "Z"
-    valid_from = now.isoformat() + "Z"
-    valid_until = (now + timedelta(days=365)).isoformat() + "Z"  # Valid for 1 year
-
     # Build contract policy with Catena-X context
     # IMPORTANT: Contract policies require Membership, FrameworkAgreement, and UsagePurpose
     policy_data = {
@@ -143,10 +240,6 @@ async def create_contract_policy() -> Dict[str, Any]:
         "@type": "PolicyDefinition",
         "policy": {
             "@type": "Set",
-            "dct:issued": issued,
-            "dct:modified": issued,
-            "odrl:validFrom": valid_from,
-            "odrl:validUntil": valid_until,
             "permission": [{
                 "action": "use",
                 "constraint": {
@@ -189,9 +282,6 @@ async def create_contract_policy() -> Dict[str, Any]:
         logs.append(log_message("✅ Contract Policy creada exitosamente"))
         logs.append(log_message(f"   ID: {policy_id}"))
         logs.append(log_message(f"   Uso: General para todos los partners"))
-        logs.append(log_message(f"   📅 Issued: {issued}"))
-        logs.append(log_message(f"   📅 Valid From: {valid_from}"))
-        logs.append(log_message(f"   📅 Valid Until: {valid_until}"))
 
         return {
             "success": True,
