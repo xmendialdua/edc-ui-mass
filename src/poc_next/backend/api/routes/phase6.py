@@ -107,7 +107,7 @@ def get_consumer_api_key(management_url: str) -> str:
 
     if normalized_url == settings.prta_management_url.rstrip("/"):
         prta_api_key = (settings.prta_api_key or "").strip()
-        if not prta_api_key or prta_api_key.endswith("change-in-production"):
+        if not prta_api_key:
             raise ValueError(
                 "PRTA API key no configurada. Define PRTA_API_KEY en el backend antes de usar este conector."
             )
