@@ -58,9 +58,9 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
       }
       if (result.datasets && result.datasets.length > 0) {
         addLog(`✅ ${result.datasets.length} dataset(s) encontrado(s)`);
-      } else {
-        addLog('⚠️ No se encontraron datasets en el catálogo');
       }
+      // When 0 datasets: the backend already emits diagnostic logs explaining why,
+      // so we don't add a generic warning here — the details are already in result.logs
     } catch (error) {
       addLog(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {

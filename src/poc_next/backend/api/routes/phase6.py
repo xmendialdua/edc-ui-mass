@@ -346,6 +346,50 @@ async def catalog_request(
         logs.append(log_message(f"✅ Catálogo recibido"))
         logs.append(log_message(f"   Datasets encontrados: {len(datasets)}"))
 
+        if len(datasets) == 0:
+            # Log the full catalog structure for diagnosis
+            catalog_keys = list(catalog.keys()) if isinstance(catalog, dict) else []
+            logs.append(log_message(f"⚠️ Catálogo vacío — analizando estructura de respuesta..."))
+            logs.append(log_message(f"   Claves raíz del catálogo: {catalog_keys}"))
+
+            # Check for any service info or participant context
+            participant_id = None
+            if isinstance(catalog, dict):
+                participant_id = (
+                    catalog.get("participantId")
+                    or catalog.get("dspace:participantId")
+                    or catalog.get("dct:conformsTo")
+                )
+                service = catalog.get("dcat:service") or catalog.get("service")
+                if service:
+                    logs.append(log_message(f"   dcat:service presente: {json.dumps(service)[:300]}"))
+
+            if participant_id:
+                logs.append(log_message(f"   Participant ID del proveedor: {participant_id}"))
+
+            # Diagnose likely cause
+            logs.append(log_message(
+                f"🔎 Diagnóstico: El conector {consumer_bpn_val} recibió un catálogo vacío."
+            ))
+            logs.append(log_message(
+                f"   Causa probable: el proveedor ({provider_bpn_val}) evaluó las access policies"
+                f" y ninguna coincidió con las credenciales presentadas por {consumer_bpn_val}."
+            ))
+            logs.append(log_message(
+                f"   Verificar:"
+            ))
+            logs.append(log_message(
+                f"   1. Que el BPN {consumer_bpn_val} está registrado en el wallet stub"
+                f" (SEED_WALLETS_BPN en ssi-dim-wallet-config)."
+            ))
+            logs.append(log_message(
+                f"   2. Que el wallet stub emite un VC con businessPartnerNumber={consumer_bpn_val}."
+            ))
+            logs.append(log_message(
+                f"   3. Que los contratos publicados para {consumer_bpn_val} en MASS tienen"
+                f" access-policy-bpnl{consumer_bpn_val.lower().replace('bpnl', '')}."
+            ))
+
         return {
             "success": True,
             "logs": logs,
