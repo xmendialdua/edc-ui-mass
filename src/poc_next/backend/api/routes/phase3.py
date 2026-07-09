@@ -35,19 +35,55 @@ async def create_access_policy(request: CreateAccessPolicyRequest) -> Dict[str, 
     policy_id = f"access-policy-{bpn.lower()}"
     logs.append(log_message(f"🔐 Creando Access Policy para BPN: {bpn}"))
 
-    context = [
-        "https://w3id.org/catenax/2025/9/policy/odrl.jsonld",
-        "https://w3id.org/catenax/2025/9/policy/context.jsonld",
-        {
-            "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
-        }
-    ]
+    # Formato verificado en producción: mismo que access-policy-bpnl00000002ikln.
+    # Solo dos constraints: Membership=active y BusinessPartnerNumber isAnyOf <bpn>.
+    # NO incluir FrameworkAgreement ni UsagePurpose — el wallet stub no emite esas
+    # credenciales para partners externos y MASS filtraría el catálogo completo.
+    context = {
+        "@vocab": "https://w3id.org/edc/v0.0.1/ns/",
+        "edc": "https://w3id.org/edc/v0.0.1/ns/",
+        "odrl": "http://www.w3.org/ns/odrl/2/"
+    }
 
-    # Try multiple policy variants because some EDC validators are strict
-    # about operator/rightOperand and constraint container shapes.
     policy_variants = [
         {
-            "name": "C (use + Membership/FrameworkAgreement/UsagePurpose/BPN)",
+            "name": "Formato verificado (Membership + BPN, odrl: prefixed)",
+            "data": {
+                "@context": context,
+                "@id": policy_id,
+                "@type": "PolicyDefinition",
+                "policy": {
+                    "@type": "odrl:Set",
+                    "odrl:permission": {
+                        "odrl:action": {
+                            "@id": "https://w3id.org/catenax/2025/9/policy/access"
+                        },
+                        "odrl:constraint": {
+                            "odrl:and": [
+                                {
+                                    "odrl:leftOperand": {
+                                        "@id": "https://w3id.org/catenax/2025/9/policy/Membership"
+                                    },
+                                    "odrl:operator": {"@id": "odrl:eq"},
+                                    "odrl:rightOperand": "active"
+                                },
+                                {
+                                    "odrl:leftOperand": {
+                                        "@id": "https://w3id.org/catenax/2025/9/policy/BusinessPartnerNumber"
+                                    },
+                                    "odrl:operator": {"@id": "odrl:isAnyOf"},
+                                    "odrl:rightOperand": bpn
+                                }
+                            ]
+                        }
+                    },
+                    "odrl:prohibition": [],
+                    "odrl:obligation": []
+                }
+            }
+        },
+        {
+            "name": "Fallback (Membership + BPN, sin prefijo odrl:)",
             "data": {
                 "@context": context,
                 "@id": policy_id,
@@ -55,7 +91,7 @@ async def create_access_policy(request: CreateAccessPolicyRequest) -> Dict[str, 
                 "policy": {
                     "@type": "Set",
                     "permission": [{
-                        "action": "use",
+                        "action": "access",
                         "constraint": {
                             "and": [
                                 {
@@ -64,81 +100,15 @@ async def create_access_policy(request: CreateAccessPolicyRequest) -> Dict[str, 
                                     "rightOperand": "active"
                                 },
                                 {
-                                    "leftOperand": "FrameworkAgreement",
-                                    "operator": "eq",
-                                    "rightOperand": "DataExchangeGovernance:1.0"
-                                },
-                                {
-                                    "leftOperand": "UsagePurpose",
-                                    "operator": "isAnyOf",
-                                    "rightOperand": ["cx.core.industrycore:1"]
-                                },
-                                {
                                     "leftOperand": "BusinessPartnerNumber",
                                     "operator": "isAnyOf",
-                                    "rightOperand": [bpn]
+                                    "rightOperand": bpn
                                 }
                             ]
                         }
                     }],
                     "prohibition": [],
                     "obligation": []
-                }
-            }
-        },
-        {
-            "name": "A (isAnyOf + array + constraint list)",
-            "data": {
-                "@context": context,
-                "@id": policy_id,
-                "@type": "PolicyDefinition",
-                "policy": {
-                    "@type": "Set",
-                    "permission": [{
-                        "action": "access",
-                        "constraint": [{
-                            "and": [
-                                {
-                                    "leftOperand": "Membership",
-                                    "operator": "eq",
-                                    "rightOperand": "active"
-                                },
-                                {
-                                    "leftOperand": "BusinessPartnerNumber",
-                                    "operator": "isAnyOf",
-                                    "rightOperand": [bpn]
-                                }
-                            ]
-                        }]
-                    }]
-                }
-            }
-        },
-        {
-            "name": "B (eq + string + constraint object)",
-            "data": {
-                "@context": context,
-                "@id": policy_id,
-                "@type": "PolicyDefinition",
-                "policy": {
-                    "@type": "Set",
-                    "permission": [{
-                        "action": "access",
-                        "constraint": {
-                            "and": [
-                                {
-                                    "leftOperand": "Membership",
-                                    "operator": "eq",
-                                    "rightOperand": "active"
-                                },
-                                {
-                                    "leftOperand": "BusinessPartnerNumber",
-                                    "operator": "eq",
-                                    "rightOperand": bpn
-                                }
-                            ]
-                        }
-                    }]
                 }
             }
         }
