@@ -16,10 +16,14 @@ interface Negotiation {
 interface NegotiationsContentProps {
   onLog?: (message: string) => void;
   onInitiateTransfer?: (contractId: string, assetId: string) => void;
+  partnerDetails?: {
+    bpn: string;
+    management_url: string;
+  } | null;
 }
 
 const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsContentProps>(
-  ({ onLog, onInitiateTransfer }, ref) => {
+  ({ onLog, onInitiateTransfer, partnerDetails }, ref) => {
     const [loading, setLoading] = useState(false);
     const [negotiations, setNegotiations] = useState<Negotiation[]>([]);
     const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
@@ -44,14 +48,18 @@ const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsCont
 
     async function fetchNegotiations() {
       setLoading(true);
-      addLog('🔍 Consultando negociaciones...');
+      addLog('🔍 Consultando negociaciones de tipo CONSUMER...');
       try {
-        const result = await api.phase6.listNegotiations();
+        // Only fetch CONSUMER type negotiations (initiated by this partner)
+        const result = await api.phase6.listNegotiations(
+          partnerDetails?.management_url,
+          'consumer'
+        );
         setNegotiations(result.negotiations || []);
         if (result.logs) {
           result.logs.forEach(log => addLog(log));
         }
-        addLog(`✅ ${result.negotiations?.length || 0} negociación(es) encontrada(s)`);
+        addLog(`✅ ${result.negotiations?.length || 0} negociación(es) CONSUMER encontrada(s)`);
       } catch (error) {
         addLog(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
         setNegotiations([]);
@@ -65,8 +73,16 @@ const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsCont
     }));
 
     useEffect(() => {
-      fetchNegotiations();
-    }, []);
+      // Clear previous data and fetch new data when partner changes
+      if (partnerDetails?.management_url) {
+        setNegotiations([]); // Clear old data
+        setLoading(true);
+        fetchNegotiations();
+      } else {
+        // No partner details yet, clear data
+        setNegotiations([]);
+      }
+    }, [partnerDetails?.management_url]);
 
     const getCardBorderColor = (state: string) => {
       switch (state) {
@@ -294,7 +310,7 @@ const NegotiationsContent = forwardRef<{ refresh: () => void }, NegotiationsCont
                           e.currentTarget.style.opacity = '1';
                         }}
                       >
-                        Init Transfer
+                        🚀 Init Transfer
                       </button>
                     </div>
                   )}

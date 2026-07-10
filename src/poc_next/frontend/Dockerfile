@@ -12,7 +12,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml* ./
 
 # Install dependencies using pnpm (no frozen lockfile for Docker build)
-RUN corepack enable pnpm && \
+RUN corepack enable && corepack prepare pnpm@10.17.1 --activate && \
     pnpm install --no-frozen-lockfile
 
 # Rebuild the source code only when needed
@@ -44,7 +44,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
 # Build the application
-RUN corepack enable pnpm && \
+RUN corepack enable && corepack prepare pnpm@10.17.1 --activate && \
     pnpm run build
 
 # Production image

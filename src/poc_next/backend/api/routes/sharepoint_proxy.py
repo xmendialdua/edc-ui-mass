@@ -24,8 +24,8 @@ import mimetypes
 from fastapi import APIRouter, HTTPException, Response, Header
 from fastapi.responses import StreamingResponse
 from typing import Optional
-from sharepointGateway.SharePointAuth import SharePointAuthService
-from sharepointGateway.SharePointGateway import SharePointGateway
+from sharepoint_gateway.sharepoint_auth import SharePointAuthService
+from sharepoint_gateway.sharepoint_gateway import SharePointGateway
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -152,12 +152,13 @@ async def download_sharepoint_file(encoded_file_info: str):
         
         logger.info("✅ Access token obtained successfully")
         
-        # PASO 3: Descargar archivo desde SharePoint
-        logger.info("📥 Downloading file from SharePoint...")
+        # PASO 3: Descargar archivo/carpeta desde SharePoint
+        logger.info("📥 Downloading item from SharePoint...")
         gateway = SharePointGateway(access_token=access_token, default_drive_id=drive_id)
         
         try:
-            # Descargar contenido del archivo (devuelve tupla: content, filename)
+            # Descargar contenido (devuelve tupla: content, filename)
+            # Si es carpeta, se descarga automáticamente como ZIP
             file_content, filename = gateway.download_file(drive_id=drive_id, item_id=item_id)
             
             # Inferir MIME type del nombre del archivo
@@ -166,7 +167,10 @@ async def download_sharepoint_file(encoded_file_info: str):
                 mime_type = 'application/octet-stream'  # Fallback genérico
             
             file_size = len(file_content)
-            logger.info(f"✅ File downloaded successfully:")
+            is_zip = filename.endswith('.zip')
+            item_type = "Folder (as ZIP)" if is_zip else "File"
+            
+            logger.info(f"✅ {item_type} downloaded successfully:")
             logger.info(f"   Filename: {filename}")
             logger.info(f"   Size: {file_size:,} bytes ({file_size / 1024:.1f} KB)")
             logger.info(f"   MIME type: {mime_type}")
@@ -188,7 +192,7 @@ async def download_sharepoint_file(encoded_file_info: str):
                     'Cache-Control': 'no-cache, no-store, must-revalidate',
                 }
             )
-            
+        
         except Exception as e:
             logger.error(f"❌ Error downloading from SharePoint: {e}")
             logger.exception("Full exception details:")
@@ -209,7 +213,7 @@ async def download_sharepoint_file(encoded_file_info: str):
             
             raise HTTPException(
                 status_code=500, 
-                detail=f"Failed to download file from SharePoint: {str(e)}"
+                detail=f"Failed to download from SharePoint: {str(e)}"
             )
             
     except HTTPException:

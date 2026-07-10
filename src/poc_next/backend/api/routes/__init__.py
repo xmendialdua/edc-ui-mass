@@ -7,6 +7,7 @@ from .phase4 import router as phase4_router
 from .phase5 import router as phase5_router
 from .phase6 import router as phase6_router
 from .sharepoint import router as sharepoint_router
+from .partners import router as partners_router
 
 __all__ = [
     "phase1_router",
@@ -16,4 +17,5 @@ __all__ = [
     "phase5_router",
     "phase6_router",
     "sharepoint_router",
+    "partners_router",
 ]

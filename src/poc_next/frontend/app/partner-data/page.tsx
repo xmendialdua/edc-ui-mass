@@ -1,15 +1,38 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import Phase5Content from "@/components/phases/phase5-content";
 import NegotiationsContent from "@/components/phases/negotiations-content";
 import TransfersContent from "@/components/phases/transfers-content";
 import { api } from "@/lib/api";
 import Image from "next/image";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, LogOut } from "lucide-react";
+
+interface PartnerInfo {
+  email: string;
+  firstname: string;
+  lastname: string;
+  company_name: string;
+  bpn: string;
+}
+
+interface PartnerDetails {
+  email: string;
+  firstname: string;
+  lastname: string;
+  company_name: string;
+  bpn: string;
+  management_url: string;
+  dsp_url: string;
+}
 
 export default function PartnerDataPage() {
-  const [connectorStatus] = useState<"checking" | "connected" | "disconnected">("connected");
+  const router = useRouter();
+  const [authenticatedPartner, setAuthenticatedPartner] = useState<PartnerInfo | null>(null);
+  const [partnerDetails, setPartnerDetails] = useState<PartnerDetails | null>(null);
+  const [partnerDetailsError, setPartnerDetailsError] = useState<string | null>(null);
+  const [loadingPartner, setLoadingPartner] = useState<boolean>(true);
   const [isMounted, setIsMounted] = useState(false);
   const [globalLogs, setGlobalLogs] = useState<string[]>([]);
   const [sharePointConnected, setSharePointConnected] = useState(false);
@@ -21,9 +44,85 @@ export default function PartnerDataPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    // Verificar conexión SharePoint del backend al cargar la página
-    checkSharePointStatus();
+    checkAuthentication();
   }, []);
+
+  const checkAuthentication = async () => {
+    setLoadingPartner(true);
+    
+    try {
+      // Check if partner is authenticated
+      const partnerJson = sessionStorage.getItem('authenticated_partner');
+      
+      if (!partnerJson) {
+        // No authentication, redirect to login
+        router.push('/partner-login');
+        return;
+      }
+      
+      const partner: PartnerInfo = JSON.parse(partnerJson);
+      setAuthenticatedPartner(partner);
+      
+      // Fetch full partner details from backend
+      await fetchPartnerDetails(partner.email);
+      
+      // Check SharePoint status
+      await checkSharePointStatus();
+      
+    } catch (error) {
+      console.error('Error checking authentication:', error);
+      router.push('/partner-login');
+    } finally {
+      setLoadingPartner(false);
+    }
+  };
+
+  const fetchPartnerDetails = async (email: string) => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+      const response = await fetch(`${apiUrl}/api/partners/${encodeURIComponent(email)}/details`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch partner details');
+      }
+      
+      const details: PartnerDetails = await response.json();
+      setPartnerDetails(details);
+      setPartnerDetailsError(null);
+      console.log('✅ Partner details loaded:', details);
+
+      if (!details.management_url?.trim()) {
+        setPartnerDetailsError('Falta management_url para este partner. Registra el conector en la DB del portal.');
+        addLog('⚠️ Partner autenticado sin Management API URL. Falta connector_url en portal.connectors.');
+      } else {
+        addLog(`✅ Management API detectada: ${details.management_url}`);
+      }
+      
+    } catch (error) {
+      console.error('Error fetching partner details:', error);
+      setPartnerDetailsError('No se pudieron cargar los detalles del partner desde backend.');
+      addLog('❌ Error cargando detalles del partner desde backend.');
+      // If fails to fetch details, still show basic info from session
+    }
+  };
+
+  const hasManagementUrl = Boolean(partnerDetails?.management_url?.trim());
+  const connectorStatus: "checking" | "connected" | "disconnected" = !partnerDetails
+    ? "checking"
+    : hasManagementUrl
+      ? "connected"
+      : "disconnected";
+
+  const connectorUrlDisplay = !partnerDetails
+    ? 'Loading...'
+    : hasManagementUrl
+      ? partnerDetails.management_url
+      : 'No configurada';
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('authenticated_partner');
+    router.push('/partner-login');
+  };
 
   // Verificar estado de conexión SharePoint del backend
   const checkSharePointStatus = async () => {
@@ -72,10 +171,19 @@ export default function PartnerDataPage() {
 
   const handleInitiateTransfer = async (contractId: string, assetId: string) => {
     addLog(`📥 Iniciando transferencia para contrato: ${contractId}`);
+
+    // Refrescar inmediatamente el panel de transferencias al pulsar "Init Transfer"
+    if (transfersRef.current) {
+      transfersRef.current.refresh();
+      addLog(`🔄 Refrescando panel Transfers...`);
+    }
+
     try {
       const result = await api.phase6.initiateTransfer({
         contractAgreementId: contractId,
-        assetId: assetId
+        assetId: assetId,
+        consumerBpn: partnerDetails?.bpn,
+        consumerManagementUrl: partnerDetails?.management_url
       });
       
       if (result.logs) {
@@ -107,6 +215,35 @@ export default function PartnerDataPage() {
       minHeight: "100vh",
       padding: "20px"
     }}>
+      {loadingPartner ? (
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "100vh"
+        }}>
+          <div style={{
+            textAlign: "center",
+            background: "white",
+            padding: "40px",
+            borderRadius: "15px",
+            boxShadow: "0 10px 25px rgba(0,0,0,0.2)"
+          }}>
+            <div style={{
+              display: "inline-block",
+              width: "50px",
+              height: "50px",
+              border: "5px solid #f3f3f3",
+              borderTop: "5px solid #667eea",
+              borderRadius: "50%",
+              animation: "spin 1s linear infinite"
+            }} />
+            <p style={{ marginTop: "20px", color: "#666", fontSize: "16px" }}>
+              Cargando información del partner...
+            </p>
+          </div>
+        </div>
+      ) : (
       <div style={{ maxWidth: "1800px", margin: "0 auto" }}>
         {/* Header */}
         <div style={{
@@ -122,7 +259,7 @@ export default function PartnerDataPage() {
             gap: "30px",
             alignItems: "center"
           }}>
-            {/* Panel A: Logo + Título */}
+            {/* Panel A: Logo + Título + User Info */}
             <div style={{
               display: "flex",
               alignItems: "center",
@@ -138,10 +275,10 @@ export default function PartnerDataPage() {
               <div>
                 <h1 style={{ 
                   color: "#333", 
-                  margin: 0,
+                  margin: "0",
                   fontSize: "24px",
                   whiteSpace: "nowrap"
-                }}>Partner Data Access Dashboard</h1>
+                }}>Partner Dashboard</h1>
               </div>
             </div>
 
@@ -151,7 +288,7 @@ export default function PartnerDataPage() {
               padding: "12px 20px",
               borderRadius: "8px",
               display: "grid",
-              gridTemplateColumns: "auto auto auto",
+              gridTemplateColumns: "auto auto auto auto",
               gap: "20px",
               alignItems: "center",
               fontSize: "13px",
@@ -160,15 +297,11 @@ export default function PartnerDataPage() {
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <div style={{
-                  fontWeight: "bold",
-                  color: "#555",
-                  fontSize: "13px"
-                }}>IKLN Connector:</div>
-                <div style={{
                   color: "#333",
                   fontFamily: "'Courier New', monospace",
-                  fontSize: "13px"
-                }}>BPNL00000002IKLN</div>
+                  fontSize: "13px",
+                  fontWeight: "600"
+                }}>{partnerDetails?.bpn || authenticatedPartner?.bpn || 'Loading...'}</div>
               </div>
 
               <div style={{
@@ -182,15 +315,34 @@ export default function PartnerDataPage() {
                   width: "12px",
                   height: "12px",
                   borderRadius: "50%",
-                  background: "#28a745",
-                  boxShadow: "0 0 8px rgba(40, 167, 69, 0.6)"
+                  background:
+                    connectorStatus === "connected"
+                      ? "#28a745"
+                      : connectorStatus === "disconnected"
+                        ? "#dc3545"
+                        : "#ffc107",
+                  boxShadow:
+                    connectorStatus === "connected"
+                      ? "0 0 8px rgba(40, 167, 69, 0.6)"
+                      : connectorStatus === "disconnected"
+                        ? "0 0 8px rgba(220, 53, 69, 0.6)"
+                        : "0 0 8px rgba(255, 193, 7, 0.6)"
                 }} />
                 <div style={{
                   fontSize: "13px",
                   fontWeight: "600",
-                  color: "#28a745"
+                  color:
+                    connectorStatus === "connected"
+                      ? "#28a745"
+                      : connectorStatus === "disconnected"
+                        ? "#dc3545"
+                        : "#ffc107"
                 }}>
-                  Conectado
+                  {connectorStatus === "connected"
+                    ? "Conectado"
+                    : connectorStatus === "disconnected"
+                      ? "Sin URL"
+                      : "Cargando..."}
                 </div>
               </div>
 
@@ -211,14 +363,80 @@ export default function PartnerDataPage() {
                   color: "#333",
                   fontFamily: "'Courier New', monospace",
                   fontSize: "11px",
-                  whiteSpace: "nowrap"
-                }}>https://edc-ikln-control.51.178.94.25.nip.io/management</div>
+                  whiteSpace: "nowrap",
+                  maxWidth: "400px",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis"
+                }} title={connectorUrlDisplay}>{connectorUrlDisplay}</div>
               </div>
+
+              {/* User Info */}
+              {authenticatedPartner && (
+                <div style={{
+                  paddingLeft: "15px",
+                  borderLeft: "2px solid #d1d5db",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "4px"
+                }}>
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px"
+                  }}>
+                    <div style={{
+                      fontSize: "13px",
+                      color: "#333",
+                      fontWeight: "600"
+                    }}>
+                      👤 {authenticatedPartner.firstname} {authenticatedPartner.lastname}
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      title="Logout"
+                      style={{
+                        padding: "4px 6px",
+                        background: "#e74c3c",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center"
+                      }}
+                    >
+                      <LogOut size={12} />
+                    </button>
+                  </div>
+                  <div style={{
+                    fontSize: "11px",
+                    color: "#666"
+                  }}>
+                    ({authenticatedPartner.email})
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         {/* Main Panels: 3 Columns */}
+        {partnerDetailsError && (
+          <div style={{
+            marginBottom: "20px",
+            background: "#fff5f5",
+            border: "1px solid #fecaca",
+            color: "#991b1b",
+            borderRadius: "10px",
+            padding: "12px 16px",
+            fontSize: "14px",
+            fontWeight: 500
+          }}>
+            ⚠️ {partnerDetailsError}
+          </div>
+        )}
+
         <div style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr 1fr",
@@ -248,7 +466,7 @@ export default function PartnerDataPage() {
                 gap: "10px"
               }}>
                 <span style={{ fontSize: "24px" }}>📋</span>
-                <span>Catálogo</span>
+                <span>Catalogs</span>
               </div>
               <button
                 onClick={() => phase5Ref.current?.refresh()}
@@ -281,6 +499,7 @@ export default function PartnerDataPage() {
                 ref={phase5Ref} 
                 onLog={addLog}
                 onNegotiationComplete={() => negotiationsRef.current?.refresh()}
+                partnerDetails={partnerDetails}
               />
             </div>
           </div>
@@ -308,7 +527,7 @@ export default function PartnerDataPage() {
                 gap: "10px"
               }}>
                 <span style={{ fontSize: "24px" }}>🤝</span>
-                <span>Negociaciones</span>
+                <span>Negotiations</span>
               </div>
               <button
                 onClick={() => negotiationsRef.current?.refresh()}
@@ -341,6 +560,7 @@ export default function PartnerDataPage() {
                 ref={negotiationsRef} 
                 onLog={addLog}
                 onInitiateTransfer={handleInitiateTransfer}
+                partnerDetails={partnerDetails}
               />
             </div>
           </div>
@@ -368,7 +588,7 @@ export default function PartnerDataPage() {
                 gap: "10px"
               }}>
                 <span style={{ fontSize: "24px" }}>📥</span>
-                <span>Transferencias</span>
+                <span>Transfers</span>
               </div>
               <div style={{
                 display: "flex",
@@ -459,6 +679,7 @@ export default function PartnerDataPage() {
                 sharePointConnected={sharePointConnected}
                 sharePointUser={sharePointUser}
                 onAuthenticateSharePoint={checkSharePointStatus}
+                partnerDetails={partnerDetails}
               />
             </div>
           </div>
@@ -535,8 +756,14 @@ export default function PartnerDataPage() {
           </div>
         </div>
       </div>
+      )}
 
       <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
         @keyframes pulse {
           0%, 100% {
             opacity: 1;

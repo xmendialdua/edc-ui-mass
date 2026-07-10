@@ -25,9 +25,13 @@ interface Offer {
 interface Phase5ContentProps {
   onLog?: (message: string) => void;
   onNegotiationComplete?: () => void;
+  partnerDetails?: {
+    bpn: string;
+    management_url: string;
+  } | null;
 }
 
-const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({ onLog, onNegotiationComplete }, ref) => {
+const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({ onLog, onNegotiationComplete, partnerDetails }, ref) => {
   const [loading, setLoading] = useState(false);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [expandedDatasets, setExpandedDatasets] = useState<Set<string>>(new Set());
@@ -44,16 +48,19 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
     setExpandedDatasets(new Set());
     addLog('🔍 Consultando catálogo de MASS...');
     try {
-      const result = await api.phase5.catalogRequest();
+      const result = await api.phase6.catalogRequest(
+        partnerDetails?.bpn,
+        partnerDetails?.management_url
+      );
       setDatasets(result.datasets || []);
       if (result.logs) {
         result.logs.forEach(log => addLog(log));
       }
       if (result.datasets && result.datasets.length > 0) {
         addLog(`✅ ${result.datasets.length} dataset(s) encontrado(s)`);
-      } else {
-        addLog('⚠️ No se encontraron datasets en el catálogo');
       }
+      // When 0 datasets: the backend already emits diagnostic logs explaining why,
+      // so we don't add a generic warning here — the details are already in result.logs
     } catch (error) {
       addLog(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
@@ -97,7 +104,9 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
     try {
       const result = await api.phase6.negotiate({
         assetId: assetId,
-        policy: policy
+        policy: policy,
+        consumerBpn: partnerDetails?.bpn,
+        consumerManagementUrl: partnerDetails?.management_url
       });
       
       if (result.logs) {
@@ -126,10 +135,17 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
     refresh: handleCatalogRequest
   }));
 
-  // Auto-load catalog on mount
+  // Auto-load catalog when partnerDetails is available
   useEffect(() => {
-    handleCatalogRequest();
-  }, []);
+    if (partnerDetails?.bpn && partnerDetails?.management_url) {
+      setDatasets([]); // Clear old catalog data
+      setLoading(true);
+      handleCatalogRequest();
+    } else {
+      // No partner details yet, clear data
+      setDatasets([]);
+    }
+  }, [partnerDetails?.bpn, partnerDetails?.management_url]);
 
   return (
     <div className="space-y-4">
@@ -182,23 +198,26 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
                     >
                       {/* Header plegable - siempre visible */}
                       <div
-                        onClick={() => toggleAssetExpansion(offerId)}
                         style={{
                           padding: '14px 16px',
-                          cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'flex-start',
                           justifyContent: 'space-between',
                           gap: '12px'
                         }}
                       >
-                        <div style={{ flex: 1 }}>
+                        <div 
+                          onClick={() => toggleAssetExpansion(offerId)}
+                          style={{ flex: 1, cursor: 'pointer', minWidth: 0 }}
+                        >
                           <div style={{ 
                             fontSize: '13px',
                             fontWeight: '600',
                             color: '#5b21b6',
                             marginBottom: '6px',
-                            fontFamily: 'monospace'
+                            fontFamily: 'monospace',
+                            wordBreak: 'break-word',
+                            overflowWrap: 'break-word'
                           }}>
                             {assetId}
                           </div>
@@ -206,18 +225,54 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
                             <div style={{ 
                               fontSize: '12px', 
                               color: '#6b7280',
-                              lineHeight: '1.4'
+                              lineHeight: '1.4',
+                              wordBreak: 'break-word',
+                              overflowWrap: 'break-word'
                             }}>
                               {truncatedDescription}
                             </div>
                           )}
                         </div>
-                        <div style={{ paddingTop: '2px' }}>
-                          {isExpanded ? (
-                            <ChevronUp className="h-5 w-5" style={{ color: '#7c3aed' }} />
-                          ) : (
-                            <ChevronDown className="h-5 w-5" style={{ color: '#7c3aed' }} />
-                          )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleNegotiate(assetId, offer);
+                            }}
+                            style={{
+                              background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)',
+                              color: 'white',
+                              padding: '6px 12px',
+                              borderRadius: '5px',
+                              border: 'none',
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              whiteSpace: 'nowrap'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = 'linear-gradient(90deg, #059669 0%, #047857 100%)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = 'linear-gradient(90deg, #10b981 0%, #059669 100%)';
+                            }}
+                          >
+                            🤝 Negotiate
+                          </button>
+                          <div 
+                            onClick={() => toggleAssetExpansion(offerId)}
+                            style={{ paddingTop: '2px', cursor: 'pointer' }}
+                          >
+                            {isExpanded ? (
+                              <ChevronUp className="h-5 w-5" style={{ color: '#7c3aed' }} />
+                            ) : (
+                              <ChevronDown className="h-5 w-5" style={{ color: '#7c3aed' }} />
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -234,7 +289,9 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
                                 fontSize: '12px', 
                                 color: '#4b5563', 
                                 marginBottom: '12px',
-                                lineHeight: '1.5'
+                                lineHeight: '1.5',
+                                wordBreak: 'break-word',
+                                overflowWrap: 'break-word'
                               }}>
                                 <span style={{ fontWeight: 'bold', color: '#374151' }}>Description: </span>
                                 <span>{assetDescription}</span>
@@ -254,35 +311,6 @@ const Phase5Content = forwardRef<{ refresh: () => void }, Phase5ContentProps>(({
                                 {offerId}
                               </span>
                             </div>
-                          </div>
-                          
-                          {/* Botón de negociar */}
-                          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleNegotiate(assetId, offer);
-                              }}
-                              style={{
-                                background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)',
-                                color: 'white',
-                                padding: '8px 16px',
-                                borderRadius: '5px',
-                                border: 'none',
-                                fontSize: '13px',
-                                fontWeight: '600',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease'
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'linear-gradient(90deg, #059669 0%, #047857 100%)';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = 'linear-gradient(90deg, #10b981 0%, #059669 100%)';
-                              }}
-                            >
-                              Negociar
-                            </button>
                           </div>
                         </div>
                       )}

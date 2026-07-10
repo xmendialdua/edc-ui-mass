@@ -191,7 +191,29 @@ class EdcManagementClient:
         if resp.status_code == 409:
             logger.info("EDC policy already exists (409): %s", policy_data.get("@id"))
             return {"@id": policy_data.get("@id"), "already_exists": True}
-        resp.raise_for_status()
+        if resp.is_error:
+            policy_id = policy_data.get("@id", "unknown")
+            raw_body = (resp.text or "").strip()
+            response_body = raw_body if raw_body else "<empty>"
+            if len(response_body) > 1200:
+                response_body = response_body[:1200] + "..."
+
+            logger.error(
+                "EDC policy creation failed (%s) for %s. Response body: %s",
+                resp.status_code,
+                policy_id,
+                response_body,
+            )
+            raise httpx.HTTPStatusError(
+                (
+                    "EDC policy creation failed "
+                    f"({resp.status_code}) for {policy_id}. "
+                    f"Response body: {response_body}"
+                ),
+                request=resp.request,
+                response=resp,
+            )
+
         logger.info("EDC policy created: %s", policy_data.get("@id"))
         return resp.json()
 
@@ -476,11 +498,13 @@ class EdcManagementClient:
 
     # ==================== EDR (Endpoint Data Reference) ====================
 
-    async def get_edr_for_transfer(self, transfer_id: str) -> Optional[Dict[str, Any]]:
+    async def get_edr_for_transfer(self, transfer_id: str, force_dataaddress_refresh: bool = False) -> Optional[Dict[str, Any]]:
         """Get the Endpoint Data Reference for a completed transfer.
 
         Args:
             transfer_id: Transfer process identifier.
+            force_dataaddress_refresh: If True, force calling /dataaddress with auto_refresh=true
+                even when endpoint/auth are already present in the EDR object.
 
         Returns:
             EDR data with endpoint and authorization token, or None if not available.
@@ -490,11 +514,11 @@ class EdcManagementClient:
         
         try:
             # Step 1: List all EDRs
-            logger.info(f"\n{'-'*60}")
+            logger.info(f"\n{'-'*90}")
             logger.info(f"📋 STEP 1: Listing all EDRs to find transfer {transfer_id}")
             logger.info(f"   Timestamp: {timestamp}")
             logger.info(f"   EDC URL: {self.base_url}/v3/edrs/request")
-            print(f"\n{timestamp} | INFO     | 📋 Listing EDRs for transfer: {transfer_id}", flush=True)
+            logger.info(f"   headers: {self._headers()}")
             
             edr_list_resp = await self._client.post(
                 f"{self.base_url}/v3/edrs/request",
@@ -508,11 +532,9 @@ class EdcManagementClient:
             )
             
             logger.info(f"   EDR list response status: {edr_list_resp.status_code}")
-            print(f"{timestamp} | INFO     |    Response status: {edr_list_resp.status_code}", flush=True)
             
             if edr_list_resp.status_code != 200:
                 logger.warning(f"Failed to list EDRs: HTTP {edr_list_resp.status_code} - {edr_list_resp.text[:200]}")
-                print(f"{timestamp} | WARNING  | Failed to list EDRs: {edr_list_resp.status_code}", flush=True)
                 return None
             
             edr_list = edr_list_resp.json()
@@ -520,7 +542,6 @@ class EdcManagementClient:
             # Log the raw response for debugging
             logger.info(f"   Raw EDR response type: {type(edr_list)}")
             logger.info(f"   Retrieved {len(edr_list) if isinstance(edr_list, list) else 0} EDRs")
-            print(f"{timestamp} | INFO     |    Retrieved {len(edr_list) if isinstance(edr_list, list) else 0} EDRs", flush=True)
             
             if not isinstance(edr_list, list):
                 logger.warning(f"EDR list is not a list, got: {type(edr_list)}")
@@ -530,11 +551,10 @@ class EdcManagementClient:
             # Log all transfer IDs in the list
             transfer_ids_in_list = [edr.get('transferProcessId') for edr in edr_list]
             logger.info(f"   Transfer IDs in EDR list: {transfer_ids_in_list}")
-            print(f"{timestamp} | INFO     |    Transfer IDs found: {', '.join(transfer_ids_in_list[:5])}...", flush=True)
+            #print(f"{timestamp} | INFO     |    Transfer IDs found: {', '.join(transfer_ids_in_list[:5])}...", flush=True)
             
             # Step 2: Find the EDR matching this transfer_id
-            logger.info(f"\n🔍 STEP 2: Searching for matching EDR")
-            print(f"{timestamp} | INFO     | 🔍 Searching for transfer: {transfer_id}", flush=True)
+            logger.info(f"📋 STEP 2: Searching for matching EDR for transfer {transfer_id} ")
             
             matching_edr = next(
                 (edr for edr in edr_list if edr.get("transferProcessId") == transfer_id),
@@ -552,34 +572,42 @@ class EdcManagementClient:
             logger.info(f"✅ Found matching EDR for transfer {transfer_id}")
             logger.info(f"   EDR ID: {matching_edr.get('@id')}")
             logger.info(f"   EDR object keys: {list(matching_edr.keys())}")
-            print(f"{timestamp} | INFO     | ✅ Found matching EDR: {matching_edr.get('@id')}", flush=True)
+            logger.info(f"   ✅ Found matching EDR: {matching_edr.get('@id')}")
             
             # Try to extract endpoint and authorization from the EDR object directly first
             # This avoids calling the /dataaddress endpoint which may fail due to STS issues
-            logger.info(f"\n🔧 STEP 3: Extracting endpoint and authorization")
-            print(f"{timestamp} | INFO     | 🔧 Extracting endpoint/auth from EDR", flush=True)
+            logger.info(f"\n📋 STEP 3: Extracting endpoint and authorization from EDR")
+            
             
             endpoint = None
             authorization = None
             
             # Check if EDR contains direct endpoint data
-            if "endpoint" in matching_edr or "baseUrl" in matching_edr:
-                endpoint = matching_edr.get("endpoint") or matching_edr.get("baseUrl")
-                authorization = matching_edr.get("authCode") or matching_edr.get("authorization") or matching_edr.get("authKey")
+            direct_endpoint = matching_edr.get("endpoint") or matching_edr.get("baseUrl")
+            direct_authorization = matching_edr.get("authCode") or matching_edr.get("authorization") or matching_edr.get("authKey")
+
+            logger.info(f"     Endpoint in EDR object: {direct_endpoint}")
+            logger.info(f"     Authorization in EDR object: {direct_authorization}")
+
+            if direct_endpoint or direct_authorization:
                 logger.info(f"✅ Found endpoint/auth directly in EDR object")
-                logger.info(f"   Endpoint: {endpoint}")
-                logger.info(f"   Has authorization: {bool(authorization)}")
-                print(f"{timestamp} | INFO     | ✅ Found in EDR object directly", flush=True)
+                logger.info(f"   Endpoint: {direct_endpoint}")
+                logger.info(f"   Has authorization: {bool(direct_authorization)}")
+                
+                if not force_dataaddress_refresh:
+                    endpoint = direct_endpoint
+                    authorization = direct_authorization
+                else:
+                    logger.info("🔁 Forced refresh enabled: ignoring direct EDR auth and calling /dataaddress")
             
             # If not found in EDR object, try the /dataaddress endpoint
-            if not endpoint or not authorization:
+            if force_dataaddress_refresh or not endpoint or not authorization:
                 edr_id = matching_edr.get("@id") or transfer_id
-                logger.info(f"\n🔄 STEP 4: Calling /dataaddress endpoint")
+                logger.info(f"📋 STEP 4: Calling /dataaddress endpoint")
                 logger.info(f"   EDR ID: {edr_id}")
                 logger.info(f"   Using auto_refresh=true to enable automatic token refresh")
                 logger.info(f"   URL: {self.base_url}/v3/edrs/{edr_id}/dataaddress?auto_refresh=true")
-                print(f"{timestamp} | INFO     | 🔄 Calling /dataaddress with auto_refresh=true", flush=True)
-                print(f"{timestamp} | INFO     |    EDR ID: {edr_id}", flush=True)
+                logger.info(f"   headers: {self._headers()}")
                 
                 try:
                     dataaddress_resp = await self._client.get(
@@ -589,26 +617,46 @@ class EdcManagementClient:
                     )
                     
                     logger.info(f"   Dataaddress response status: {dataaddress_resp.status_code}")
-                    print(f"{timestamp} | INFO     |    Response status: {dataaddress_resp.status_code}", flush=True)
                     
                     if dataaddress_resp.status_code != 200:
-                        error_body = dataaddress_resp.text[:500]
-                        logger.warning(f"❌ Failed to get dataaddress for EDR {edr_id}")
+                        raw_error_body = dataaddress_resp.text or ""
+                        error_body = raw_error_body[:2000]
+                        logger.warning(f"   ❌ Failed to get dataaddress for EDR {edr_id}")
                         logger.warning(f"   HTTP Status: {dataaddress_resp.status_code}")
                         logger.warning(f"   Response body: {error_body}")
-                        print(f"{timestamp} | WARNING  | ❌ Dataaddress failed: {dataaddress_resp.status_code}", flush=True)
-                        print(f"{timestamp} | WARNING  |    Error: {error_body[:200]}", flush=True)
+                        logger.warning(f"   Error summary: {error_body[:300]}")
+                        
+                        # Detect configuration errors that won't be fixed by retrying
+                        is_config_error = False
+                        if "Unsupported JWS algorithm" in error_body or "must be ES256K" in error_body:
+                            logger.error(f"⚠️ DIM WALLET CONFIGURATION ERROR: JWS algorithm mismatch")
+                            logger.error(f"   EDC is using RS256 but DIM wallet requires ES256K")
+                            logger.error(f"   This requires EDC/DIM configuration change, not code fix")
+                            logger.error(f" ⚠️ DIM WALLET CONFIG ERROR: RS256 vs ES256K mismatch")
+                            is_config_error = True
+                        
+                        # Detect STS invalid token failures (commonly expired refresh token).
+                        is_invalid_token_error = "Invalid token" in raw_error_body or "token has expired" in raw_error_body.lower()
+
                         # If dataaddress fails but we already have data from EDR object, use that
-                        if endpoint or authorization:
+                        # unless force_dataaddress_refresh is requested.
+                        if not force_dataaddress_refresh and (direct_endpoint or direct_authorization):
+                            endpoint = endpoint or direct_endpoint
+                            authorization = authorization or direct_authorization
                             logger.info(f"✅ Using endpoint/auth from EDR object despite dataaddress failure")
-                            print(f"{timestamp} | INFO     | ✅ Falling back to EDR object data", flush=True)
+                            logger.info(f" ✅ Falling back to EDR object data")
                         else:
-                            return None
+                            # Return error info for monitor to handle
+                            if is_config_error:
+                                return {"error": "config_error", "message": error_body}
+                            if is_invalid_token_error:
+                                return {"error": "invalid_token", "message": error_body}
+                            return {"error": "unavailable", "message": error_body}
                     else:
                         edr_data = dataaddress_resp.json()
                         logger.info(f"✅ Successfully retrieved EDR data from dataaddress endpoint")
                         logger.info(f"   Dataaddress keys: {list(edr_data.keys())}")
-                        print(f"{timestamp} | INFO     | ✅ Dataaddress retrieved successfully", flush=True)
+                        logger.info(f"✅ Dataaddress retrieved successfully")
                         
                         # Normalize field names (different EDC versions use different names)
                         endpoint = edr_data.get("endpoint") or edr_data.get("baseUrl")
@@ -617,27 +665,36 @@ class EdcManagementClient:
                         logger.info(f"   Extracted auth (has value): {bool(authorization)}")
                         
                 except Exception as e:
-                    logger.warning(f"❌ Exception calling dataaddress endpoint: {e}")
-                    print(f"{timestamp} | WARNING  | ❌ Dataaddress exception: {str(e)}", flush=True)
-                    # Continue with data from EDR object if available
+                    error_type = type(e).__name__
+                    error_message = str(e) or repr(e)
+                    logger.warning(f"❌ Exception calling dataaddress endpoint ({error_type}): {error_message}")
+                    logger.exception("Dataaddress request failed for transfer %s", transfer_id)
+                    print(f"{timestamp} | WARNING  | ❌ Dataaddress exception ({error_type}): {error_message}", flush=True)
+                    # Continue with data from EDR object if available and not forcing refresh.
+                    # In forced refresh mode return structured error so callers can distinguish
+                    # network/timeouts from connector configuration errors.
+                    if force_dataaddress_refresh:
+                        if isinstance(e, httpx.TimeoutException):
+                            return {"error": "timeout", "message": error_message[:500]}
+                        if isinstance(e, httpx.RequestError):
+                            return {"error": "network", "message": error_message[:500]}
+                        return {"error": "unavailable", "message": f"{error_type}: {error_message}"[:500]}
                     if not (endpoint or authorization):
                         return None
             
             if not endpoint:
                 logger.warning(f"❌ No endpoint found in EDR data")
                 logger.warning(f"   EDR fields: {list(matching_edr.keys())}")
-                print(f"{timestamp} | WARNING  | ❌ No endpoint found", flush=True)
                 return None
             
             logger.info(f"\n✅ SUCCESS: EDR retrieved for transfer {transfer_id}")
             logger.info(f"   Endpoint: {endpoint[:50]}...")
             logger.info(f"   Has authorization: {bool(authorization)}")
             logger.info(f"   Authorization length: {len(authorization) if authorization else 0} chars")
-            logger.info(f"{'-'*60}\n")
             print(f"{timestamp} | INFO     | ✅ EDR data ready", flush=True)
             print(f"{timestamp} | INFO     |    Endpoint: {endpoint}", flush=True)
             print(f"{timestamp} | INFO     |    Token length: {len(authorization) if authorization else 0} chars", flush=True)
-            print(f"{'-'*60}\n", flush=True)
+            logger.info(f"{'-'*90}\n")
             
             return {
                 "endpoint": endpoint,

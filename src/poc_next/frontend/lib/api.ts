@@ -192,24 +192,42 @@ export const api = {
    * Phase 6: Negotiation and Transfer
    */
   phase6: {
-    catalogRequest: () => apiRequest<{ success: boolean; catalog: any; datasets: any[]; logs: string[] }>(
-      '/api/phase6/catalog-request',
-      { method: 'POST' }
-    ),
-    negotiate: (data: { assetId: string; policy: any }) => apiRequest<{ success: boolean; logs: string[] }>(
+    catalogRequest: (consumerBpn?: string, consumerManagementUrl?: string) => {
+      const params = new URLSearchParams();
+      if (consumerBpn) params.append('consumer_bpn', consumerBpn);
+      if (consumerManagementUrl) params.append('consumer_management_url', consumerManagementUrl);
+      
+      return apiRequest<{ success: boolean; catalog: any; datasets: any[]; logs: string[] }>(
+        `/api/phase6/catalog-request${params.toString() ? '?' + params.toString() : ''}`,
+        { method: 'POST' }
+      );
+    },
+    negotiate: (data: { assetId: string; policy: any; consumerBpn?: string; consumerManagementUrl?: string }) => apiRequest<{ success: boolean; logs: string[] }>(
       '/api/phase6/negotiate-asset',
       { method: 'POST', body: JSON.stringify(data) }
     ),
-    listNegotiations: () => apiRequest<{ success: boolean; negotiations: any[]; logs: string[] }>(
-      '/api/phase6/list-negotiations',
-      { method: 'GET' }
-    ),
-    listTransfers: () => apiRequest<{ success: boolean; transfers: any[]; logs: string[] }>(
-      '/api/phase6/list-transfers',
-      { method: 'GET' }
-    ),
-    initiateTransfer: (data: { contractAgreementId: string; assetId: string }) =>
-      apiRequest<{ success: boolean; logs: string[] }>(
+    listNegotiations: (consumerManagementUrl?: string, negotiationType: 'consumer' | 'provider' | 'all' = 'consumer') => {
+      const params = new URLSearchParams();
+      if (consumerManagementUrl) params.append('consumer_management_url', consumerManagementUrl);
+      if (negotiationType) params.append('negotiation_type', negotiationType);
+      
+      return apiRequest<{ success: boolean; negotiations: any[]; filter?: any; logs: string[] }>(
+        `/api/phase6/list-negotiations${params.toString() ? '?' + params.toString() : ''}`,
+        { method: 'GET' }
+      );
+    },
+    listTransfers: (consumerManagementUrl?: string, transferType: 'consumer' | 'provider' | 'all' = 'consumer') => {
+      const params = new URLSearchParams();
+      if (consumerManagementUrl) params.append('consumer_management_url', consumerManagementUrl);
+      if (transferType) params.append('transfer_type', transferType);
+      
+      return apiRequest<{ success: boolean; transfers: any[]; filter?: any; logs: string[] }>(
+        `/api/phase6/list-transfers${params.toString() ? '?' + params.toString() : ''}`,
+        { method: 'GET' }
+      );
+    },
+    initiateTransfer: (data: { contractAgreementId: string; assetId: string; consumerBpn?: string; consumerManagementUrl?: string }) =>
+      apiRequest<{ success: boolean; logs: string[]; transfer?: any; error?: string }>(
         '/api/phase6/initiate-transfer-for-contract',
         { method: 'POST', body: JSON.stringify(data) }
       ),
@@ -254,12 +272,23 @@ export const api = {
 
       return { blob, contentType, filename };
     },
-    getTransferEdr: (transferId: string) => apiRequest<{ success: boolean; edr: any; cached: boolean }>(
+    getTransferEdr: (transferId: string) => apiRequest<{ success: boolean; edr?: any; cached: boolean; error?: string; message?: string }>(
       `/api/phase6/transfer-edr/${transferId}`,
       { method: 'GET' }
     ),
-    getFreshToken: (transferId: string) => apiRequest<{ success: boolean; token: string; endpoint: string; error?: string }>(
-      `/api/phase6/get-fresh-token/${transferId}`,
+    getFreshToken: (transferId: string, forceRefresh: boolean = false) => apiRequest<{ success: boolean; token?: string; endpoint?: string; error?: string; tokenDiagnostics?: any }>(
+      `/api/phase6/get-fresh-token/${transferId}?force_refresh=${forceRefresh}`,
+      { method: 'GET' }
+    ),
+    getEdrDiagnostics: (transferId: string, forceRefresh: boolean = false) => apiRequest<{
+      success: boolean;
+      serverTimeUtc?: string;
+      transfer?: any;
+      currentEdr?: any;
+      refreshAttempt?: any;
+      error?: string;
+    }>(
+      `/api/phase6/edr-diagnostics/${transferId}?force_refresh=${forceRefresh}`,
       { method: 'GET' }
     ),
     getTransferStatus: (transferId: string) => apiRequest<{ 

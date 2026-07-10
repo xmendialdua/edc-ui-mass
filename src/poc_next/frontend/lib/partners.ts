@@ -8,41 +8,31 @@ export interface Partner {
 }
 
 /**
- * Get list of available partners
- * 
- * This function returns a hardcoded list of partners for now.
- * In the future, this can be modified to fetch partners from a database or API.
- * 
- * @returns Array of available partners
+ * Fetch list of available partners from the backend API (portal database).
+ * Maps company_name -> name and description.
+ *
+ * @returns Promise resolving to array of partners
+ */
+export async function fetchAvailablePartners(): Promise<Partner[]> {
+  const apiUrl = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) || 'http://localhost:5001';
+  const response = await fetch(`${apiUrl}/api/partners/list`);
+  if (!response.ok) {
+    throw new Error(`Error fetching partners: ${response.statusText}`);
+  }
+  const data: { bpn: string; company_name: string }[] = await response.json();
+  return data.map(item => ({
+    bpn: item.bpn,
+    name: item.company_name,
+    description: item.company_name,
+  }));
+}
+
+/**
+ * Get list of available partners (static fallback).
+ * @deprecated Use fetchAvailablePartners() to load from the database instead.
  */
 export function getAvailablePartners(): Partner[] {
-  return [
-    {
-      bpn: "BPNL00000002IKLN",
-      name: "Ikerlan",
-      description: "IKERLAN Technology Centre"
-    },
-    {
-      bpn: "BPNL00000000MASS",
-      name: "MondragonAssembly",
-      description: "Mondragon Assembly"
-    },
-    {
-      bpn: "BPNL00000001PTR1",
-      name: "Partner1",
-      description: "Partner 1"
-    },
-    {
-      bpn: "BPNL00000001PTR2",
-      name: "Partner2",
-      description: "Partner 2"
-    },
-    {
-      bpn: "BPNL00000001PTR3",
-      name: "Partner3",
-      description: "Partner 3"
-    }
-  ];
+  return [];
 }
 
 /**

@@ -2,8 +2,9 @@
 
 import asyncio
 import logging
+import httpx
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from clients.edc import EdcManagementClient
 from config import settings
@@ -12,6 +13,14 @@ logger = logging.getLogger(__name__)
 
 # In-memory cache of captured EDRs (in production, use Redis or DB)
 _edr_cache: Dict[str, Dict[str, Any]] = {}
+
+# Track active monitoring tasks to prevent duplicates
+_monitoring_transfers: set = set()
+
+
+def is_monitoring(transfer_id: str) -> bool:
+    """Check if a transfer is already being monitored."""
+    return transfer_id in _monitoring_transfers
 
 
 async def monitor_transfer_for_edr(transfer_id: str, max_attempts: int = 60, interval: float = 1.0) -> Optional[Dict[str, Any]]:
@@ -34,16 +43,34 @@ async def monitor_transfer_for_edr(transfer_id: str, max_attempts: int = 60, int
         logger.info(f"EDR for transfer {transfer_id} found in cache")
         return _edr_cache[transfer_id]
     
+    # Check if already monitoring (prevent duplicates)
+    if transfer_id in _monitoring_transfers:
+        logger.info(f"⏭️ Transfer {transfer_id} already being monitored, skipping duplicate")
+        return None
+    
+    # Add to monitoring set
+    _monitoring_transfers.add(transfer_id)
     logger.info(f"🚀 Starting EDR monitor for transfer {transfer_id}")
     print(f"🚀 Starting EDR monitor for transfer {transfer_id}")
     
+    # Create client with increased timeout for monitor (60s vs default 30s)
     ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
+    ikln_client._client = httpx.AsyncClient(timeout=60.0, verify=False)
     
     try:
+        consecutive_unavailable = 0
+        MAX_CONSECUTIVE_UNAVAILABLE = 5
+
         for attempt in range(max_attempts):
-            # Get current transfer state
-            transfer = await ikln_client.get_transfer(transfer_id)
-            state = transfer.get("state")
+            try:
+                # Get current transfer state
+                transfer = await ikln_client.get_transfer(transfer_id)
+                state = transfer.get("state")
+            except httpx.ReadTimeout:
+                # Handle timeout gracefully and continue monitoring
+                logger.warning(f"⏱️ Timeout getting transfer {transfer_id} attempt {attempt+1}/{max_attempts}, retrying...")
+                await asyncio.sleep(interval * 2)  # Double interval after timeout
+                continue
             
             logger.info(f"📊 Transfer {transfer_id} attempt {attempt + 1}/{max_attempts}: state={state}")
             print(f"📊 Transfer {transfer_id} attempt {attempt + 1}/{max_attempts}: state={state}")
@@ -66,7 +93,7 @@ async def monitor_transfer_for_edr(transfer_id: str, max_attempts: int = 60, int
                     edr_data = {
                         "endpoint": endpoint,
                         "authorization": auth,
-                        "capturedAt": datetime.now().isoformat(),
+                        "capturedAt": datetime.now(timezone.utc).isoformat(),
                         "transferState": state
                     }
                     logger.info(f"✅ EDR found in dataAddress for transfer {transfer_id}")
@@ -74,9 +101,43 @@ async def monitor_transfer_for_edr(transfer_id: str, max_attempts: int = 60, int
             
             # 2. Query EDRs endpoint
             if not edr_data:
-                edr_data = await ikln_client.get_edr_for_transfer(transfer_id)
-                if edr_data:
-                    edr_data["capturedAt"] = datetime.now().isoformat()
+                edr_result = await ikln_client.get_edr_for_transfer(transfer_id)
+                
+                # Check if it's an error dict (config error or STS unavailable)
+                if edr_result and isinstance(edr_result, dict) and "error" in edr_result:
+                    error_type = edr_result["error"]
+                    if error_type == "config_error":
+                        logger.error(f"🚫 Configuration error for transfer {transfer_id}: {edr_result.get('message')}")
+                        logger.error(f"   Stopping monitor - this requires EDC/DIM configuration fix")
+                        print(f"🚫 Config error for {transfer_id} - stopping monitor")
+                        _edr_cache[transfer_id] = {**edr_result, "failedAt": datetime.now(timezone.utc).isoformat()}
+                        return None  # Stop monitoring, can't be fixed by retrying
+                    
+                    # For other errors (unavailable, timeout, network) count consecutive failures
+                    consecutive_unavailable += 1
+                    logger.warning(
+                        f"⚠️ EDR unavailable for transfer {transfer_id} "
+                        f"(attempt {attempt+1}, consecutive failures: {consecutive_unavailable}/{MAX_CONSECUTIVE_UNAVAILABLE}): "
+                        f"{edr_result.get('message', '')[:100]}"
+                    )
+                    if consecutive_unavailable >= MAX_CONSECUTIVE_UNAVAILABLE:
+                        logger.error(
+                            f"⛔ Stopping monitor for {transfer_id}: "
+                            f"{consecutive_unavailable} consecutive unavailable errors (STS refresh failing)"
+                        )
+                        print(f"⛔ Monitor stopped for {transfer_id} - persistent EDR refresh failure")
+                        _edr_cache[transfer_id] = {
+                            "error": "refresh_failed",
+                            "message": edr_result.get("message", "STS token refresh failed persistently")[:200],
+                            "failedAt": datetime.now(timezone.utc).isoformat(),
+                        }
+                        return None
+                    continue
+                
+                if edr_result:
+                    consecutive_unavailable = 0  # Reset on success
+                    edr_data = edr_result
+                    edr_data["capturedAt"] = datetime.now(timezone.utc).isoformat()
                     edr_data["transferState"] = state
                     logger.info(f"✅ EDR found via EDRs endpoint for transfer {transfer_id}")
                     print(f"✅ EDR captured from EDRs endpoint for transfer {transfer_id} (state: {state})")
@@ -110,6 +171,9 @@ async def monitor_transfer_for_edr(transfer_id: str, max_attempts: int = 60, int
         return None
         
     finally:
+        # Always remove from monitoring set and close client
+        _monitoring_transfers.discard(transfer_id)
+        logger.info(f"🏁 Monitor completed for transfer {transfer_id}")
         await ikln_client.close()
 
 
