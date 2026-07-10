@@ -7,8 +7,8 @@
 DOCKER_USERNAME="xmendialdua"
 BACKEND_IMAGE="${DOCKER_USERNAME}/poc-next-backend"
 FRONTEND_IMAGE="${DOCKER_USERNAME}/poc-next-frontend"
-BACKEND_IMAGE_TAG_VERSION="v1.0.2"
-FRONTEND_IMAGE_TAG_VERSION="v1.0.3"
+BACKEND_IMAGE_TAG_VERSION="v1.0.4"
+FRONTEND_IMAGE_TAG_VERSION="v1.0.4"
 
 # Production URL for Kubernetes
 PRODUCTION_API_URL="https://ds-management.51.178.94.25.nip.io"
@@ -20,8 +20,8 @@ AZURE_REDIRECT_URI="https://ds-management.51.178.94.25.nip.io"
 SHAREPOINT_SITE_URL="https://ikerlan.sharepoint.com/sites/IKDataSpace"
 
 # App Configuration
-APP_NAME="POC Next Dashboard"
-APP_VERSION="0.1.0"
+APP_NAME="DS-Dashboard"
+APP_VERSION="0.2.0"
 
 # Colors for output
 GREEN='\033[0;32m'
