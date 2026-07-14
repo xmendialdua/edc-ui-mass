@@ -1,33 +1,33 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: poc-next-backend
-  namespace: ds-management-ui
+  name: ${BACKEND_APP_NAME}
+  namespace: ${NAMESPACE}
   labels:
-    app: poc-next-backend
+    app: ${BACKEND_APP_NAME}
 spec:
   type: ClusterIP
   ports:
-  - port: 5001
-    targetPort: 5001
+  - port: ${BACKEND_SERVICE_PORT}
+    targetPort: ${BACKEND_SERVICE_PORT}
     protocol: TCP
     name: http
   selector:
-    app: poc-next-backend
+    app: ${BACKEND_APP_NAME}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: poc-next-frontend
-  namespace: ds-management-ui
+  name: ${FRONTEND_APP_NAME}
+  namespace: ${NAMESPACE}
   labels:
     app: poc-next-frontend
 spec:
   type: ClusterIP
   ports:
-  - port: 3001
-    targetPort: 3001
+  - port: ${FRONTEND_SERVICE_PORT}
+    targetPort: ${FRONTEND_SERVICE_PORT}
     protocol: TCP
     name: http
   selector:
-    app: poc-next-frontend
+    app: ${FRONTEND_APP_NAME}

@@ -2,14 +2,23 @@
 
 # Set namespace
 NAMESPACE="ds-management-ui"
+BACKEND_APP_NAME="poc-next-backend"
+FRONTEND_APP_NAME="poc-next-frontend"
 
 # Set image names and tags
 DOCKER_USERNAME="xmendialdua"
-BACKEND_IMAGE="${DOCKER_USERNAME}/poc-next-backend"
-FRONTEND_IMAGE="${DOCKER_USERNAME}/poc-next-frontend"
+BACKEND_IMAGE="${DOCKER_USERNAME}/${BACKEND_APP_NAME}"
+FRONTEND_IMAGE="${DOCKER_USERNAME}/${FRONTEND_APP_NAME}"
 IMAGE_TAG_LATEST="latest"
-BACKEND_IMAGE_TAG_VERSION="v1.0.4"
-FRONTEND_IMAGE_TAG_VERSION="v1.0.4"
+BACKEND_IMAGE_TAG_VERSION="v1.0.5"
+FRONTEND_IMAGE_TAG_VERSION="v1.0.5"
+
+# Set host value for OVH deployment
+OVH_HOST="ds-management.51.178.94.25.nip.io"
+
+# Set port numbers for services (if needed)
+BACKEND_SERVICE_PORT=5001
+FRONTEND_SERVICE_PORT=3001
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -18,11 +27,15 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+export NAMESPACE
+export BACKEND_APP_NAME
+export FRONTEND_APP_NAME  
 export DOCKER_USERNAME
 export FRONTEND_IMAGE
 export FRONTEND_IMAGE_TAG_VERSION
 export BACKEND_IMAGE
 export BACKEND_IMAGE_TAG_VERSION
+export OVH_HOST 
 
 echo -e "${BLUE}════════════════════════════════════════════════════════${NC}"
 echo -e "${BLUE}   🚀 Deploying POC Next to OVH Kubernetes             ${NC}"
@@ -67,7 +80,9 @@ echo ""
 
 # Apply Kubernetes configurations
 echo -e "${BLUE}Applying Kubernetes configurations...${NC}"
-kubectl apply -f rbac.yaml -n $NAMESPACE
+# kubectl apply -f rbac.yaml -n $NAMESPACE
+envsubst < rbac.yaml
+envsubst < rbac.yaml | kubectl apply -f - -n $NAMESPACE
 echo -e "${GREEN}✓ RBAC applied${NC}"
 
 kubectl apply -f configmap.yaml -n $NAMESPACE
@@ -78,13 +93,19 @@ envsubst < deployment.yaml
 envsubst < deployment.yaml | kubectl apply -f - -n $NAMESPACE
 echo -e "${GREEN}✓ Deployments applied${NC}"
 
-kubectl apply -f service.yaml -n $NAMESPACE
+# kubectl apply -f service.yaml -n $NAMESPACE
+envsubst < service.yaml
+envsubst < service.yaml | kubectl apply -f - -n $NAMESPACE
 echo -e "${GREEN}✓ Services applied${NC}"
 
-kubectl apply -f ingress-backend.yaml -n $NAMESPACE
+# kubectl apply -f ingress-backend.yaml -n $NAMESPACE
+envsubst < ingress-backend.yaml
+envsubst < ingress-backend.yaml | kubectl apply -f - -n $NAMESPACE
 echo -e "${GREEN}✓ Backend Ingress applied${NC}"
 
-kubectl apply -f ingress-frontend.yaml -n $NAMESPACE
+# kubectl apply -f ingress-frontend.yaml -n $NAMESPACE
+envsubst < ingress-frontend.yaml
+envsubst < ingress-frontend.yaml | kubectl apply -f - -n $NAMESPACE
 echo -e "${GREEN}✓ Frontend Ingress applied${NC}"
 
 echo ""

@@ -1,26 +1,26 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: poc-next-backend
-  namespace: ds-management-ui
+  name: ${BACKEND_APP_NAME}
+  namespace: ${NAMESPACE}
   labels:
-    app: poc-next-backend
+    app: ${BACKEND_APP_NAME}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: poc-next-backend
+      app: ${BACKEND_APP_NAME}
   template:
     metadata:
       labels:
-        app: poc-next-backend
+        app: ${BACKEND_APP_NAME}
     spec:
       serviceAccountName: poc-next-sa
       containers:
       - name: backend
         image: ${BACKEND_IMAGE}:${BACKEND_IMAGE_TAG_VERSION}
         ports:
-        - containerPort: 5001
+        - containerPort: ${BACKEND_SERVICE_PORT}
         envFrom:
         - configMapRef:
             name: poc-next-config
@@ -52,39 +52,39 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 5001
+            port: ${BACKEND_SERVICE_PORT}
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /health
-            port: 5001
+            port: ${BACKEND_SERVICE_PORT}
           initialDelaySeconds: 5
           periodSeconds: 5
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: poc-next-frontend
-  namespace: ds-management-ui
+  name: ${FRONTEND_APP_NAME}
+  namespace: ${NAMESPACE}
   labels:
-    app: poc-next-frontend
+    app: ${FRONTEND_APP_NAME}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: poc-next-frontend
+      app: ${FRONTEND_APP_NAME}
   template:
     metadata:
       labels:
-        app: poc-next-frontend
+        app: ${FRONTEND_APP_NAME}
     spec:
       serviceAccountName: poc-next-sa
       containers:
       - name: frontend
         image: ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG_VERSION}
         ports:
-        - containerPort: 3001
+        - containerPort: ${FRONTEND_SERVICE_PORT}
         env:
         - name: NEXT_PUBLIC_API_URL
           valueFrom:
@@ -131,12 +131,12 @@ spec:
         livenessProbe:
           httpGet:
             path: /data-publication
-            port: 3001
+            port: ${FRONTEND_SERVICE_PORT}
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /data-publication
-            port: 3001
+            port: ${FRONTEND_SERVICE_PORT}
           initialDelaySeconds: 5
           periodSeconds: 5

@@ -19,6 +19,13 @@ data:
   IKLN_BPN: "BPNL00000002IKLN"
   IKLN_DSP: "https://edc-ikln-control.51.178.94.25.nip.io/api/v1/dsp"
   
+  # Portal Database Configuration (for partner authentication)
+  PORTAL_DB_HOST: "portal-portal-backend-postgresql.portal.svc.cluster.local"
+  PORTAL_DB_PORT: "5432"
+  PORTAL_DB_NAME: "postgres"
+  PORTAL_DB_USER: "portal"
+  PORTAL_DB_PASSWORD: "dbpasswordportal"
+  
   # Sample Data
   PDF_URL: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
   
@@ -31,7 +38,7 @@ data:
   # Azure AD Configuration (SharePoint Integration)
   NEXT_PUBLIC_AZURE_CLIENT_ID: "a1fc2076-f046-4a0f-90e7-4601aeb5b856"
   NEXT_PUBLIC_AZURE_TENANT_ID: "910ac815-f855-4a08-bf29-90b46552cf11"
-  NEXT_PUBLIC_AZURE_REDIRECT_URI: "http://ds-management.51.178.94.25.nip.io"
+  NEXT_PUBLIC_AZURE_REDIRECT_URI: "https://ds-management.51.178.94.25.nip.io"
   
   # SharePoint Configuration
   NEXT_PUBLIC_SHAREPOINT_SITE_URL: "https://ikerlan.sharepoint.com/sites/IKDataSpace"

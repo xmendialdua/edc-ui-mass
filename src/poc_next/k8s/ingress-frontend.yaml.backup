@@ -5,9 +5,13 @@ metadata:
   namespace: ds-management-ui
   annotations:
     # NO rewrite-target: las rutas se pasan tal cual a Next.js
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
   ingressClassName: nginx
+  tls:
+  - hosts:
+      - ds-management.51.178.94.25.nip.io
+    secretName: ds-management-tls
   rules:
   - host: ds-management.51.178.94.25.nip.io
     http:
@@ -53,6 +57,24 @@ spec:
       
       # SharePoint Data: Integración con SharePoint corporativo
       - path: /sharepoint-data
+        pathType: Prefix
+        backend:
+          service:
+            name: poc-next-frontend
+            port:
+              number: 3001
+
+      # Partner Login: autenticación de partners
+      - path: /partner-login
+        pathType: Prefix
+        backend:
+          service:
+            name: poc-next-frontend
+            port:
+              number: 3001
+
+      # Catch-all para todas las rutas de Next.js no listadas explícitamente
+      - path: /
         pathType: Prefix
         backend:
           service:
