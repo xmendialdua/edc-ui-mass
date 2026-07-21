@@ -72,12 +72,23 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
   const [availablePartners, setAvailablePartners] = useState<Partner[]>([]);
   const [partnersLoading, setPartnersLoading] = useState(false);
 
-  useEffect(() => {
+  const loadAvailablePartners = async () => {
     setPartnersLoading(true);
-    fetchAvailablePartners()
-      .then(setAvailablePartners)
-      .catch(err => console.error('Error loading partners:', err))
-      .finally(() => setPartnersLoading(false));
+    try {
+      const partners = await fetchAvailablePartners();
+      setAvailablePartners(partners);
+      log(`✅ ${partners.length} partner(s) cargado(s)`);
+    } catch (err) {
+      console.error('Error loading partners:', err);
+      log(`❌ Error cargando partners: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setPartnersLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAvailablePartners();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const log = (message: string) => {
@@ -482,6 +493,11 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
     if (selectedAssets.size === 0) {
       alert('Selecciona al menos un asset para publicar');
       return;
+    }
+
+    // Reintentar carga de partners al abrir el modal por si falló en el arranque.
+    if (!partnersLoading && availablePartners.length === 0) {
+      await loadAvailablePartners();
     }
 
     // Abrir modal de selección de partners
@@ -1714,6 +1730,10 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                 }}>
                   {partnersLoading ? (
                     <div style={{ padding: '10px', color: '#666', textAlign: 'center' }}>Cargando partners...</div>
+                  ) : availablePartners.length === 0 ? (
+                    <div style={{ padding: '10px', color: '#666', textAlign: 'center' }}>
+                      No se encontraron partners. Revisa conexión con backend/DB y vuelve a abrir este diálogo.
+                    </div>
                   ) : availablePartners.map(partner => (
                     <div
                       key={partner.bpn}

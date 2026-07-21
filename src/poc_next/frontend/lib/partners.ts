@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from '@/lib/api';
+
 /**
  * Partner data type
  */
@@ -14,10 +16,11 @@ export interface Partner {
  * @returns Promise resolving to array of partners
  */
 export async function fetchAvailablePartners(): Promise<Partner[]> {
-  const apiUrl = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) || 'http://localhost:5001';
+  const apiUrl = getApiBaseUrl();
   const response = await fetch(`${apiUrl}/api/partners/list`);
   if (!response.ok) {
-    throw new Error(`Error fetching partners: ${response.statusText}`);
+    const errorBody = await response.text().catch(() => '');
+    throw new Error(`Error fetching partners: ${response.status} ${response.statusText} ${errorBody}`.trim());
   }
   const data: { bpn: string; company_name: string }[] = await response.json();
   return data.map(item => ({
