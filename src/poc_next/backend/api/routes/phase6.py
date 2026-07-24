@@ -707,8 +707,13 @@ async def initiate_transfer_for_contract(
         logs.append(log_message(f"   Transfer ID: {transfer_id}"))
         logs.append(log_message(f"🔍 Monitoreando EDR en background..."))
         
-        # Start monitoring for EDR in background
-        background_tasks.add_task(monitor_transfer_for_edr, transfer_id)
+        # Start monitoring for EDR in background using the active consumer connector.
+        background_tasks.add_task(
+            monitor_transfer_for_edr,
+            transfer_id,
+            management_url=consumer_mgmt,
+            api_key=consumer_api_key,
+        )
 
         from datetime import datetime
         
@@ -925,7 +930,13 @@ async def list_transfers(
                     if idx < 3:
                         logger.info(f"       🔄 Auto-iniciando monitor EDR para transfer sin EDR")
                     # Launch monitor in background (fire-and-forget)
-                    asyncio.create_task(monitor_transfer_for_edr(transfer_id))
+                    asyncio.create_task(
+                        monitor_transfer_for_edr(
+                            transfer_id,
+                            management_url=consumer_mgmt,
+                            api_key=consumer_api_key,
+                        )
+                    )
                 else:
                     if idx < 3:
                         logger.info(f"       ⏭️ Monitor ya activo para esta transfer, skip")
@@ -981,7 +992,10 @@ async def list_transfers(
 
 
 @router.get("/transfer-edr/{transfer_id}")
-async def get_transfer_edr(transfer_id: str) -> Dict[str, Any]:
+async def get_transfer_edr(
+    transfer_id: str,
+    consumer_management_url: Optional[str] = None,
+) -> Dict[str, Any]:
     """Get the EDR for a specific transfer on-demand (if not cached)."""
     # First, check cache
     edr = get_cached_edr(transfer_id)
@@ -1010,11 +1024,21 @@ async def get_transfer_edr(transfer_id: str) -> Dict[str, Any]:
             "cached": True
         }
     
+    consumer_mgmt = consumer_management_url or settings.ikln_management_url
+    try:
+        consumer_api_key = get_consumer_api_key(consumer_mgmt)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "cached": False
+        }
+
     # If not cached, fetch from EDC
-    ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
+    consumer_client = EdcManagementClient(consumer_mgmt, consumer_api_key)
     try:
         print(f"🔍 Fetching EDR on-demand for transfer {transfer_id}")
-        edr_data = await ikln_client.get_edr_for_transfer(transfer_id)
+        edr_data = await consumer_client.get_edr_for_transfer(transfer_id)
         
         if edr_data and isinstance(edr_data, dict) and edr_data.get("error"):
             return {
@@ -1051,17 +1075,31 @@ async def get_transfer_edr(transfer_id: str) -> Dict[str, Any]:
             "cached": False
         }
     finally:
-        await ikln_client.close()
+        await consumer_client.close()
 
 
 @router.get("/edr-diagnostics/{transfer_id}")
-async def get_edr_diagnostics(transfer_id: str, force_refresh: bool = False) -> Dict[str, Any]:
+async def get_edr_diagnostics(
+    transfer_id: str,
+    force_refresh: bool = False,
+    consumer_management_url: Optional[str] = None,
+) -> Dict[str, Any]:
     """Detailed diagnostics for transfer/EDR status and JWT timing."""
-    ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
+    consumer_mgmt = consumer_management_url or settings.ikln_management_url
+    try:
+        consumer_api_key = get_consumer_api_key(consumer_mgmt)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "serverTimeUtc": datetime.now(timezone.utc).isoformat(),
+        }
+
+    consumer_client = EdcManagementClient(consumer_mgmt, consumer_api_key)
     now_utc = datetime.now(timezone.utc).isoformat()
 
     try:
-        transfer = await ikln_client.get_transfer(transfer_id)
+        transfer = await consumer_client.get_transfer(transfer_id)
         state = transfer.get("state")
         data_address = transfer.get("dataAddress") or {}
 
@@ -1104,7 +1142,7 @@ async def get_edr_diagnostics(transfer_id: str, force_refresh: bool = False) -> 
         }
 
         if force_refresh:
-            refreshed = await ikln_client.get_edr_for_transfer(
+            refreshed = await consumer_client.get_edr_for_transfer(
                 transfer_id,
                 force_dataaddress_refresh=True,
             )
@@ -1156,11 +1194,14 @@ async def get_edr_diagnostics(transfer_id: str, force_refresh: bool = False) -> 
             "serverTimeUtc": now_utc,
         }
     finally:
-        await ikln_client.close()
+        await consumer_client.close()
 
 
 @router.get("/transfer-status/{transfer_id}")
-async def get_transfer_status(transfer_id: str) -> Dict[str, Any]:
+async def get_transfer_status(
+    transfer_id: str,
+    consumer_management_url: Optional[str] = None,
+) -> Dict[str, Any]:
     """Get the current state of a specific transfer process."""
     from datetime import datetime
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
@@ -1168,9 +1209,18 @@ async def get_transfer_status(transfer_id: str) -> Dict[str, Any]:
     logger.info(f"\n{'-'*80}")
     logger.info(f"🔍 Consultando estado de transferencia {transfer_id}")
     
-    ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
+    consumer_mgmt = consumer_management_url or settings.ikln_management_url
     try:
-        transfer = await ikln_client.get_transfer(transfer_id)
+        consumer_api_key = get_consumer_api_key(consumer_mgmt)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+    consumer_client = EdcManagementClient(consumer_mgmt, consumer_api_key)
+    try:
+        transfer = await consumer_client.get_transfer(transfer_id)
         state = transfer.get("state")
         state_code = get_state_code(state)
         data_address = transfer.get("dataAddress")
@@ -1232,11 +1282,15 @@ async def get_transfer_status(transfer_id: str) -> Dict[str, Any]:
             "error": str(e)
         }
     finally:
-        await ikln_client.close()
+        await consumer_client.close()
 
 
 @router.get("/get-fresh-token/{transfer_id}")
-async def get_fresh_token(transfer_id: str, force_refresh: bool = False) -> Dict[str, Any]:
+async def get_fresh_token(
+    transfer_id: str,
+    force_refresh: bool = False,
+    consumer_management_url: Optional[str] = None,
+) -> Dict[str, Any]:
     """Get a fresh EDR token for a transfer (bypass cache)."""
     from datetime import datetime
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
@@ -1245,18 +1299,28 @@ async def get_fresh_token(transfer_id: str, force_refresh: bool = False) -> Dict
     logger.info(f"🔄 Solicitando token FRESCO (sin caché)")
     logger.info(f"   Timestamp: {timestamp}")
     logger.info(f"   Transfer ID: {transfer_id}")
-    logger.info(f"   Management URL: {settings.ikln_management_url}")
+    consumer_mgmt = consumer_management_url or settings.ikln_management_url
+    try:
+        consumer_api_key = get_consumer_api_key(consumer_mgmt)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "tokenDiagnostics": _analyze_jwt_timing(None),
+        }
+
+    logger.info(f"   Management URL: {consumer_mgmt}")
     
     print(f"\n{'='*80}", flush=True)
     print(f"{timestamp} | INFO     | 🔄 Renovando token para: {transfer_id}", flush=True)
-    print(f"{timestamp} | INFO     |    Management URL: {settings.ikln_management_url}", flush=True)
+    print(f"{timestamp} | INFO     |    Management URL: {consumer_mgmt}", flush=True)
     
-    ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
+    consumer_client = EdcManagementClient(consumer_mgmt, consumer_api_key)
     try:
         logger.info(f"🔍 Llamando a get_edr_for_transfer... force_refresh={force_refresh}")
         print(f"{timestamp} | INFO     | 🔍 Consultando EDR para transfer {transfer_id}", flush=True)
         
-        edr_data = await ikln_client.get_edr_for_transfer(
+        edr_data = await consumer_client.get_edr_for_transfer(
             transfer_id,
             force_dataaddress_refresh=force_refresh,
         )
@@ -1332,7 +1396,7 @@ async def get_fresh_token(transfer_id: str, force_refresh: bool = False) -> Dict
             "error": str(e)
         }
     finally:
-        await ikln_client.close()
+        await consumer_client.close()
 
 
 @router.post("/download-file")

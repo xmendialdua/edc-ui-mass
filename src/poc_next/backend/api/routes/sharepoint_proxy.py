@@ -326,7 +326,7 @@ async def download_sharepoint_folder(encoded_folder_info: str):
             # Devuelve tupla: (zip_content, zip_filename)
             zip_content, zip_filename = gateway.download_folder_as_zip(
                 drive_id=drive_id, 
-                folder_id=folder_id
+                item_id=folder_id
             )
             
             zip_size = len(zip_content)
@@ -570,7 +570,7 @@ async def download_with_user_token(
         # Descargar según el tipo
         if is_folder:
             logger.info(f"📦 Downloading folder as ZIP: {item_name}")
-            file_content, filename = gateway.download_folder_as_zip(drive_id=drive_id, folder_id=item_id)
+            file_content, filename = gateway.download_folder_as_zip(drive_id=drive_id, item_id=item_id)
             mime_type = 'application/zip'
             logger.info(f"✅ Folder downloaded successfully as ZIP: {filename}")
         else:

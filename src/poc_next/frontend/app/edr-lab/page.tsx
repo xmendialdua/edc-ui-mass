@@ -121,7 +121,11 @@ export default function EdrLabPage() {
     try {
       addLog(`🔬 Comprobando renovacion real para ${transferId.trim()}...`);
 
-      const before = await api.phase6.getEdrDiagnostics(transferId.trim(), false);
+      const before = await api.phase6.getEdrDiagnostics(
+        transferId.trim(),
+        false,
+        partnerDetails?.management_url,
+      );
       if (!before.success) {
         addLog(`❌ No se pudo leer el estado inicial: ${before.error || "sin detalle"}`);
         return;
@@ -130,7 +134,11 @@ export default function EdrLabPage() {
       const beforeTiming = before.currentEdr?.tokenTiming?.timing as JwtTiming | undefined;
       addLog(`   Antes: ${formatTimingSummary(beforeTiming)}`);
 
-      const after = await api.phase6.getEdrDiagnostics(transferId.trim(), true);
+      const after = await api.phase6.getEdrDiagnostics(
+        transferId.trim(),
+        true,
+        partnerDetails?.management_url,
+      );
       setDiagnostics(after);
 
       if (!after.success) {
@@ -299,7 +307,7 @@ export default function EdrLabPage() {
 
     setRunningAction("edr");
     try {
-      const result = await api.phase6.getTransferEdr(transferId.trim());
+      const result = await api.phase6.getTransferEdr(transferId.trim(), partnerDetails?.management_url);
       if (!result.success || !result.edr) {
         addLog(`EDR no disponible: ${result.error || "sin detalle"}${result.message ? ` (${result.message})` : ""}`);
         return;
@@ -316,7 +324,11 @@ export default function EdrLabPage() {
       setEdrToken(token);
       addLog(`EDR obtenido (${result.cached ? "cache" : "on-demand"}), tokenLen=${token.length}`);
 
-      const diag = await api.phase6.getEdrDiagnostics(transferId.trim(), false);
+      const diag = await api.phase6.getEdrDiagnostics(
+        transferId.trim(),
+        false,
+        partnerDetails?.management_url,
+      );
       if (diag.success) {
         const t = diag.currentEdr?.tokenTiming?.timing as JwtTiming | undefined;
         const capturedAt = diag.currentEdr?.capturedAt as string | undefined;
@@ -337,7 +349,11 @@ export default function EdrLabPage() {
 
     if (!silent) setRunningAction(forceRefresh ? "diag-refresh" : "diag");
     try {
-      const result = await api.phase6.getEdrDiagnostics(transferId.trim(), forceRefresh);
+      const result = await api.phase6.getEdrDiagnostics(
+        transferId.trim(),
+        forceRefresh,
+        partnerDetails?.management_url,
+      );
       setDiagnostics(result);
 
       if (!result.success) {
@@ -383,7 +399,11 @@ export default function EdrLabPage() {
 
     setRunningAction(forceRefresh ? "fresh-force" : "fresh");
     try {
-      const result = await api.phase6.getFreshToken(transferId.trim(), forceRefresh);
+      const result = await api.phase6.getFreshToken(
+        transferId.trim(),
+        forceRefresh,
+        partnerDetails?.management_url,
+      );
       if (!result.success) {
         addLog(`Renovacion fallo: ${result.error || "sin detalle"}`);
         return;

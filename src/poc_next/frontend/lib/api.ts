@@ -272,15 +272,31 @@ export const api = {
 
       return { blob, contentType, filename };
     },
-    getTransferEdr: (transferId: string) => apiRequest<{ success: boolean; edr?: any; cached: boolean; error?: string; message?: string }>(
-      `/api/phase6/transfer-edr/${transferId}`,
-      { method: 'GET' }
-    ),
-    getFreshToken: (transferId: string, forceRefresh: boolean = false) => apiRequest<{ success: boolean; token?: string; endpoint?: string; error?: string; tokenDiagnostics?: any }>(
-      `/api/phase6/get-fresh-token/${transferId}?force_refresh=${forceRefresh}`,
-      { method: 'GET' }
-    ),
-    getEdrDiagnostics: (transferId: string, forceRefresh: boolean = false) => apiRequest<{
+    getTransferEdr: (transferId: string, consumerManagementUrl?: string) => {
+      const params = new URLSearchParams();
+      if (consumerManagementUrl) params.append('consumer_management_url', consumerManagementUrl);
+
+      return apiRequest<{ success: boolean; edr?: any; cached: boolean; error?: string; message?: string }>(
+        `/api/phase6/transfer-edr/${transferId}${params.toString() ? '?' + params.toString() : ''}`,
+        { method: 'GET' }
+      );
+    },
+    getFreshToken: (transferId: string, forceRefresh: boolean = false, consumerManagementUrl?: string) => {
+      const params = new URLSearchParams();
+      params.append('force_refresh', String(forceRefresh));
+      if (consumerManagementUrl) params.append('consumer_management_url', consumerManagementUrl);
+
+      return apiRequest<{ success: boolean; token?: string; endpoint?: string; error?: string; tokenDiagnostics?: any }>(
+        `/api/phase6/get-fresh-token/${transferId}?${params.toString()}`,
+        { method: 'GET' }
+      );
+    },
+    getEdrDiagnostics: (transferId: string, forceRefresh: boolean = false, consumerManagementUrl?: string) => {
+      const params = new URLSearchParams();
+      params.append('force_refresh', String(forceRefresh));
+      if (consumerManagementUrl) params.append('consumer_management_url', consumerManagementUrl);
+
+      return apiRequest<{
       success: boolean;
       serverTimeUtc?: string;
       transfer?: any;
@@ -288,17 +304,23 @@ export const api = {
       refreshAttempt?: any;
       error?: string;
     }>(
-      `/api/phase6/edr-diagnostics/${transferId}?force_refresh=${forceRefresh}`,
-      { method: 'GET' }
-    ),
-    getTransferStatus: (transferId: string) => apiRequest<{ 
-      success: boolean; 
-      transfer: any;
-      error?: string;
-    }>(
-      `/api/phase6/transfer-status/${transferId}`,
-      { method: 'GET' }
-    ),
+        `/api/phase6/edr-diagnostics/${transferId}?${params.toString()}`,
+        { method: 'GET' }
+      );
+    },
+    getTransferStatus: (transferId: string, consumerManagementUrl?: string) => {
+      const params = new URLSearchParams();
+      if (consumerManagementUrl) params.append('consumer_management_url', consumerManagementUrl);
+
+      return apiRequest<{ 
+        success: boolean; 
+        transfer: any;
+        error?: string;
+      }>(
+        `/api/phase6/transfer-status/${transferId}${params.toString() ? '?' + params.toString() : ''}`,
+        { method: 'GET' }
+      );
+    },
     getSharePointInfo: (transferId: string) => apiRequest<{
       success: boolean;
       is_sharepoint: boolean;

@@ -23,7 +23,13 @@ def is_monitoring(transfer_id: str) -> bool:
     return transfer_id in _monitoring_transfers
 
 
-async def monitor_transfer_for_edr(transfer_id: str, max_attempts: int = 60, interval: float = 1.0) -> Optional[Dict[str, Any]]:
+async def monitor_transfer_for_edr(
+    transfer_id: str,
+    max_attempts: int = 60,
+    interval: float = 1.0,
+    management_url: Optional[str] = None,
+    api_key: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
     """
     Monitor a transfer process and capture its EDR when it becomes available.
     
@@ -54,8 +60,10 @@ async def monitor_transfer_for_edr(transfer_id: str, max_attempts: int = 60, int
     print(f"🚀 Starting EDR monitor for transfer {transfer_id}")
     
     # Create client with increased timeout for monitor (60s vs default 30s)
-    ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
-    ikln_client._client = httpx.AsyncClient(timeout=60.0, verify=False)
+    monitor_management_url = (management_url or settings.ikln_management_url).rstrip("/")
+    monitor_api_key = (api_key or settings.ikln_api_key)
+    monitor_client = EdcManagementClient(monitor_management_url, monitor_api_key)
+    monitor_client._client = httpx.AsyncClient(timeout=60.0, verify=False)
     
     try:
         consecutive_unavailable = 0
@@ -64,12 +72,25 @@ async def monitor_transfer_for_edr(transfer_id: str, max_attempts: int = 60, int
         for attempt in range(max_attempts):
             try:
                 # Get current transfer state
-                transfer = await ikln_client.get_transfer(transfer_id)
+                transfer = await monitor_client.get_transfer(transfer_id)
                 state = transfer.get("state")
             except httpx.ReadTimeout:
                 # Handle timeout gracefully and continue monitoring
                 logger.warning(f"⏱️ Timeout getting transfer {transfer_id} attempt {attempt+1}/{max_attempts}, retrying...")
                 await asyncio.sleep(interval * 2)  # Double interval after timeout
+                continue
+            except httpx.HTTPStatusError as e:
+                status = e.response.status_code if e.response else None
+                if status == 404:
+                    logger.warning(
+                        f"⛔ Transfer {transfer_id} not found in connector {monitor_management_url}; "
+                        f"stopping monitor"
+                    )
+                    return None
+                logger.warning(
+                    f"⚠️ HTTP error polling transfer {transfer_id} (status={status}) in {monitor_management_url}: {e}"
+                )
+                await asyncio.sleep(interval)
                 continue
             
             logger.info(f"📊 Transfer {transfer_id} attempt {attempt + 1}/{max_attempts}: state={state}")
@@ -101,7 +122,7 @@ async def monitor_transfer_for_edr(transfer_id: str, max_attempts: int = 60, int
             
             # 2. Query EDRs endpoint
             if not edr_data:
-                edr_result = await ikln_client.get_edr_for_transfer(transfer_id)
+                edr_result = await monitor_client.get_edr_for_transfer(transfer_id)
                 
                 # Check if it's an error dict (config error or STS unavailable)
                 if edr_result and isinstance(edr_result, dict) and "error" in edr_result:
@@ -174,7 +195,7 @@ async def monitor_transfer_for_edr(transfer_id: str, max_attempts: int = 60, int
         # Always remove from monitoring set and close client
         _monitoring_transfers.discard(transfer_id)
         logger.info(f"🏁 Monitor completed for transfer {transfer_id}")
-        await ikln_client.close()
+        await monitor_client.close()
 
 
 def get_cached_edr(transfer_id: str) -> Optional[Dict[str, Any]]:

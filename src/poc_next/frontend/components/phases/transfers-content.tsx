@@ -198,7 +198,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
         }
 
         try {
-          const result = await api.phase6.getTransferStatus(transferId);
+          const result = await api.phase6.getTransferStatus(transferId, partnerDetails?.management_url);
           
           if (result.success && result.transfer) {
             const newState = result.transfer.state;
@@ -465,7 +465,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
     const handleRefreshTransferValidity = async (transfer: Transfer) => {
       addLog(`🔄 Solicitando refresh de validez para transfer ${transfer.id}...`);
       try {
-        const result = await api.phase6.getFreshToken(transfer.id, true);
+        const result = await api.phase6.getFreshToken(transfer.id, true, partnerDetails?.management_url);
 
         if (!result.success) {
           addLog(`❌ No se pudo refrescar la validez: ${result.error || 'sin detalle'}`);
@@ -518,7 +518,7 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
         if (!endpoint) {
           addLog(`   ⏳ Obteniendo EDR endpoint...`);
           try {
-            const result = await api.phase6.getTransferEdr(transferId);
+            const result = await api.phase6.getTransferEdr(transferId, partnerDetails?.management_url);
             if (result.success && result.edr) {
               endpoint = result.edr.endpoint;
               addLog(`   ✅ EDR obtenido`);

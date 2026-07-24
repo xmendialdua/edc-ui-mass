@@ -465,7 +465,7 @@ async def download_folder(
         
         zip_content, zip_filename = gateway.download_folder_as_zip(
             drive_id=drive_id,
-            folder_id=item_id
+            item_id=item_id
         )
         
         return StreamingResponse(
