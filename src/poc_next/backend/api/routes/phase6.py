@@ -284,6 +284,7 @@ class DownloadFileRequest(BaseModel):
     transferId: str
     endpoint: str
     token: str
+    consumerManagementUrl: Optional[str] = None
 
 
 @router.post("/catalog-request")
@@ -1407,15 +1408,22 @@ async def download_file(request: DownloadFileRequest):
         token = request.token
         endpoint = request.endpoint
 
-        ikln_client = EdcManagementClient(settings.ikln_management_url, settings.ikln_api_key)
+        consumer_mgmt = (request.consumerManagementUrl or "").strip() or settings.ikln_management_url
+        try:
+            consumer_api_key = get_consumer_api_key(consumer_mgmt)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        consumer_client = EdcManagementClient(consumer_mgmt, consumer_api_key)
         mass_client = EdcManagementClient(settings.mass_management_url, settings.mass_api_key)
         
         logger.info(f"{'='*80}\n")
         logger.info(f"🔍 Requested: download-file")
+        logger.info(f"🔍 Consumer management URL: {consumer_mgmt}")
 
         try:
             if not token:
-                edr_data = await ikln_client.get_edr_for_transfer(request.transferId)
+                edr_data = await consumer_client.get_edr_for_transfer(request.transferId)
                 if edr_data:
                     token = edr_data.get("authorization")
                     endpoint = edr_data.get("endpoint")
@@ -1423,9 +1431,19 @@ async def download_file(request: DownloadFileRequest):
             if not token or not endpoint:
                 raise HTTPException(status_code=400, detail="Token or endpoint not available")
 
-            # Get transfer to extract asset_id
-            transfer = await ikln_client.get_transfer(request.transferId)
-            asset_id = transfer.get("assetId", "")
+            # Transfer metadata is optional for the download itself.
+            # If this lookup fails (e.g. stale/mismatched transfer id), keep downloading.
+            asset_id = ""
+            try:
+                transfer = await consumer_client.get_transfer(request.transferId)
+                asset_id = transfer.get("assetId", "")
+            except httpx.HTTPStatusError as transfer_error:
+                logger.warning(
+                    "⚠️ Could not load transfer metadata for %s from %s: HTTP %s. Continuing download with fallback filename.",
+                    request.transferId,
+                    consumer_mgmt,
+                    transfer_error.response.status_code,
+                )
 
             # Log request details
             logger.info(f"🔍 Downloading from EDR endpoint: {endpoint}")
@@ -1455,7 +1473,7 @@ async def download_file(request: DownloadFileRequest):
                     )
 
                     logger.info(f"    Trying to get the EDR for transfer {request.transferId} with forced refresh")
-                    fresh_edr = await ikln_client.get_edr_for_transfer(
+                    fresh_edr = await consumer_client.get_edr_for_transfer(
                         request.transferId,
                         force_dataaddress_refresh=True,
                     )
@@ -1530,7 +1548,7 @@ async def download_file(request: DownloadFileRequest):
                     filename = None
                     try:
                         # Get asset to check if it's SharePoint
-                        asset = await mass_client.get_asset(asset_id)
+                        asset = await mass_client.get_asset(asset_id) if asset_id else None
                         if asset:
                             base_url = asset.get("dataAddress", {}).get("baseUrl", "")
                             
@@ -1595,7 +1613,7 @@ async def download_file(request: DownloadFileRequest):
                     }
                 )
         finally:
-            await ikln_client.close()
+            await consumer_client.close()
             await mass_client.close()
 
     except httpx.HTTPStatusError as e:

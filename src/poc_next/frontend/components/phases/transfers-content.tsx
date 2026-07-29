@@ -546,7 +546,8 @@ const TransfersContent = forwardRef<{ refresh: () => void }, TransfersContentPro
         const { blob, contentType, filename } = await api.phase6.downloadFile({
           transferId: transferId,
           endpoint: endpoint,
-          token: edrToken || ''
+          token: edrToken || '',
+          consumerManagementUrl: partnerDetails?.management_url,
         });
 
         addLog(`   📄 Tipo de archivo: ${contentType}`);

@@ -231,7 +231,7 @@ export const api = {
         '/api/phase6/initiate-transfer-for-contract',
         { method: 'POST', body: JSON.stringify(data) }
       ),
-    downloadFile: async (data: { transferId: string; endpoint: string; token: string }): Promise<{ blob: Blob; contentType: string; filename: string }> => {
+    downloadFile: async (data: { transferId: string; endpoint: string; token: string; consumerManagementUrl?: string }): Promise<{ blob: Blob; contentType: string; filename: string }> => {
       const response = await fetch(`${API_BASE_URL}/api/phase6/download-file`, {
         method: 'POST',
         headers: {
