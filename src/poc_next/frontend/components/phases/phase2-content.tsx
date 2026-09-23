@@ -65,8 +65,8 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
   const [sharePointAllowedFolder, setSharePointAllowedFolder] = useState('05.Dataspace'); // Configurable
   const [sharePointInsideAllowedFolder, setSharePointInsideAllowedFolder] = useState(false); // Track if inside allowed folder
   
-  // SharePoint site URL
-  const SHAREPOINT_SITE_URL = 'https://ikerlan.sharepoint.com/sites/IKDataSpace';
+  // SharePoint site URL - cargada desde el backend (GET /api/config/sharepoint)
+  const [sharePointSiteUrl, setSharePointSiteUrl] = useState('https://ikerlan.sharepoint.com/sites/IKDataSpace');
 
   // Partners disponibles cargados desde la base de datos
   const [availablePartners, setAvailablePartners] = useState<Partner[]>([]);
@@ -105,7 +105,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
     
     try {
       const result = await api.sharepoint.listFilesBySiteUrl(
-        SHAREPOINT_SITE_URL,
+        sharePointSiteUrl,
         folderId
       );
       
@@ -291,7 +291,8 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
       if (response.ok) {
         const config = await response.json();
         setSharePointAllowedFolder(config.allowed_folder || '05.Dataspace');
-        console.log(`✅ SharePoint config loaded: allowed_folder="${config.allowed_folder}"`);
+        setSharePointSiteUrl(config.site_url || 'https://ikerlan.sharepoint.com/sites/IKDataSpace');
+        console.log(`✅ SharePoint config loaded: allowed_folder="${config.allowed_folder}", site_url="${config.site_url}"`);
       }
     } catch (error) {
       console.error('Error loading SharePoint config, using default:', error);
