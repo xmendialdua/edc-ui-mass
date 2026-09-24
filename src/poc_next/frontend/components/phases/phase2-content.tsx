@@ -1184,7 +1184,7 @@ const Phase2Content = forwardRef<any, Phase2ContentProps>(({ onLog, phase4Ref },
                           }}
                         >
                           <Home size={16} />
-                          IKDataSpace
+                          {sharePointSiteUrl.split('/').filter(Boolean).pop() || 'Sitio'}
                         </button>
                         
                         {sharePointFolderPath.map((folder, index) => (

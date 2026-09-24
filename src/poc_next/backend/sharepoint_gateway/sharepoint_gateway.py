@@ -222,21 +222,23 @@ class SharePointGateway:
         """
         try:
             # Step 1: Parse the site URL and construct Graph API format
+            # Graph requires "hostname:/path:" regardless of whether the path
+            # starts with /sites/ (site collection) or any other root path.
             # Input: https://ikerlan.sharepoint.com/sites/IKDataSpace
             # Output: ikerlan.sharepoint.com:/sites/IKDataSpace:
+            # Input: https://mondragonassembly.sharepoint.com/dataspace
+            # Output: mondragonassembly.sharepoint.com:/dataspace:
             
             # Remove protocol if present
-            parsed_url = site_url.replace('https://', '').replace('http://', '')
+            parsed_url = site_url.replace('https://', '').replace('http://', '').rstrip('/')
             
             # Split hostname and path
-            if '/sites/' in parsed_url:
-                parts = parsed_url.split('/sites/', 1)
-                hostname = parts[0]
-                site_path = parts[1]
-                # Construct Graph API format: hostname:/sites/path:
-                graph_site_format = f"{hostname}:/sites/{site_path}:"
+            if '/' in parsed_url:
+                hostname, site_path = parsed_url.split('/', 1)
+                # Construct Graph API format: hostname:/path:
+                graph_site_format = f"{hostname}:/{site_path}:"
             else:
-                # If no /sites/ path, use the URL as-is (might be just hostname)
+                # No path, just the hostname (root site)
                 graph_site_format = parsed_url
             
             # Step 2: Get the site ID using correct format

@@ -41,7 +41,8 @@ data:
   NEXT_PUBLIC_AZURE_REDIRECT_URI: "https://ds-management.51.178.94.25.nip.io"
   
   # SharePoint Configuration
-  NEXT_PUBLIC_SHAREPOINT_SITE_URL: "https://ikerlan.sharepoint.com/sites/IKDataSpace"
+  NEXT_PUBLIC_SHAREPOINT_SITE_URL: "https://mondragonassembly.sharepoint.com/dataspace"
+  SHAREPOINT_SITE_URL: "https://mondragonassembly.sharepoint.com/dataspace"
   SHAREPOINT_DRIVE_ID: "db572124-e392-4921-b1f7-7c2d73b328c2"
 ---
 apiVersion: v1

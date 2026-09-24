@@ -35,7 +35,9 @@ export FRONTEND_IMAGE
 export FRONTEND_IMAGE_TAG_VERSION
 export BACKEND_IMAGE
 export BACKEND_IMAGE_TAG_VERSION
-export OVH_HOST 
+export OVH_HOST
+export BACKEND_SERVICE_PORT
+export FRONTEND_SERVICE_PORT
 
 echo -e "${BLUE}════════════════════════════════════════════════════════${NC}"
 echo -e "${BLUE}   🚀 Deploying POC Next to OVH Kubernetes             ${NC}"

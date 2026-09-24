@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { fetchAvailablePartners, Partner } from "@/lib/partners";
+import { getApiBaseUrl } from "@/lib/api";
 
 export default function DataPublicationPage() {
   const [connectorStatus] = useState<"checking" | "connected" | "disconnected">("connected");
@@ -46,7 +47,7 @@ export default function DataPublicationPage() {
     setSharePointAuthenticating(true);
     
     try {
-      const response = await fetch('http://localhost:5001/api/sharepoint/status');
+      const response = await fetch(`${getApiBaseUrl()}/api/sharepoint/status`);
       
       if (!response.ok) {
         console.error('Error fetching SharePoint status:', response.statusText);

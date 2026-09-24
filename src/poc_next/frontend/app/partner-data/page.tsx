@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Phase5Content from "@/components/phases/phase5-content";
 import NegotiationsContent from "@/components/phases/negotiations-content";
 import TransfersContent from "@/components/phases/transfers-content";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 import Image from "next/image";
 import { RefreshCw, LogOut } from "lucide-react";
 
@@ -131,7 +131,7 @@ export default function PartnerDataPage() {
     setSharePointAuthenticating(true);
     
     try {
-      const response = await fetch('http://localhost:5001/api/sharepoint/status');
+      const response = await fetch(`${getApiBaseUrl()}/api/sharepoint/status`);
       
       if (!response.ok) {
         console.error('Error fetching SharePoint status:', response.statusText);
