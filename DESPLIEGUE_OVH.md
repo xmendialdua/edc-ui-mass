@@ -21,34 +21,29 @@ La aplicación gestiona dos conectores EDC desplegados en la misma infraestructu
 
 ---
 
-## 2. Script de Despliegue Específico OVH
+## 2. Flujo de Despliegue en OVH
 
-### Archivo: `ui/k8s/deploy-ovh.sh`
+El despliegue se realiza construyendo y publicando primero la imagen desde `src/poc_next`, y aplicando después los manifiestos de Kubernetes desde su subdirectorio `k8s`:
 
 ```bash
-#!/bin/bash
+# Construir la imagen y hacer push
+cd ~/projects/assembly/iflex/src/poc_next
+./build-k8s_OVH.sh
 
-# Script de despliegue para EDC UI en OVH
-# Uso: ./deploy-ovh.sh
-
-export KUBECONFIG=/home/xmendialdua/projects/assembly/tractus-x-umbrella/kubeconfig.yaml
-
-# Verificación de conectividad con el cluster
-# Ejecución del script de despliegue principal
-cd ~/projects/assembly/iflex/ui
-bash k8s/deploy.sh
+# Desplegar en OVH; deploy-ovh.sh llama a deploy.sh
+cd k8s
+./deploy-ovh.sh
 ```
 
-**Características:**
-- Configura el path al archivo `kubeconfig.yaml` del cluster OVH
-- Verifica conectividad antes de desplegar
-- Delega el despliegue al script principal `deploy.sh`
+No se debe usar el flujo anterior desde `ui` (`cd ~/projects/assembly/iflex/ui` seguido de `bash k8s/deploy.sh`) para desplegar en OVH.
 
 ---
 
-## 3. Modificaciones en el Script Principal de Despliegue
+## 3. Flujo Anterior de Despliegue de la UI
 
 ### Archivo: `ui/k8s/deploy.sh`
+
+Esta información describe el flujo anterior de despliegue desde `ui`; no es el procedimiento actual para OVH. El proceso vigente se describe en la sección 9.
 
 #### 3.1 Uso de Imagen Pre-construida de Docker Hub
 
@@ -269,27 +264,16 @@ data:
 ### Paso a Paso
 
 ```bash
-# 1. Navegar al directorio del proyecto
-cd ~/projects/assembly/iflex/ui/k8s
+# 1. Construir la imagen y hacer push
+cd ~/projects/assembly/iflex/src/poc_next
+./build-k8s_OVH.sh
 
-# 2. Ejecutar script de despliegue OVH
+# 2. Desplegar en OVH desde k8s
+cd k8s
 ./deploy-ovh.sh
 ```
 
-**El script automáticamente:**
-1. Configura KUBECONFIG para cluster OVH
-2. Verifica conectividad con el cluster
-3. Crea namespace `edc-ui` si no existe
-4. Actualiza referencias de namespace en archivos YAML
-5. Aplica configuraciones de Kubernetes:
-   - RBAC (Service Account, Roles, RoleBindings)
-   - ConfigMap
-   - Deployment
-   - Service
-   - Ingress
-6. Espera a que el deployment esté listo
-7. Muestra la URL de acceso
-
+`build-k8s_OVH.sh` construye la imagen y hace push. Después, `deploy-ovh.sh` llama a `deploy.sh` para aplicar la configuración de Kubernetes al cluster OVH.
 ---
 
 ## 10. Seguridad y Consideración de Producción
@@ -335,9 +319,9 @@ Estos conectores pueden activarse descomentando las secciones correspondientes.
 
 | Componente | Cambio | Motivo |
 |------------|--------|--------|
-| **deploy-ovh.sh** | Nuevo script específico para OVH | Configurar kubeconfig correcto |
-| **deploy.sh** | Desactivar build/push de imagen | Usar imagen pre-construida |
-| **deploy.sh** | Comentar detección de kind cluster | No aplicable en OVH |
+| **build-k8s_OVH.sh** | Construir la imagen y hacer push antes del despliegue | Publicar la imagen que utilizará OVH |
+| **k8s/deploy-ovh.sh** | Punto de entrada del despliegue; llama a `deploy.sh` | Aplicar la configuración al cluster OVH |
+| **ui/k8s/deploy.sh** | Flujo anterior; no se ejecuta directamente para OVH | El despliegue actual usa `src/poc_next/k8s/deploy-ovh.sh` |
 | **ingress.yaml** | Host: `edc-ui.51.178.94.25.nip.io` | URL pública del servicio |
 | **ingress.yaml** | `ssl-redirect: "false"` | Funcionar sin certificados SSL |
 | **edc-config.ts** | URLs con IP 51.178.94.25 | Apuntar a conectores en OVH |
